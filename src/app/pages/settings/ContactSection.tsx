@@ -6,10 +6,11 @@ import { useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
 import { unwrapList } from "../../lib/lists";
 import { Badge } from "../../ui/Badge";
-import { Button, IconButton } from "../../ui/Button";
+import { Button } from "../../ui/Button";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { FormError, TextInput, Toggle } from "../../ui/Field";
 import { List, ListRow } from "../../ui/List";
+import { Menu } from "../../ui/Menu";
 import { Sheet, SheetBody, SheetFooter } from "../../ui/Sheet";
 import { ErrorState, LoadingBlock } from "../../ui/States";
 import { Avatar } from "../../ui/Thumb";
@@ -119,20 +120,26 @@ function TrustedContacts() {
                   ) : undefined
                 }
                 trailing={
-                  <span className="flex">
-                    <IconButton
-                      icon="edit"
-                      size="sm"
-                      label={t("contacts.edit", { name: c.name })}
-                      onClick={() => setEditing(c)}
-                    />
-                    <IconButton
-                      icon="trash"
-                      size="sm"
-                      label={t("contacts.remove", { name: c.name })}
-                      onClick={() => setRemoving(c)}
-                    />
-                  </span>
+                  <Menu
+                    label={t("contacts.actions", { name: c.name })}
+                    variant="ghost"
+                    size="sm"
+                    items={[
+                      {
+                        key: "edit",
+                        label: t("common.edit"),
+                        icon: "edit",
+                        onSelect: () => setEditing(c),
+                      },
+                      {
+                        key: "remove",
+                        label: t("contacts.removeShort"),
+                        icon: "trash",
+                        tone: "danger",
+                        onSelect: () => setRemoving(c),
+                      },
+                    ]}
+                  />
                 }
               />
             ))}

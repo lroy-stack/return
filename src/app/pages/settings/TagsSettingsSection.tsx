@@ -1,7 +1,26 @@
+import { BRAND } from "../../../shared/brand";
 import { CARD_THEMES, LANGUAGES, type Language } from "../../../shared/settings";
 import { useT } from "../../lib/i18n";
-import { Select, TextInput, Toggle } from "../../ui/Field";
+import { TextInput, Toggle } from "../../ui/Field";
+import { Select } from "../../ui/Select";
 import { FieldGroup, LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
+
+type CardTheme = (typeof CARD_THEMES)[number];
+
+/**
+ * Front colour of each card theme (mirrors `front.background` in src/shared/card/themes.ts). Read from BRAND, not
+ * CARD_PALETTES: importing the card module here would pull the whole card renderer chunk into the initial load.
+ */
+const FRONT: Record<CardTheme, string> = { petrol: BRAND.petrol, sage: BRAND.sage, warm: BRAND.warmWhite };
+
+/** Colour of the card front as a small dot (decorative; the option label names the theme). */
+function ThemeDot({ theme }: { theme: CardTheme }) {
+  return (
+    <svg viewBox="0 0 20 20" className="size-5" aria-hidden="true">
+      <circle cx="10" cy="10" r="9" fill={FRONT[theme]} className="stroke-line-strong" strokeWidth="1" />
+    </svg>
+  );
+}
 
 export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
   const t = useT();
@@ -37,36 +56,30 @@ export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
         />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Select
+        <Select<CardTheme>
           label={t("tagsCfg.theme")}
+          options={CARD_THEMES.map((c) => ({
+            value: c,
+            label: t(`theme.card.${c}` as const),
+            leading: <ThemeDot theme={c} />,
+          }))}
           value={tg.cardTheme}
-          onChange={(e) =>
+          onChange={(v) =>
             update((d) => {
-              d.tags.cardTheme = e.target.value as (typeof CARD_THEMES)[number];
+              d.tags.cardTheme = v;
             })
           }
-        >
-          {CARD_THEMES.map((c) => (
-            <option key={c} value={c}>
-              {t(`theme.card.${c}` as const)}
-            </option>
-          ))}
-        </Select>
-        <Select
+        />
+        <Select<Language>
           label={t("tagsCfg.cardLanguage")}
+          options={LANGUAGES.map((l) => ({ value: l, label: LANGUAGE_NAMES[l] }))}
           value={tg.cardLanguage}
-          onChange={(e) =>
+          onChange={(v) =>
             update((d) => {
-              d.tags.cardLanguage = e.target.value as Language;
+              d.tags.cardLanguage = v;
             })
           }
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l} value={l}>
-              {LANGUAGE_NAMES[l]}
-            </option>
-          ))}
-        </Select>
+        />
       </div>
       <Toggle
         label={t("tagsCfg.showName")}

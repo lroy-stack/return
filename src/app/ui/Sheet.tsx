@@ -10,7 +10,7 @@ const DISMISS_PX = 96;
  * Native <dialog> shown modally. Phone: glass bottom sheet with a grabber (drag down or tap the scrim to close).
  * Tablet/desktop: floating side panel. `placement="compact"`: bottom sheet on phones, small centred panel from
  * 640 px (short menus). `placement="center"`: compact alert (confirmations) on every size.
- * The browser traps focus, closes on Escape and restores focus to the opener. Children mount only while open,
+ * The browser traps focus, sends Escape as a `cancel` request and restores focus to the opener. Children mount only while open,
  * so forms reset every time.
  */
 export function Sheet({
@@ -47,6 +47,21 @@ export function Sheet({
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
   }, [open]);
+
+  // Tap / click on the scrim. The ::backdrop pseudo-element cannot hold a child, so its clicks target the
+  // <dialog> itself; the listener is attached here rather than as JSX onClick because the keyboard equivalent is
+  // the native `cancel` (Escape) handled below, not a key handler on the dialog.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    const onBackdrop = (e: MouseEvent) => {
+      if (e.target === d) onCloseRef.current();
+    };
+    d.addEventListener("click", onBackdrop);
+    return () => d.removeEventListener("click", onBackdrop);
+  }, []);
 
   const canDrag = () => placement !== "center" && window.matchMedia(PHONE).matches;
 
@@ -89,14 +104,17 @@ export function Sheet({
       data-placement={placement === "auto" ? undefined : placement}
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
+      // Escape / Android back fire the native `cancel` event. Keep the dialog open and let the parent close it
+      // through `open`, so a parent that ignores onClose (e.g. while saving) keeps the sheet. Controls that use
+      // Escape themselves (Select, Combobox, Menu) cancel the keydown, so no close request reaches the dialog.
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      // Fires for every close, including ours. Only a close the parent did not ask for (open is still true, e.g.
+      // the browser skipped a repeated cancel) is reported; a late event after a programmatic close never is.
       onClose={() => {
         if (openRef.current) onClose();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
-      }}
-      onClick={(e) => {
-        if (e.target === ref.current) onClose();
       }}
     >
       {open ? (

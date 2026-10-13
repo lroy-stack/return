@@ -50,11 +50,11 @@ export function PrivacySection({ draft, update, errors }: SectionProps) {
       />
       <p className="text-subhead text-muted">
         {t("privacy.exportLead")}{" "}
-        <Link to="/settings/system" className="font-medium text-primary-text underline">
+        <Link to="/settings/system" className="touch-target font-medium text-primary-text underline">
           {t("settings.system")}
         </Link>
         . {t("privacy.activityLead")}{" "}
-        <Link to="/settings/activity" className="font-medium text-primary-text underline">
+        <Link to="/settings/activity" className="touch-target font-medium text-primary-text underline">
           {t("settings.activity")}
         </Link>
         .

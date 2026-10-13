@@ -9,8 +9,12 @@ import {
 import { cx } from "./cx";
 import { Icon, type IconName } from "./Icon";
 
-/** Shared control chrome: raised field, 44 px min, 14 px radius, >= 3:1 boundary, error state via aria-invalid. */
-const CONTROL =
+/**
+ * Shared control chrome: raised field, 44 px min, >= 3:1 boundary, error state via aria-invalid. Text entry uses
+ * the 14 px control radius; choice controls (Select, Combobox, SearchField) add `rounded-full` (pill language of
+ * chips, buttons and search).
+ */
+export const CONTROL =
   "block w-full min-h-11 rounded-control border border-line-strong bg-raised px-3.5 text-body text-fg placeholder:text-muted transition-colors duration-150 hover:border-fg/60 disabled:opacity-55 disabled:hover:border-line-strong aria-[invalid=true]:border-danger aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-danger";
 
 export interface FieldProps {
@@ -23,20 +27,27 @@ export interface FieldProps {
   className?: string;
 }
 
-interface FieldIds {
+export interface FieldIds {
   id: string;
+  labelId: string;
   hintId: string;
   errorId: string;
   counterId: string;
 }
 
-function useFieldIds(explicit?: string): FieldIds {
+export function useFieldIds(explicit?: string): FieldIds {
   const auto = useId();
   const id = explicit ?? auto;
-  return { id, hintId: `${id}-hint`, errorId: `${id}-error`, counterId: `${id}-count` };
+  return {
+    id,
+    labelId: `${id}-label`,
+    hintId: `${id}-hint`,
+    errorId: `${id}-error`,
+    counterId: `${id}-count`,
+  };
 }
 
-const describedBy = (ids: FieldIds, hint: unknown, error: unknown, counter: boolean) =>
+export const describedBy = (ids: FieldIds, hint: unknown, error: unknown, counter: boolean) =>
   [hint ? ids.hintId : null, error ? ids.errorId : null, counter ? ids.counterId : null]
     .filter(Boolean)
     .join(" ") || undefined;
@@ -60,7 +71,7 @@ function Counter({ id, length, max }: { id: string; length: number; max: number 
  * Label + control + hint + error (+ counter). Errors are linked with aria-describedby and announced by the
  * form-level `FormError` (role=alert); the field itself is not a live region to avoid double announcements.
  */
-function FieldShell({
+export function FieldShell({
   ids,
   label,
   labelHidden,
@@ -74,7 +85,11 @@ function FieldShell({
   return (
     <div className={cx("flex min-w-0 flex-col gap-1.5", className)}>
       <div className={cx("flex items-baseline justify-between gap-3", labelHidden && !counter && "sr-only")}>
-        <label htmlFor={ids.id} className={cx("text-subhead font-medium", labelHidden && "sr-only")}>
+        <label
+          id={ids.labelId}
+          htmlFor={ids.id}
+          className={cx("text-subhead font-medium", labelHidden && "sr-only")}
+        >
           {label}
           {required ? (
             <span className="text-danger" aria-hidden="true">
@@ -188,6 +203,11 @@ export function TextArea({
   );
 }
 
+/**
+ * @deprecated Use `Select` (or `Combobox` for long lists) from `ui/Select.tsx`: options-array API, glass listbox
+ * on fine pointers, native picker on coarse pointers. Kept, in the same pill shape, only until the remaining call
+ * sites migrate (see docs/design/system.md § Selection); delete it then.
+ */
 export function Select({
   label,
   labelHidden,
@@ -208,13 +228,13 @@ export function Select({
           required={required}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy(ids, hint, error, false)}
-          className={cx(CONTROL, "appearance-none pr-10")}
+          className={cx(CONTROL, "peer appearance-none truncate rounded-full pr-10 pl-4")}
         >
           {children}
         </select>
         <Icon
           name="chevron_down"
-          className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted"
+          className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted peer-disabled:opacity-55"
         />
       </div>
     </FieldShell>
@@ -276,7 +296,7 @@ export function SearchField({
             ref.current?.focus();
           }}
           aria-label={clearLabel}
-          className="absolute top-1/2 right-1 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:bg-fill hover:text-fg"
+          className="absolute top-1/2 right-0.5 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:bg-fill hover:text-fg"
         >
           <Icon name="close" className="size-4" />
         </button>

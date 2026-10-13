@@ -79,7 +79,10 @@ export function PageHeader({
 }
 
 /**
- * Action bar. `floating`: glass capsule pinned above the bottom chrome (bulk selection, unsaved changes).
+ * Action bar. `floating`: glass capsule pinned above the bottom chrome (bulk selection), centred on the content
+ * column (right of the rail/sidebar). `floating="column"`: the same capsule, sticky at the bottom of its own
+ * column (e.g. a settings detail pane): it takes space in the flow only while rendered, so pages need no
+ * permanent bottom padding for it, and it rests under the last card at the end of the page.
  * Inline: a row of controls aligned with the content (filters).
  */
 export function Toolbar({
@@ -91,17 +94,26 @@ export function Toolbar({
   children: ReactNode;
   /** Accessible name of the toolbar. */
   label: string;
-  floating?: boolean;
+  floating?: boolean | "column";
   className?: string;
 }) {
+  const capsule = "glass no-print z-30 justify-between rounded-full py-2 pr-2 pl-4";
   return (
     <div
       role="toolbar"
       aria-label={label}
       className={cx(
         "flex flex-wrap items-center gap-2",
-        floating &&
-          "glass no-print fixed inset-x-3 bottom-[calc(var(--shell-bottom)+0.75rem)] z-30 mx-auto max-w-xl justify-between rounded-full py-2 pr-2 pl-4 sm:bottom-6",
+        floating === true &&
+          cx(
+            capsule,
+            "fixed right-3 bottom-[calc(var(--shell-bottom)+0.75rem)] left-[calc(var(--shell-left)+0.75rem)] mx-auto max-w-xl sm:bottom-6",
+          ),
+        floating === "column" &&
+          cx(
+            capsule,
+            "sticky bottom-[calc(var(--shell-bottom)+0.75rem)] mx-auto mt-6 w-full max-w-xl sm:bottom-6",
+          ),
         className,
       )}
     >

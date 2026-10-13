@@ -102,6 +102,9 @@ Rule: plain `muted` is **not** allowed on glass (3.1:1 worst case at 74 %; that 
 
 Fallbacks (automatic, token-level): `prefers-reduced-transparency: reduce`, `prefers-contrast: more`, no
 `backdrop-filter` support → `--glass*` = solid, filter `none`; increased contrast also strengthens `muted` and `line`.
+These blocks list `:root, :root:not([data-theme="light"]), [data-theme]` and come after the theme blocks: the OS-dark
+block has specificity 0-2-0, so a plain `:root` override lost to it in Auto + OS dark (fixed 2026-10-13; verified in
+all four combinations light/dark × Auto/explicit).
 `forced-colors` draws real borders. QA switch: `data-transparency="reduce"` on any element (gallery checkbox).
 
 Performance rules: at most **3 blurred layers on screen** (header, tab bar, one toast/sheet); never blur inside
@@ -133,8 +136,16 @@ URLs `font-mono`.
   master–detail splits. Touch sizing follows `pointer-coarse:`, not width.
 - **Grids**: content max 72rem (`max-w-page`), prose 40rem; inventory 2 / 3 / 4 columns (phone / md / xl);
   `SplitView` list 17–22rem + detail from 768 px; settings nav 13–16rem.
-- **Radius**: control 14 (`rounded-control`), card 20 (`rounded-card`), sheet/chrome 28 (`rounded-sheet`), pills full.
-  Nested radius = outer − padding.
+- **Radius**: text entry 14 (`rounded-control`: TextInput, TextArea), card 20 (`rounded-card`, also popovers),
+  sheet/chrome 28 (`rounded-sheet`), capsules full for everything you *choose or press*: buttons, chips, segmented
+  controls, SearchField, Select, Combobox. Rows inside a popover use 14 (= 20 − 6 px padding). Nested radius =
+  outer − padding.
+- **Chrome tokens**: `--header-h` (compact glass header incl. safe area; sticky content uses
+  `top: calc(var(--header-h) + 1rem)`), `--shell-left` (width of rail/sidebar + gap, 0 on phones; set by the Shell),
+  `--shell-bottom` (below). Variant `tall:` = `min-height: 40rem` (pin side navigation only where it fits).
+- **Touch targets**: controls are ≥ 44 px on coarse pointers. Inline links in text and attributions use the
+  `touch-target` utility (an invisible ≥ 44 × 44 hit area on coarse pointers, no layout change); links inside
+  truncated/overflow-hidden rows get `pointer-coarse:min-h-11` instead.
 - **Elevation**: `shadow-card` (content), `shadow-float` (hover, floating content), `shadow-overlay` (sheets),
   `shadow-glass` (chrome). Dark mode relies on surface steps more than shadows.
 - **Safe areas**: chrome uses `env(safe-area-inset-*)` (panel viewport has `viewport-fit=cover`); content reserves
@@ -150,8 +161,8 @@ press. `prefers-reduced-motion: reduce` disables all animation and transitions (
 ## 8. Shell (chrome)
 | Device | Navigation | Create | Header |
 |---|---|---|---|
-| Phone < 640 | Floating glass capsule tab bar (4 tabs, icon + 11 px label, unread badge), 12 px from edges + safe area | Separate round petrol "+" next to the bar (HIG: tab bars navigate, they don't act) | Sticky compact header: logo at rest; turns glass when content scrolls under; shows the page title once the large title scrolls away; Appearance button |
-| Tablet 640–1023 | Floating glass rail, collapsed (icons over labels, 84 px) or expanded (icon + label rows, 232 px), choice remembered (`return.rail`) | "+" at the top of the rail | Glass title bar appears only when the large title has scrolled away |
+| Phone < 640 | Floating glass capsule tab bar (4 tabs, icon + 11 px label, unread badge), 12 px from edges + safe area. In the DOM right after the header (before `main`), so keyboard/switch users reach it after the skip link and header; visual position unchanged | Separate round petrol "+" next to the bar (HIG: tab bars navigate, they don't act) | Sticky compact header: logo at rest; turns glass when content scrolls under; shows the page title once the large title scrolls away; Appearance button |
+| Tablet 640–1023 | Floating glass rail, collapsed (icons over labels, 84 px) or expanded (icon + label rows, 232 px), choice remembered (`return.rail`); scrolls on short viewports (landscape phones) | "+" at the top of the rail | Glass title bar appears only when the large title has scrolled away |
 | Desktop ≥ 1024 | Floating `glass-strong` sidebar (256 px): wordmark, "New", nav with counts, Appearance segmented control | "New" button | Same as tablet |
 
 The "+"/"New" opens **Create** (sheet): Quick card, Add item, New tags. Actions are URLs pages handle:
@@ -166,7 +177,8 @@ All components: typed props, no `any`, semantic HTML first, visible `:focus-visi
 | `Button`, `ButtonLink`, `buttonClass` | Button.tsx | `primary · secondary · tinted · ghost · danger · danger-soft · glass`; `sm · md · lg`; `icon`, `iconEnd`, `block`, `loading` | hover, active (spring), focus, disabled, loading (aria-busy, label kept) | One primary per view. `glass` only over media/chrome. External links get `rel=noopener`. |
 | `IconButton` | Button.tsx | same variants; `sm · md · lg` | as Button | `label` required (name + tooltip). |
 | `Spinner` | Button.tsx | size via class | — | Decorative; pair with text or aria-busy. |
-| `TextInput`, `TextArea`, `Select` | Field.tsx | `hint`, `error`, `required`, `labelHidden`, `showCount` (+`maxLength`), `leadingIcon` | hover, focus, invalid (aria-invalid + ring + message), disabled | Label always present; errors linked by aria-describedby; form-level `FormError` announces. |
+| `TextInput`, `TextArea` | Field.tsx | `hint`, `error`, `required`, `labelHidden`, `showCount` (+`maxLength`), `leadingIcon` | hover, focus, invalid (aria-invalid + ring + message), disabled | Label always present; errors linked by aria-describedby; form-level `FormError` announces. `Select` in Field.tsx is **deprecated** (native only, children API); use ui/Select.tsx. |
+| `Select`, `Combobox`, `Menu` | Select.tsx, Menu.tsx | see § 9a | open, active option, selected, disabled, invalid | Glass popover in the top layer; native picker on coarse pointers (Select). |
 | `Field` | Field.tsx | render prop `{ id, describedBy }` | — | Wrap custom controls in the same anatomy. |
 | `SearchField` | Field.tsx | `label` (hidden), `clearLabel` | empty, typed (clear button) | Pill; `enterkeyhint=search`. |
 | `Toggle` | Field.tsx | `description` | on, off, disabled, focus | Settings that apply at once. Row is the target; switch on the right. |
@@ -181,21 +193,62 @@ All components: typed props, no `any`, semantic HTML first, visible `:focus-visi
 | `StatusPill` | Badge.tsx | tones; `pulse`; `solid` | — | The state of a thing (dot + word). |
 | `CountBadge` | Badge.tsx | `count`, spoken `label` | hidden at 0, "99+" | Navigation counts only. |
 | `Thumb`, `Avatar` | Thumb.tsx | Thumb `xs · sm · md · lg · xl · fill`, photo or category fallback | lazy | Decorative alt by default. Avatar = initial only (never a stranger's photo). |
-| `Sheet`, `SheetBody`, `SheetFooter` | Sheet.tsx | `size md · lg`; `placement auto · compact · center` | open (spring), dragging, closed | Phone: bottom sheet + grabber + drag/scrim/Esc to close. ≥ 640: `auto` = floating side panel (forms), `compact` = small centred panel (short menus such as Create), `center` = alert on every size. Footer: Cancel then primary; solid so scrolled content never shows through. |
+| `Sheet`, `SheetBody`, `SheetFooter` | Sheet.tsx | `size md · lg`; `placement auto · compact · center` | open (spring), dragging, closed | Phone: bottom sheet + grabber + drag/scrim/Esc to close. ≥ 640: `auto` = floating side panel (forms), `compact` = small centred panel (short menus such as Create), `center` = alert on every size. Footer: Cancel then primary; solid so scrolled content never shows through. Escape = native `cancel` (prevented; the parent closes via `open`); a `close` the parent did not ask for is reported once, a late `close` after a programmatic close never is. Controls that own Escape (Select, Combobox, Menu) cancel the keydown so the sheet stays open. |
 | `ConfirmDialog` | ConfirmDialog.tsx | `tone danger · primary`, `typed` | pending, error (stays open) | Centred alert. Typed confirmation for irreversible actions. |
 | `ToastProvider`, `useToast` | Toast.tsx | tones `success · error · info`; option `action` | auto-dismiss 4.5 s / 8 s | Glass capsule above the tab bar; errors are alerts. |
 | `Tabs`, `Chip` | Tabs.tsx | Tabs `pill · underline`, counts; Chip `pressed` | selected, focus | Tabs switch views of one object; Chips combine filters. |
 | `EmptyState`, `ErrorState`, `Skeleton`, `SkeletonRows`, `LoadingBlock`, `errorMessage` | States.tsx | `compact`; LoadingBlock `blocks · rows` | — | Empty: why + next step. Error: what + retry. Loading: final-size skeletons. |
 | `PageHeader` | Page.tsx | `eyebrow`, `back`, `badges`, `subtitle`, `actions`, `hideActionsOnPhone` | focus on navigation | The only h1. Feeds the compact header title. |
-| `Toolbar` | Page.tsx | inline · `floating` (glass) | — | Bulk actions, unsaved changes. |
+| `Toolbar` | Page.tsx | inline · `floating` (glass, fixed, centred on the content column via `--shell-left`) · `floating="column"` (glass, sticky at the bottom of its column) | — | Bulk actions (`floating`); unsaved changes (`"column"`: takes space only while shown, so no permanent bottom padding). |
 | `KeyValue` | KeyValue.tsx | `stacked · inline · grid`; entry `mono`, `tone`, `empty` | empty value shown muted | Read-only facts. |
 | `Timeline` | Timeline.tsx | entry `tone`, `body`, `actions` | — | Recoveries, activity (newest first). |
 | `PlaceLabel` | Place.tsx | `place: ResolvedPlace \| null`, `label`, `lat/lng`, `accuracyM` | resolved · label-only · coordinates-only | Name → detail → typed label → small coords → "© OpenStreetMap contributors" link (only for resolved names). |
 | `MapLinks` | Place.tsx | `maps: MapLinks \| null` | — | Compact Google/Apple pair; destination only; full "Open in … Maps" accessible name. |
-| `SplitView` | SplitView.tsx | `listWidth sm · md`, `placeholder` | list-only (phone), both panes (≥ 768) | Inbox, Settings. |
+| `SplitView` | SplitView.tsx | `listWidth sm · md`, `splitFrom md · xl`, `listScroll pane · page`, `placeholder` | list-only (phone), both panes (≥ 768) | List pinned below the header (`--header-h` + 1rem). `pane` (Inbox): list is its own scroller. `page` (Settings): one scroll container; the list is pinned only on `tall:` viewports. |
 | `cx` | cx.ts | — | — | Class joiner. |
 
 Shell-level: `Shell`, `QuickActionsSheet`, `AppearanceControl`, `AppearanceSheet` (`src/app/components`).
+`ItemCard`: archived items dim and desaturate only the media (plus the solid "Archived" pill); text keeps full
+contrast (fading the whole card took muted text to 3.5:1).
+
+### 9a. Selection: Select, Combobox, Menu (`src/app/ui/Select.tsx`, `Menu.tsx`, `popover.ts`)
+One family, three jobs: **Select** chooses a value from a short/medium list, **Combobox** chooses a value from a
+long list with search, **Menu** runs actions. Shared anatomy: capsule trigger (field: raised + `line-strong`
+edge, 44 px; `chip`: neutral fill, 36 px / 44 on touch), chevron that turns when open and dims when disabled, and a
+`glass-strong` popover (radius 20, 6 px padding, rows 40 px / 44 on touch, radius 14). Active row = `primary-tint`
++ inset `primary` ring (keyboard position); selected = check + semibold; descriptions and group headings use
+`on-glass-muted` (never plain `muted` on glass); disabled rows 50 %.
+
+**Popover layer** (`useAnchoredPopover`): rendered as a DOM descendant of its trigger with `popover="manual"`, so
+it enters the top layer above sheets and glass bars and is never clipped by `overflow: hidden`, transforms or
+`backdrop-filter`, while staying interactive inside a modal `<dialog>`. Positioned in JS: below the anchor, flips
+above when less than 180 px (or less than above) remains, clamped to the visual viewport (on-screen keyboard),
+max 360 px tall, at least the anchor's width (listboxes), max 28 rem. Follows page scroll/resize; closes if the
+anchor leaves the viewport; light dismiss on outside pointer. Enter animation: 200 ms scale 0.96 → 1 (spring).
+Fallback without the Popover API: `position: fixed`, z 60 (may be clipped inside a sheet on very old browsers).
+
+| Component | API | Keyboard (APG) | ARIA |
+|---|---|---|---|
+| `Select<V>` | `label`, `options: SelectOption<V>[]`, `value: V`, `onChange(v)`, `hint`, `error`, `required`, `disabled`, `placeholder`, `name`, `variant field · chip`, `native?` (default: native on `pointer: coarse`) | Closed: ↓ ↑ Enter Space open on the current value; Home/End open on first/last; letters open + type-ahead. Open: ↑↓ (no wrap), PageUp/PageDown ±10, Home/End, type-ahead (600 ms buffer, repeated letter cycles), Enter/Space/Alt+↑ select + close, Tab selects + moves on, Escape closes. Focus never leaves the trigger. | `button[role=combobox]` + `aria-haspopup=listbox`, `aria-expanded`, `aria-controls`, `aria-activedescendant`; `role=listbox` labelled by the field label; `role=group` per `group`; `aria-selected` on the chosen option. Native on coarse pointers (`<optgroup>` for groups). Full label in `title` when truncated. |
+| `Combobox<V>` | as Select (minus `variant`/`native`), `value: V \| null`, `placeholder` = search placeholder; options may carry `description`, `keywords`, `leading` | Type to filter (all terms must match label, description or keywords; accent-insensitive); first match becomes active, Enter picks it. ↓/↑ open; Alt+↑ select; PageUp/PageDown; Escape closes and restores the value (when closed and unedited, Escape goes to the sheet); Tab picks the active match while typing. Blur keeps an exact label match, otherwise reverts: **free text is never stored**. | `input[role=combobox][aria-autocomplete=list]`, `aria-activedescendant`; result count in a polite `role=status`; "No matches" row when empty. Pointer: the chevron toggles the list. |
+| `Menu` | `label` (name + tooltip), `items: (MenuItem \| {key, separator: true})[]` with `label`, `icon`, `description`, `tone default · danger`, `disabled`, `onSelect`; `icon` (default `more`), `iconOnly` (default true), `variant`, `size`, `align end · start` | Enter/Space/↓ open on the first item, ↑ on the last; ↑↓ wrap; Home/End; type-ahead; Escape closes and refocuses the button; Tab closes and moves on. Choosing closes first, returns focus to the button, then runs `onSelect` (sheets opened by an action restore focus correctly). | `button[aria-haspopup=menu][aria-expanded]`, `role=menu` labelled by the button, `role=menuitem` (roving focus, `tabIndex -1`), `<hr>` separators, `aria-disabled`. |
+
+Rules: values → Select/Combobox, actions → Menu (never a Select that *does* something). Use Combobox above ~15
+options or when people search by something other than the first letter (time zones: city or "GMT+1"; items;
+tags). Use `variant="chip"` in filter toolbars next to SearchField and Chips. Option data for zones and locales:
+`src/app/lib/locale-options.ts` (`timeZoneOptions`: every IANA zone + UTC with today's offset and long name,
+grouped by region; `localeOptions`: ~36 common locales labelled in the panel language with a date/number sample).
+Gallery: `/gallery#selection` (all states, light/dark, static open-state previews `ListboxPreview`/`MenuPreview`,
+which are QA-only and inert).
+
+**Migration (deprecated native `Select` in Field.tsx, remove when done):** `pages/InventoryPage.tsx:146` (category
+filter → `Select variant="chip"`), `pages/TagsPage.tsx:272`, `components/TagSheet.tsx:157` ("Assigned to" →
+`Combobox` of items with `Thumb` leading, keep the "Not assigned" option) and `:214` (NFC status → `Select`),
+`components/ItemFormSheet.tsx:111` (category), `pages/item/LostSheets.tsx:235`, `pages/item/ItemTrackers.tsx:222`,
+`pages/inbox/ProposalSheet.tsx:116`, `pages/print/PrintStudio.tsx:171`, `components/QuickCardFlow.tsx:301` (card
+language). "More" buttons that open action sheets → `Menu`: `pages/item/ItemDetailPage.tsx:146` (item actions),
+`pages/inbox/Thread.tsx:187` (conversation manage). Inline links that need `touch-target`: item detail help text
+(`pages/item/ItemTrackers.tsx:59` "Lost Mode", "Share Item Location"), inbox item links (`Thread.tsx:173`), finder footer "Privacy" (finder CSS).
 `ItemCard` (+ `CategoryTile`, now a `Thumb` wrapper) stays in `components/`.
 
 ## 10. Iconography
@@ -223,8 +276,9 @@ Goal: at an airport, from a phone, in ≤ 5 taps: tag an item and get a print-re
 sheet (AirPrint, Files, Messages).
 
 **Entry points**: Create sheet › Quick card (`/?quick-card=1`); item hero "Quick card" (`/items/:id?quick-card=1`,
-item preselected). **Container**: `Sheet size="lg"` (bottom sheet on phones, side panel elsewhere). Mock: `/gallery`
-§ Quick card (`src/app/pages/gallery/QuickCardMock.tsx`, incl. a true-proportion `PaperPreview`).
+item preselected). **Container**: `Sheet size="lg"` (bottom sheet on phones, side panel elsewhere). Gallery:
+`/gallery#quick-card` renders the real paper output (`PaperSpecimen.tsx`: `buildPaperSheet` → `renderPaperSvg`,
+sample data, no API) and opens the real flow.
 
 **Steps on one sheet (progressive, no wizard)**
 1. *Item*: `SearchField` + `List` of recent items (`Thumb`, name, current tag); last row "New item…" expands name +

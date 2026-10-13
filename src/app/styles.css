@@ -8,6 +8,9 @@
  */
 
 /* `dark:` follows the explicit choice ([data-theme]) and the OS preference when no explicit light choice exists. */
+/* Viewports tall enough to pin a side navigation without hiding its last rows (landscape phones are not). */
+@custom-variant tall (@media (min-height: 40rem));
+
 @custom-variant dark {
   &:where([data-theme="dark"], [data-theme="dark"] *) {
     @slot;
@@ -253,6 +256,10 @@
   --sidebar-w: 16rem;
   --chrome-inset: 0.75rem;
   --tabbar-h: 3.75rem;
+  /* Compact glass header (fixed from 640 px): sticky content below it uses top = var(--header-h) + gap. */
+  --header-h: calc(3.25rem + env(safe-area-inset-top));
+  /* Width taken by the floating rail / sidebar (0 on phones). Set by the Shell, which knows the rail state. */
+  --shell-left: 0px;
   /* Space reserved under page content for floating bottom chrome (tab bar on phones). */
   --shell-bottom: calc(
     var(--tabbar-h) +
@@ -293,9 +300,13 @@
   }
 }
 
-/* Accessibility preferences: solid chrome, stronger lines and text. */
+/* Accessibility preferences: solid chrome, stronger lines and text.
+   Specificity: these overrides must beat BOTH theme blocks, including the OS-dark one
+   (`:root:not([data-theme="light"])`, specificity 0-2-0). Each selector list therefore repeats that selector, and
+   the blocks come after §2b, so they win by specificity on :root and by order on any [data-theme] element. */
 @media (prefers-reduced-transparency: reduce) {
   :root,
+  :root:not([data-theme="light"]),
   [data-theme] {
     --glass: var(--glass-solid);
     --glass-strong: var(--glass-solid);
@@ -304,6 +315,7 @@
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root,
+  :root:not([data-theme="light"]),
   [data-theme] {
     --glass: var(--glass-solid);
     --glass-strong: var(--glass-solid);
@@ -318,6 +330,7 @@
 }
 @media (prefers-contrast: more) {
   :root,
+  :root:not([data-theme="light"]),
   [data-theme] {
     --muted: var(--on-glass-muted);
     --line: var(--line-strong);
@@ -526,6 +539,23 @@
     transform: scale(0.97);
   }
 }
+/* Touch target: on coarse pointers the hit area grows to at least 44 x 44 px without changing layout (inline
+   links in text, attributions). The element becomes the positioning context; do not use inside overflow-hidden
+   or truncated containers (the extension would be clipped): give those links min-h-11 instead. */
+@utility touch-target {
+  @media (pointer: coarse) {
+    position: relative;
+    &::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 2.75rem);
+      height: max(100%, 2.75rem);
+      transform: translate(-50%, -50%);
+    }
+  }
+}
 @utility pb-safe {
   padding-bottom: max(var(--chrome-inset), env(safe-area-inset-bottom));
 }
@@ -643,6 +673,20 @@
     background: var(--sunken);
     border-radius: var(--radius-control);
     animation: shimmer 1.4s ease-in-out infinite;
+  }
+  /* Anchored popovers (Select, Combobox, Menu; ui/popover.ts). Top layer via the Popover API; JS sets top/left. */
+  .popover-surface {
+    transform-origin: top center;
+    animation: popover-in var(--dur-base) var(--ease-spring);
+  }
+  .popover-surface[data-side="top"] {
+    transform-origin: bottom center;
+  }
+  @keyframes popover-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
   }
   /* Compact title in the glass header: hidden until the page's large title scrolls away. */
   .chrome-header .chrome-title {

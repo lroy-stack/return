@@ -145,6 +145,22 @@ const ICON_BUTTON_SIZES: Record<IconButtonSize, string> = {
   lg: "size-14",
 };
 
+/** Classes of an icon-only capsule (for custom triggers such as `Menu`). */
+export function iconButtonClass(
+  variant: ButtonVariant = "ghost",
+  size: IconButtonSize = "md",
+  extra = "",
+): string {
+  const tone =
+    variant === "ghost" ? "bg-transparent text-fg hover:bg-fill active:bg-fill-pressed" : VARIANTS[variant];
+  return cx(
+    "pressable inline-flex shrink-0 items-center justify-center rounded-full disabled:opacity-50",
+    tone,
+    ICON_BUTTON_SIZES[size],
+    extra,
+  );
+}
+
 /** Icon-only button. `label` becomes the accessible name and tooltip. */
 export function IconButton({
   icon,
@@ -159,19 +175,12 @@ export function IconButton({
   variant?: ButtonVariant;
   size?: IconButtonSize;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label" | "children">) {
-  const tone =
-    variant === "ghost" ? "bg-transparent text-fg hover:bg-fill active:bg-fill-pressed" : VARIANTS[variant];
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
-      className={cx(
-        "pressable inline-flex shrink-0 items-center justify-center rounded-full disabled:opacity-50",
-        tone,
-        ICON_BUTTON_SIZES[size],
-        className,
-      )}
+      className={iconButtonClass(variant, size, className)}
       {...rest}
     >
       <Icon name={icon} className={size === "lg" ? "size-6" : "size-5"} />

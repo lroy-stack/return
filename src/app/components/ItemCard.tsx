@@ -17,7 +17,11 @@ export function CategoryTile({
   return <Thumb category={category} size="fill" className={className} />;
 }
 
-/** Photo-forward item tile for the inventory grid. Lost items get a solid pill on the photo and a lost ring. */
+/**
+ * Photo-forward item tile for the inventory grid. Lost items get a solid pill on the photo and a lost ring.
+ * Archived items: only the media is muted (desaturated, dimmed) plus a solid "Archived" pill; text keeps full
+ * contrast (never fade the whole card over muted text).
+ */
 export function ItemCard({ item }: { item: ItemSummary }) {
   const t = useT();
   const sub = [item.brand, item.model].filter(Boolean).join(" · ");
@@ -29,23 +33,24 @@ export function ItemCard({ item }: { item: ItemSummary }) {
         className={cx(
           "group pressable flex h-full flex-col overflow-hidden rounded-card bg-raised shadow-card ring-1 transition-shadow duration-200 hover:shadow-float",
           lost ? "ring-2 ring-lost" : "ring-line/70",
-          item.archivedAt && "opacity-75",
         )}
       >
         <div className="relative aspect-4/3 w-full overflow-hidden bg-sunken">
-          {item.coverPhotoUrl ? (
-            <img
-              src={item.coverPhotoUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              width={640}
-              height={480}
-              className="size-full object-cover transition-transform duration-500 ease-standard group-hover:scale-[1.03]"
-            />
-          ) : (
-            <Thumb category={item.category} size="fill" />
-          )}
+          <div className={cx("size-full", item.archivedAt && "opacity-60 grayscale")}>
+            {item.coverPhotoUrl ? (
+              <img
+                src={item.coverPhotoUrl}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                width={640}
+                height={480}
+                className="size-full object-cover transition-transform duration-500 ease-standard group-hover:scale-[1.03]"
+              />
+            ) : (
+              <Thumb category={item.category} size="fill" />
+            )}
+          </div>
           <div className="absolute top-2 left-2 flex flex-wrap gap-1.5">
             {lost ? (
               <StatusPill tone="lost" solid pulse>

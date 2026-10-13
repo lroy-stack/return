@@ -13,7 +13,10 @@ export function OsmAttribution({ className }: { className?: string }) {
       href={OSM_COPYRIGHT_URL}
       target="_blank"
       rel="noopener noreferrer"
-      className={cx("underline decoration-line-strong underline-offset-2 hover:text-fg", className)}
+      className={cx(
+        "touch-target underline decoration-line-strong underline-offset-2 hover:text-fg",
+        className,
+      )}
     >
       {OSM_ATTRIBUTION}
     </a>

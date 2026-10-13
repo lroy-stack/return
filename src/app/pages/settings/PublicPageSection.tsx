@@ -5,8 +5,9 @@ import { api, qs } from "../../lib/api";
 import { useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
 import { Button, ButtonLink } from "../../ui/Button";
-import { Select, TextInput, Toggle } from "../../ui/Field";
+import { TextInput, Toggle } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
+import { Combobox } from "../../ui/Select";
 import { FieldGroup, LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
 
 export function PublicPageSection({ draft, update, errors }: SectionProps) {
@@ -68,19 +69,16 @@ export function PublicPageSection({ draft, update, errors }: SectionProps) {
           <p className="text-muted">{t("public.noTags")}</p>
         ) : (
           <>
-            <Select
+            <Combobox
               label={t("public.previewTag")}
-              value={chosen?.id ?? ""}
-              onChange={(e) => setTagId(e.target.value)}
+              options={list.map((x) => ({
+                value: x.id,
+                label: `${x.label} · ${x.itemName ?? t("tag.unassigned")}`,
+              }))}
+              value={chosen?.id ?? null}
+              onChange={setTagId}
               disabled={list.length === 0}
-            >
-              {list.map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.label}
-                  {x.itemName ? ` — ${x.itemName}` : ""}
-                </option>
-              ))}
-            </Select>
+            />
             <div className="flex flex-wrap gap-2">
               <Button
                 icon="phone"

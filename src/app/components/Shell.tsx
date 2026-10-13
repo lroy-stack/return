@@ -168,7 +168,7 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div
       data-rail={railExpanded ? "expanded" : "collapsed"}
-      className="min-h-dvh data-[rail=expanded]:[--rail-w:14.5rem]"
+      className="min-h-dvh data-[rail=expanded]:[--rail-w:14.5rem] sm:[--shell-left:calc(var(--rail-w)+0.75rem)] lg:[--shell-left:calc(var(--sidebar-w)+0.75rem)]"
     >
       <a
         href="#main"
@@ -201,6 +201,8 @@ export function Shell({ children }: { children: ReactNode }) {
       <aside
         className={cx(
           "glass no-print fixed top-3 bottom-3 z-40 hidden w-[var(--rail-w)] flex-col gap-4 rounded-sheet p-2.5 sm:flex lg:hidden",
+          // Short viewports (landscape phones): the rail scrolls instead of clipping its last rows.
+          "overflow-y-auto overscroll-contain [scrollbar-width:none]",
           "left-[max(0.75rem,env(safe-area-inset-left))]",
         )}
       >
@@ -254,14 +256,14 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-col sm:pl-[calc(var(--rail-w)+0.75rem)] lg:pl-[calc(var(--sidebar-w)+0.75rem)]">
+      <div className="flex min-w-0 flex-col sm:pl-[var(--shell-left)]">
         {/* Compact glass header: logo on phones at rest, page title once the large title scrolls away. */}
         <header
           data-collapsed={chrome.collapsed ? "true" : "false"}
           className={cx(
-            "chrome-header no-print z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] items-end transition-[background-color,box-shadow] duration-200",
+            "chrome-header no-print z-30 flex h-[var(--header-h)] items-end transition-[background-color,box-shadow] duration-200",
             "sticky top-0 max-sm:px-[max(var(--page-x),env(safe-area-inset-right))]",
-            "sm:pointer-events-none sm:fixed sm:inset-x-0 sm:top-0 sm:pl-[calc(var(--rail-w)+0.75rem)] lg:pl-[calc(var(--sidebar-w)+0.75rem)]",
+            "sm:pointer-events-none sm:fixed sm:inset-x-0 sm:top-0 sm:pl-[var(--shell-left)]",
             chrome.scrolled ? "glass-bar" : "bg-transparent",
             !chrome.collapsed && "sm:invisible",
           )}
@@ -286,6 +288,25 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
+        {/* Phone: floating capsule tab bar + floating create button, in thumb reach. Placed before <main> in the
+            DOM so keyboard and switch users reach navigation right after the header (visual position unchanged). */}
+        <div className="no-print pointer-events-none fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex items-end gap-2.5 px-[max(0.75rem,env(safe-area-inset-left))] sm:hidden">
+          <nav
+            aria-label={t("nav.main")}
+            className="glass pointer-events-auto flex h-[var(--tabbar-h)] min-w-0 flex-1 items-stretch gap-0.5 rounded-full p-1"
+          >
+            {NAV.map((n) => stackLink(n, "tab"))}
+          </nav>
+          <button
+            type="button"
+            onClick={() => setQuickOpen(true)}
+            aria-haspopup="dialog"
+            aria-label={quickLabel}
+            className="pressable specular pointer-events-auto inline-flex size-[var(--tabbar-h)] shrink-0 items-center justify-center rounded-full bg-primary text-primary-fg hover:bg-primary-hover"
+          >
+            <Icon name="plus" className="size-7" strokeWidth={2} />
+          </button>
+        </div>
         <main
           id="main"
           tabIndex={-1}
@@ -293,25 +314,6 @@ export function Shell({ children }: { children: ReactNode }) {
         >
           {children}
         </main>
-      </div>
-
-      {/* Phone: floating capsule tab bar + floating create button, in thumb reach. */}
-      <div className="no-print pointer-events-none fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex items-end gap-2.5 px-[max(0.75rem,env(safe-area-inset-left))] sm:hidden">
-        <nav
-          aria-label={t("nav.main")}
-          className="glass pointer-events-auto flex h-[var(--tabbar-h)] min-w-0 flex-1 items-stretch gap-0.5 rounded-full p-1"
-        >
-          {NAV.map((n) => stackLink(n, "tab"))}
-        </nav>
-        <button
-          type="button"
-          onClick={() => setQuickOpen(true)}
-          aria-haspopup="dialog"
-          aria-label={quickLabel}
-          className="pressable specular pointer-events-auto inline-flex size-[var(--tabbar-h)] shrink-0 items-center justify-center rounded-full bg-primary text-primary-fg hover:bg-primary-hover"
-        >
-          <Icon name="plus" className="size-7" strokeWidth={2} />
-        </button>
       </div>
 
       <QuickActionsSheet open={quickOpen} onClose={() => setQuickOpen(false)} />

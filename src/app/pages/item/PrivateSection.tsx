@@ -118,9 +118,10 @@ export function PrivateSection({
                     href={d.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary-text hover:underline"
+                    title={d.filename}
+                    className="inline-flex max-w-full min-w-0 items-center align-top text-primary-text hover:underline pointer-coarse:min-h-11"
                   >
-                    {d.filename}
+                    <span className="min-w-0 truncate">{d.filename}</span>
                     <span className="sr-only"> ({t("common.opensNewTab")})</span>
                   </a>
                 }

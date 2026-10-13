@@ -117,7 +117,7 @@ export function Section({
       <details
         id={id}
         open={defaultOpen}
-        className={cx("group rounded-card bg-raised shadow-card ring-1 ring-line/70", className)}
+        className={cx("group min-w-0 rounded-card bg-raised shadow-card ring-1 ring-line/70", className)}
       >
         <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-card px-4 py-2.5 select-none hover:bg-fill [&::-webkit-details-marker]:hidden">
           <span className="flex min-w-0 flex-1 flex-col">
@@ -144,9 +144,9 @@ export function Section({
     <section
       id={id}
       aria-labelledby={title ? headingId : undefined}
-      className={cx("flex flex-col gap-2", className)}
+      className={cx("flex min-w-0 flex-col gap-2", className)}
     >
-      {title || actions ? (
+      {title || description || actions ? (
         <div className="flex min-h-9 flex-wrap items-end justify-between gap-x-3 gap-y-1 px-1">
           <div className="min-w-0">
             {title ? (

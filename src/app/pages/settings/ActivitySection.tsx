@@ -90,7 +90,7 @@ export function ActivitySection() {
                     {ev.itemId ? (
                       <Link
                         to={`/items/${ev.itemId}`}
-                        className="inline-flex min-h-11 items-center font-medium text-primary-text underline"
+                        className="inline-flex min-h-11 items-center font-medium text-primary-text underline pointer-coarse:min-w-11"
                       >
                         {t("activity.item")}
                       </Link>
@@ -98,7 +98,7 @@ export function ActivitySection() {
                     {ev.conversationId ? (
                       <Link
                         to={`/conversations/${ev.conversationId}`}
-                        className="inline-flex min-h-11 items-center font-medium text-primary-text underline"
+                        className="inline-flex min-h-11 items-center font-medium text-primary-text underline pointer-coarse:min-w-11"
                       >
                         {t("activity.conversation")}
                       </Link>

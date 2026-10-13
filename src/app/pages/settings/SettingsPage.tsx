@@ -22,6 +22,7 @@ import { NotificationsSection } from "./NotificationsSection";
 import { PrivacySection } from "./PrivacySection";
 import { PublicPageSection } from "./PublicPageSection";
 import { SystemSection } from "./SystemSection";
+import { SettingsPageTitle } from "./shared";
 import { TagsSettingsSection } from "./TagsSettingsSection";
 
 const SECTIONS: { key: string; label: MessageKey; icon: IconName; editable: boolean }[] = [
@@ -85,9 +86,10 @@ export function SettingsPage({ section }: { section?: string }) {
     }
   };
 
+  const pageTitle = !split && active ? t(active.label) : t("nav.settings");
   const header = (
     <PageHeader
-      title={!split && active ? t(active.label) : t("nav.settings")}
+      title={pageTitle}
       back={!split && active ? { to: "/settings", label: t("nav.settings") } : undefined}
     />
   );
@@ -110,6 +112,36 @@ export function SettingsPage({ section }: { section?: string }) {
   }
 
   const props = { draft: current, update, errors };
+  // Sticky at the bottom of the detail column (phone index: of the list): centred on the form, and it takes
+  // space only while shown, so there is no permanent bottom padding under the last card.
+  const unsavedBar = dirty ? (
+    <Toolbar floating="column" label={t("settings.unsaved")}>
+      <div role="status" className="min-w-0">
+        <p className="font-semibold">{t("settings.unsaved")}</p>
+        {formError ? (
+          <p className="flex items-center gap-1.5 text-footnote font-semibold">
+            <Icon name="alert" className="size-4 text-danger" />
+            {formError}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex gap-2">
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setDraft(null);
+            setErrors({});
+            setFormError(null);
+          }}
+        >
+          {t("settings.discard")}
+        </Button>
+        <Button variant="primary" loading={saving} onClick={onSave}>
+          {t("common.save")}
+        </Button>
+      </div>
+    </Toolbar>
+  ) : null;
   const nav = (
     <nav aria-label={t("settings.sections")}>
       <List>
@@ -135,6 +167,7 @@ export function SettingsPage({ section }: { section?: string }) {
       {header}
       <SplitView
         listWidth="sm"
+        listScroll="page"
         listLabel={t("settings.nav")}
         detailLabel={t("settings.detail")}
         showDetail={Boolean(active)}
@@ -142,49 +175,24 @@ export function SettingsPage({ section }: { section?: string }) {
         list={nav}
         detail={
           active ? (
-            <div className="min-w-0 pb-28">
-              {active.key === "identity" ? <IdentitySection {...props} /> : null}
-              {active.key === "messages" ? <MessagesSection {...props} /> : null}
-              {active.key === "contact" ? <ContactSection {...props} /> : null}
-              {active.key === "notifications" ? <NotificationsSection {...props} dirty={dirty} /> : null}
-              {active.key === "privacy" ? <PrivacySection {...props} /> : null}
-              {active.key === "tags" ? <TagsSettingsSection {...props} /> : null}
-              {active.key === "public" ? <PublicPageSection {...props} /> : null}
-              {active.key === "activity" ? <ActivitySection /> : null}
-              {active.key === "system" ? <SystemSection /> : null}
-            </div>
+            <SettingsPageTitle.Provider value={pageTitle}>
+              <div className="min-w-0">
+                {active.key === "identity" ? <IdentitySection {...props} /> : null}
+                {active.key === "messages" ? <MessagesSection {...props} /> : null}
+                {active.key === "contact" ? <ContactSection {...props} /> : null}
+                {active.key === "notifications" ? <NotificationsSection {...props} dirty={dirty} /> : null}
+                {active.key === "privacy" ? <PrivacySection {...props} /> : null}
+                {active.key === "tags" ? <TagsSettingsSection {...props} /> : null}
+                {active.key === "public" ? <PublicPageSection {...props} /> : null}
+                {active.key === "activity" ? <ActivitySection /> : null}
+                {active.key === "system" ? <SystemSection /> : null}
+              </div>
+              {unsavedBar}
+            </SettingsPageTitle.Provider>
           ) : null
         }
       />
-
-      {dirty ? (
-        <Toolbar floating label={t("settings.unsaved")}>
-          <div role="status" className="min-w-0">
-            <p className="font-semibold">{t("settings.unsaved")}</p>
-            {formError ? (
-              <p className="flex items-center gap-1.5 text-footnote font-semibold">
-                <Icon name="alert" className="size-4 text-danger" />
-                {formError}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setDraft(null);
-                setErrors({});
-                setFormError(null);
-              }}
-            >
-              {t("settings.discard")}
-            </Button>
-            <Button variant="primary" loading={saving} onClick={onSave}>
-              {t("common.save")}
-            </Button>
-          </div>
-        </Toolbar>
-      ) : null}
+      {active ? null : unsavedBar}
     </>
   );
 }

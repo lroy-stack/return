@@ -3,7 +3,7 @@ import type { ItemSummary } from "../../../shared/schemas";
 import { ItemCard } from "../../components/ItemCard";
 import { ApiRequestError } from "../../lib/api";
 import { Badge, type BadgeTone, CountBadge, StatusPill } from "../../ui/Badge";
-import { Button, type ButtonVariant, IconButton, Spinner } from "../../ui/Button";
+import { Button, ButtonLink, type ButtonVariant, IconButton, Spinner } from "../../ui/Button";
 import { Card, Section, SectionHeading } from "../../ui/Card";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import {
@@ -12,7 +12,6 @@ import {
   RadioGroup,
   SearchField,
   SegmentedControl,
-  Select,
   TextArea,
   TextInput,
   Toggle,
@@ -22,14 +21,15 @@ import { KeyValue } from "../../ui/KeyValue";
 import { IconTile, List, ListRow } from "../../ui/List";
 import { Toolbar } from "../../ui/Page";
 import { MapLinks, PlaceLabel } from "../../ui/Place";
+import { Select } from "../../ui/Select";
 import { Sheet, SheetBody, SheetFooter } from "../../ui/Sheet";
 import { EmptyState, ErrorState, LoadingBlock, Skeleton, SkeletonRows } from "../../ui/States";
 import { Chip, Tabs } from "../../ui/Tabs";
 import { Avatar, Thumb } from "../../ui/Thumb";
 import { Timeline } from "../../ui/Timeline";
 import { useToast } from "../../ui/Toast";
+import { PaperSpecimen } from "./PaperSpecimen";
 import { Row, SAMPLE_ITEMS, Specimen, samplePhoto } from "./parts";
-import { QuickCardMock } from "./QuickCardMock";
 
 const VARIANTS: ButtonVariant[] = ["primary", "secondary", "tinted", "ghost", "danger", "danger-soft"];
 const TONES: BadgeTone[] = ["neutral", "info", "success", "warning", "lost", "danger"];
@@ -37,6 +37,13 @@ const MAPS = {
   google: "https://www.google.com/maps/dir/?api=1&destination=40.40655,-3.68951",
   apple: "https://maps.apple.com/?daddr=40.40655,-3.68951",
 };
+
+type SampleCategory = "backpack" | "suitcase" | "wallet";
+const CATEGORY_OPTIONS = [
+  { value: "backpack", label: "Backpack" },
+  { value: "suitcase", label: "Suitcase" },
+  { value: "wallet", label: "Wallet" },
+] as const satisfies ReadonlyArray<{ value: SampleCategory; label: string }>;
 
 export function ActionsSpecimens() {
   return (
@@ -102,6 +109,7 @@ export function FieldSpecimens() {
   const [kind, setKind] = useState<"meeting" | "hotel" | "post">("meeting");
   const [view, setView] = useState<"open" | "closed" | "blocked">("open");
   const [theme, setTheme] = useState<"auto" | "light" | "dark">("auto");
+  const [category, setCategory] = useState<SampleCategory>("suitcase");
   return (
     <Specimen
       id="fields"
@@ -121,11 +129,7 @@ export function FieldSpecimens() {
         <TextInput label="Email" error="Enter an address like name@example.com." defaultValue="lucia@" />
         <TextInput label="Disabled" disabled defaultValue="Read-only value" />
         <TextInput label="With icon" leadingIcon="pin" placeholder="Hotel reception, Calle Mayor 4" />
-        <Select label="Category" defaultValue="suitcase">
-          <option value="backpack">Backpack</option>
-          <option value="suitcase">Suitcase</option>
-          <option value="wallet">Wallet</option>
-        </Select>
+        <Select label="Category" options={CATEGORY_OPTIONS} value={category} onChange={setCategory} />
         <TextArea
           label="Notes"
           value={note}
@@ -626,7 +630,8 @@ function PageHeaderDemo() {
 
 export function FeedbackSpecimens() {
   const toast = useToast();
-  const [sheet, setSheet] = useState<"md" | "lg" | "confirm" | "typed" | "quick" | null>(null);
+  const [sheet, setSheet] = useState<"md" | "lg" | "confirm" | "typed" | null>(null);
+  const [category, setCategory] = useState<SampleCategory>("backpack");
   return (
     <>
       <Specimen
@@ -670,12 +675,13 @@ export function FeedbackSpecimens() {
       <Specimen
         id="quick-card"
         title="Flow: Quick card"
-        usage="From the floating + (Create › Quick card) or an item's hero: pick the item, reuse or create its tag, choose paper, then Share (iOS share sheet: print, Files) or download PNG/PDF. Mock only; spec in docs/design/system.md § Flows."
+        usage="From the floating + (Create › Quick card) or an item's hero: pick the item, reuse or create its tag, choose paper, then Share (iOS share sheet: print, Files) or download PNG/PDF. The preview below is the real paper renderer (src/shared/card) with sample data; the button opens the real flow (a tag is only created on export)."
       >
-        <Row label="Open the sheet">
-          <Button variant="primary" icon="card" onClick={() => setSheet("quick")}>
-            Quick card
-          </Button>
+        <PaperSpecimen />
+        <Row label="The real sheet">
+          <ButtonLink variant="primary" icon="card" to="/gallery?quick-card=1">
+            Open Quick card
+          </ButtonLink>
         </Row>
       </Specimen>
 
@@ -731,9 +737,7 @@ export function FeedbackSpecimens() {
       >
         <SheetBody>
           <TextInput label="Name" required />
-          <Select label="Category" defaultValue="backpack">
-            <option value="backpack">Backpack</option>
-          </Select>
+          <Select label="Category" options={CATEGORY_OPTIONS} value={category} onChange={setCategory} />
           <TextArea label="Description" />
         </SheetBody>
         <SheetFooter>
@@ -761,7 +765,6 @@ export function FeedbackSpecimens() {
         onClose={() => setSheet(null)}
         onConfirm={async () => undefined}
       />
-      <QuickCardMock open={sheet === "quick"} onClose={() => setSheet(null)} />
     </>
   );
 }
