@@ -1,6 +1,6 @@
 # 0002. Ship two origin-scoped PWAs with hand-written service workers that never cache private data
 
-- Status: proposed
+- Status: accepted (2026-10-13, owner)
 - Date: 2026-10-13
 - Deciders: owner (lr0y); proposed by the architect agent
 

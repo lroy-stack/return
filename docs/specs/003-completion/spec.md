@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # 003 — Completion: hardening, polish, then PWA → push → sealed chat → native
 

@@ -1,6 +1,6 @@
 # 0005. Build the native owner app with Expo in a pnpm workspace and authenticate it by device pairing on a separate API host
 
-- Status: proposed
+- Status: accepted (2026-10-13, owner)
 - Date: 2026-10-13
 - Deciders: owner (lr0y); proposed by the architect agent
 

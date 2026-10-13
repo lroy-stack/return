@@ -1,6 +1,6 @@
 # 0004. Seal conversations with a per-conversation key carried in the finder's private link
 
-- Status: proposed
+- Status: accepted (2026-10-13, owner)
 - Date: 2026-10-13
 - Deciders: owner (lr0y); proposed by the architect agent
 

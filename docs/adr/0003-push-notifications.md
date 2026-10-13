@@ -1,6 +1,6 @@
 # 0003. Send content-free Web Push from the Worker with an in-house RFC 8291/8292 module; use Expo Push for native
 
-- Status: proposed
+- Status: accepted (2026-10-13, owner)
 - Date: 2026-10-13
 - Deciders: owner (lr0y); proposed by the architect agent
 
