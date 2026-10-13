@@ -3,8 +3,7 @@ import { expect, test } from "./fixtures";
 
 /**
  * Scenario 9. Accessibility smoke test on the page a stranger sees first.
- * axe-core is not a dependency of this project: the test runs when it can be resolved from
- * node_modules (or from E2E_AXE_PATH, a path to axe.min.js) and is skipped, with the reason, otherwise.
+ * axe-core is a dev dependency; E2E_AXE_PATH (a path to axe.min.js) can override it.
  */
 
 function findAxe(): string | null {
@@ -34,7 +33,7 @@ test("9. the finder tag page has no critical or serious accessibility violations
 }) => {
   test.skip(
     axePath === null,
-    "axe-core is not installed (adding dependencies is out of scope). Install it, or set E2E_AXE_PATH to an axe.min.js, to enable this check.",
+    "axe-core could not be resolved; run pnpm install or set E2E_AXE_PATH to an axe.min.js.",
   );
 
   await page.goto(tagged.tag.url);
