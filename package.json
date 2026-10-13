@@ -1,6 +1,7 @@
 {
   "name": "return-app",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -16,9 +17,11 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "screenshots": "SCREENSHOTS=1 playwright test --project=screenshots",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "cf-typegen": "wrangler types --strict-vars=false src/worker/worker-configuration.d.ts",
+    "icons:pwa": "node scripts/generate-pwa-icons.mjs",
     "backup:offsite": "bash scripts/backup-offsite.sh",
     "restore:drill": "bash scripts/restore-drill.sh"
   },
