@@ -104,20 +104,6 @@ export async function findPublicPhoto(
   return row ? { r2Key: row.r2_key, contentType: row.content_type } : null;
 }
 
-/** Abuse limits: conversations opened for a tag, or from one hashed IP, since a point in time. */
-export async function countRecentConversations(
-  db: D1Database,
-  by: { tagId: string } | { ipHmac: string },
-  since: string,
-): Promise<number> {
-  const [column, value] = "tagId" in by ? ["tag_id", by.tagId] : ["finder_ip_hmac", by.ipHmac];
-  const row = await db
-    .prepare(`SELECT COUNT(*) AS n FROM conversations WHERE ${column} = ? AND created_at > ?`)
-    .bind(value, since)
-    .first<{ n: number }>();
-  return row?.n ?? 0;
-}
-
 export async function isIpBlocked(
   db: D1Database,
   ownerId: string,

@@ -40,7 +40,15 @@ export function MessagePage({ lang, title }: { lang: Language; title: string }) 
   );
 }
 
-export function DegradedPage({ lang, email }: { lang: Language; email: string }) {
+export function DegradedPage({
+  lang,
+  email,
+  typedMessage,
+}: {
+  lang: Language;
+  email: string;
+  typedMessage?: string;
+}) {
   const t = dict(lang);
   return (
     <Layout lang={lang} title={t.degraded.title}>
@@ -50,6 +58,12 @@ export function DegradedPage({ lang, email }: { lang: Language; email: string })
         {email ? <a href={`mailto:${email}`}>{email}</a> : <strong>{t.degraded.noContact}</strong>}
       </p>
       <p class="muted">{t.degraded.tryAgain}</p>
+      {typedMessage ? (
+        <>
+          <p>{t.degraded.yourMessage}</p>
+          <p class="typed">{typedMessage}</p>
+        </>
+      ) : null}
     </Layout>
   );
 }
@@ -82,6 +96,8 @@ export function PrivacyPage({ lang }: { lang: Language }) {
       <p>{t.stored}</p>
       <h2>{t.seenTitle}</h2>
       <p>{t.seen}</p>
+      <h2>{t.processorsTitle}</h2>
+      <p>{t.processors}</p>
       <h2>{t.retentionTitle}</h2>
       <p>{t.retention}</p>
       <h2>{t.cookiesTitle}</h2>
@@ -111,6 +127,8 @@ export interface TagView {
   /** Link to the finder's existing open conversation for this tag. */
   continueUrl: string | null;
   siteKey: string;
+  /** Printed fallback address, offered when the form cannot be used right now. */
+  fallbackEmail: string;
 }
 
 export function TagPage({
@@ -160,6 +178,11 @@ export function TagPage({
         <h2 id="write">{t.tag.writeHeading}</h2>
         <p>{t.tag.writeIntro}</p>
         <FormErrorSummary state={form} t={t} />
+        {form.errors.form && view.fallbackEmail ? (
+          <p class="notice">
+            {t.errors.fallbackEmail} <a href={`mailto:${view.fallbackEmail}`}>{view.fallbackEmail}</a>
+          </p>
+        ) : null}
         <form method="post" action={`/t/${view.token}/contact`} class="stack">
           <input type="hidden" name="lang" value={lang} />
           <Field id="message" label={t.form.message} hint={t.form.messageHint} error={form.errors.message}>

@@ -129,12 +129,18 @@ export const en = {
     when: "Please enter a valid date and time.",
     instructions: "The instructions are too long (up to 1000 characters).",
     fixFields: "Please check the highlighted fields.",
+    badForm: "This form could not be read. Please reload the page and try again.",
+    dailyLimit: "You have reached today's limit for this conversation. Please try again tomorrow.",
+    cantSend:
+      "We could not send your message right now. What you typed is still here. Please try again later or use another way to reach the owner.",
+    fallbackEmail: "You can also write to:",
   },
   degraded: {
     title: "We cannot load this page right now",
     body: "Our service is temporarily unavailable. Please write to the owner at the e-mail address below and mention what you found.",
     noContact: "Please use the e-mail address printed on the tag or card.",
     tryAgain: "You can also try this page again in a few minutes.",
+    yourMessage: "Your message (copy it so it is not lost):",
   },
   emergency: {
     title: "Contact the owner",
@@ -147,7 +153,10 @@ export const en = {
     stored:
       "Your message, and only if you provide them: your name, your e-mail address and a place or position. A position is stored only after you explicitly confirm it. We keep no IP addresses; a one-way code derived from it is used only to stop abuse.",
     seenTitle: "Who sees it",
-    seen: "Only the owner of the item. Nobody else, and it is not used for advertising or analytics.",
+    seen: "The owner of the item. If the owner has named trusted contacts, they may be told that someone made contact (never your message text). Nobody else, and it is not used for advertising or analytics.",
+    processorsTitle: "Service providers",
+    processors:
+      "Cloudflare processes data on our behalf: it hosts this service, runs the Turnstile bot check (which sees your IP address) and delivers e-mail.",
     retentionTitle: "How long",
     retention:
       "Closed conversations are deleted after the period the owner has set (90 days by default). The owner can delete a conversation at any time.",
@@ -321,12 +330,20 @@ const de: Dict = {
     when: "Bitte geben Sie ein gültiges Datum mit Uhrzeit ein.",
     instructions: "Die Hinweise sind zu lang (bis zu 1000 Zeichen).",
     fixFields: "Bitte prüfen Sie die markierten Felder.",
+    badForm:
+      "Das Formular konnte nicht gelesen werden. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
+    dailyLimit:
+      "Sie haben das Tageslimit für dieses Gespräch erreicht. Bitte versuchen Sie es morgen erneut.",
+    cantSend:
+      "Wir konnten Ihre Nachricht gerade nicht senden. Ihr Text steht noch da. Bitte versuchen Sie es später erneut oder nutzen Sie einen anderen Weg zum Eigentümer.",
+    fallbackEmail: "Sie können auch schreiben an:",
   },
   degraded: {
     title: "Diese Seite lässt sich gerade nicht laden",
     body: "Unser Dienst ist vorübergehend nicht erreichbar. Bitte schreiben Sie dem Eigentümer an die E-Mail-Adresse unten und nennen Sie, was Sie gefunden haben.",
     noContact: "Bitte nutzen Sie die E-Mail-Adresse, die auf dem Anhänger oder der Karte steht.",
     tryAgain: "Sie können diese Seite auch in ein paar Minuten erneut versuchen.",
+    yourMessage: "Ihre Nachricht (kopieren Sie sie, damit nichts verloren geht):",
   },
   emergency: {
     title: "Den Eigentümer kontaktieren",
@@ -339,7 +356,10 @@ const de: Dict = {
     stored:
       "Ihre Nachricht und, nur wenn Sie sie angeben: Ihr Name, Ihre E-Mail-Adresse und ein Ort oder Standort. Ein Standort wird erst gespeichert, nachdem Sie ihn ausdrücklich bestätigt haben. IP-Adressen speichern wir nicht; ein daraus abgeleiteter Einweg-Code dient nur der Missbrauchsabwehr.",
     seenTitle: "Wer es sieht",
-    seen: "Nur der Eigentümer des Gegenstands. Niemand sonst, und es wird nicht für Werbung oder Analyse verwendet.",
+    seen: "Der Eigentümer des Gegenstands. Hat der Eigentümer Vertrauenspersonen benannt, erfahren diese möglicherweise, dass jemand Kontakt aufgenommen hat (nie den Text Ihrer Nachricht). Niemand sonst, und es wird nicht für Werbung oder Analyse verwendet.",
+    processorsTitle: "Dienstleister",
+    processors:
+      "Cloudflare verarbeitet Daten in unserem Auftrag: Es hostet diesen Dienst, betreibt die Turnstile-Bot-Prüfung (die Ihre IP-Adresse sieht) und versendet E-Mails.",
     retentionTitle: "Wie lange",
     retention:
       "Beendete Gespräche werden nach der vom Eigentümer eingestellten Frist gelöscht (standardmäßig 90 Tage). Der Eigentümer kann ein Gespräch jederzeit löschen.",
@@ -507,12 +527,18 @@ const es: Dict = {
     when: "Introduce una fecha y hora válidas.",
     instructions: "Las indicaciones son demasiado largas (hasta 1000 caracteres).",
     fixFields: "Revisa los campos marcados.",
+    badForm: "No se pudo leer el formulario. Recarga la página e inténtalo de nuevo.",
+    dailyLimit: "Has alcanzado el límite de hoy para esta conversación. Inténtalo de nuevo mañana.",
+    cantSend:
+      "No pudimos enviar tu mensaje ahora. Lo que escribiste sigue aquí. Inténtalo más tarde o usa otra forma de contactar con el propietario.",
+    fallbackEmail: "También puedes escribir a:",
   },
   degraded: {
     title: "No podemos cargar esta página ahora",
     body: "Nuestro servicio no está disponible temporalmente. Escribe al propietario al correo de abajo e indica qué has encontrado.",
     noContact: "Usa el correo electrónico impreso en la etiqueta o en la tarjeta.",
     tryAgain: "También puedes probar de nuevo esta página dentro de unos minutos.",
+    yourMessage: "Tu mensaje (cópialo para no perderlo):",
   },
   emergency: {
     title: "Contactar con el propietario",
@@ -525,7 +551,10 @@ const es: Dict = {
     stored:
       "Tu mensaje y, solo si los das: tu nombre, tu correo electrónico y un lugar o posición. Una posición solo se guarda después de que la confirmes de forma explícita. No guardamos direcciones IP; un código irreversible derivado de ella se usa únicamente para frenar abusos.",
     seenTitle: "Quién lo ve",
-    seen: "Solo el propietario del objeto. Nadie más, y no se usa para publicidad ni analítica.",
+    seen: "El propietario del objeto. Si el propietario ha designado personas de confianza, puede que se les avise de que alguien ha contactado (nunca el texto de tu mensaje). Nadie más, y no se usa para publicidad ni analítica.",
+    processorsTitle: "Proveedores de servicios",
+    processors:
+      "Cloudflare trata datos por encargo nuestro: aloja este servicio, ejecuta la comprobación antirrobots Turnstile (que ve tu dirección IP) y entrega el correo electrónico.",
     retentionTitle: "Cuánto tiempo",
     retention:
       "Las conversaciones cerradas se borran tras el plazo que haya fijado el propietario (90 días por defecto). El propietario puede borrar una conversación en cualquier momento.",

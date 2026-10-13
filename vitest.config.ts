@@ -30,6 +30,9 @@ export default defineConfig(async () => {
     test: {
       include: ["test/**/*.test.ts"],
       setupFiles: ["./test/setup.ts"],
+      // Integration tests drive the real Worker + D1 in workerd; under a loaded machine
+      // (parallel files, dev servers) multi-step flows can exceed Vitest's 5 s default.
+      testTimeout: 20_000,
     },
   };
 });

@@ -560,6 +560,15 @@ details.card[open] summary {
   }
 }
 
+.typed {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
 /* Must stay last: equal specificity, so it beats the display rules above. */
 [hidden] {
   display: none;

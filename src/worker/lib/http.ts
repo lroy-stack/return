@@ -75,12 +75,14 @@ const CSP_APP = [
 
 /**
  * Headers for capability-URL pages (tag and conversation pages): never indexed, never cached
- * by shared caches, never leak the URL through the Referer header.
+ * by shared caches, never send the URL to other origins in the Referer header.
  */
 export const capabilityHeaders: MiddlewareHandler = async (c, next) => {
   await next();
   c.header("X-Robots-Tag", "noindex, nofollow, noarchive");
-  c.header("Referrer-Policy", "no-referrer");
+  // same-origin: the capability URL never leaves the origin, yet browsers still send a real
+  // Origin header on same-origin form posts (no-referrer would turn it into "null").
+  c.header("Referrer-Policy", "same-origin");
   // Handlers may opt into short private caching (e.g. the public item photo); default is no-store.
   if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
   c.header("Content-Security-Policy", CSP_PUBLIC);

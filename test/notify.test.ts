@@ -36,6 +36,7 @@ async function sentCount(): Promise<number> {
 
 describe("owner notifications", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.spyOn(env.EMAIL, "send").mockResolvedValue({ messageId: "test" } as never);
   });
 
@@ -45,11 +46,11 @@ describe("owner notifications", () => {
     expect(await sentCount()).toBe(3);
   });
 
-  it("applies the hourly cap to every email, including trusted-contact alerts", async () => {
+  it("applies the priority hourly cap per email, including trusted-contact alerts", async () => {
     await seed(5);
     const now = new Date().toISOString();
     await env.DB.batch(
-      Array.from({ length: 28 }, (_, i) =>
+      Array.from({ length: 43 }, (_, i) =>
         env.DB.prepare(
           `INSERT INTO notifications (id, owner_id, channel, kind, recipient, status, created_at)
            VALUES (?, ?, 'email', 'owner.new_message', 'x@example.test', 'sent', ?)`,
@@ -57,7 +58,7 @@ describe("owner notifications", () => {
       ),
     );
     await notifyOwner(env, OWNER, { kind: "new_conversation", itemName: "Backpack", preview: "Found it" });
-    expect(await sentCount()).toBe(30);
+    expect(await sentCount()).toBe(45);
   });
 
   it("stores the failure and does not throw when delivery fails", async () => {
@@ -71,5 +72,59 @@ describe("owner notifications", () => {
       .first<{ status: string; error: string }>();
     expect(row).toMatchObject({ status: "failed" });
     expect(row?.error).toContain("smtp down");
+  });
+
+  it("throttles every follow-up event per conversation, not only messages", async () => {
+    await seed(0);
+    for (const kind of ["proposal", "location_shared", "proposal", "new_message"] as const) {
+      await notifyOwner(env, OWNER, {
+        kind,
+        itemName: "Backpack",
+        conversationId: "conv-flood",
+        preview: "x",
+      });
+    }
+    expect(await sentCount()).toBe(1);
+  });
+
+  it("keeps a reserved budget so a flood cannot suppress first contact", async () => {
+    await seed(0);
+    const now = new Date().toISOString();
+    await env.DB.batch(
+      Array.from({ length: 30 }, (_, i) =>
+        env.DB.prepare(
+          `INSERT INTO notifications (id, owner_id, channel, kind, recipient, status, created_at)
+           VALUES (?, ?, 'email', 'owner.proposal', 'x@example.test', 'sent', ?)`,
+        ).bind(`flood-${i}`, OWNER, now),
+      ),
+    );
+    await notifyOwner(env, OWNER, {
+      kind: "proposal",
+      itemName: "Backpack",
+      conversationId: "c-x",
+      preview: "x",
+    });
+    expect(await sentCount()).toBe(30);
+    await notifyOwner(env, OWNER, {
+      kind: "new_conversation",
+      itemName: "Backpack",
+      conversationId: "c-new",
+    });
+    expect(await sentCount()).toBe(31);
+  });
+
+  it("never forwards the finder's text to trusted contacts", async () => {
+    await seed(1);
+    const send = vi.spyOn(env.EMAIL, "send").mockResolvedValue({ messageId: "test" } as never);
+    await notifyOwner(env, OWNER, {
+      kind: "new_conversation",
+      itemName: "Backpack",
+      preview: "Click evil.example now",
+    });
+    const toContact = send.mock.calls
+      .map(([m]) => m as { to: string; text?: string })
+      .find((m) => m.to === "c0@example.test");
+    expect(toContact?.text).toBeDefined();
+    expect(toContact?.text).not.toContain("evil.example");
   });
 });

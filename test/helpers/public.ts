@@ -12,6 +12,7 @@ const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 export const turnstile = {
   success: true,
   unreachable: false,
+  hostname: "return.test",
   calls: [] as { body: string }[],
 };
 
@@ -27,6 +28,7 @@ export function resetPublicStubs(): void {
   for (const spy of tracked.splice(0)) spy.mockRestore();
   turnstile.success = true;
   turnstile.unreachable = false;
+  turnstile.hostname = "return.test";
 }
 
 const fetchMock = vi.mocked(globalThis.fetch);
@@ -37,7 +39,7 @@ fetchMock.mockImplementation(async (input, init) => {
   if (url === SITEVERIFY) {
     turnstile.calls.push({ body: String(init?.body ?? "") });
     if (turnstile.unreachable) throw new Error("network down");
-    return Response.json({ success: turnstile.success });
+    return Response.json({ success: turnstile.success, hostname: turnstile.hostname });
   }
   return (previousFetch ?? realFetch)(input, init);
 });
@@ -193,7 +195,8 @@ export async function seedTrustedContact(
 }
 
 export interface FinderRequest {
-  ip?: string;
+  /** Client IP; `null` sends no CF-Connecting-IP header at all. */
+  ip?: string | null;
   cookie?: string;
   lang?: string;
   headers?: Record<string, string>;
@@ -201,7 +204,7 @@ export interface FinderRequest {
 
 export function finderGet(path: string, opts: FinderRequest = {}): Promise<Response> {
   const headers = new Headers(opts.headers);
-  headers.set("CF-Connecting-IP", opts.ip ?? uniqueIp());
+  if (opts.ip !== null) headers.set("CF-Connecting-IP", opts.ip ?? uniqueIp());
   if (opts.cookie) headers.set("Cookie", opts.cookie);
   if (opts.lang) headers.set("Accept-Language", opts.lang);
   return worker.fetch(new Request(`${PUBLIC}${path}`, { headers }));
@@ -213,8 +216,10 @@ export function finderPost(
   opts: FinderRequest & { origin?: string | null } = {},
 ): Promise<Response> {
   const headers = new Headers(opts.headers);
-  headers.set("CF-Connecting-IP", opts.ip ?? uniqueIp());
+  if (opts.ip !== null) headers.set("CF-Connecting-IP", opts.ip ?? uniqueIp());
+  const body = new URLSearchParams(fields).toString();
   headers.set("Content-Type", "application/x-www-form-urlencoded");
+  headers.set("Content-Length", String(new TextEncoder().encode(body).length));
   if (opts.origin !== null) headers.set("Origin", opts.origin ?? PUBLIC);
   if (opts.cookie) headers.set("Cookie", opts.cookie);
   if (opts.lang) headers.set("Accept-Language", opts.lang);
@@ -222,7 +227,7 @@ export function finderPost(
     new Request(`${PUBLIC}${path}`, {
       method: "POST",
       headers,
-      body: new URLSearchParams(fields).toString(),
+      body,
       redirect: "manual",
     }),
   );

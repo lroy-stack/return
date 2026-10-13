@@ -2,8 +2,9 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConversationDetail, Proposal } from "../src/shared/schemas";
 import { hmacHex } from "../src/worker/lib/ids";
+import { normalizeIp } from "../src/worker/lib/ratelimit";
 import { api, apiJson } from "./helpers/api";
-import { PUBLIC, worker } from "./helpers/auth";
+import { APP, PUBLIC, worker } from "./helpers/auth";
 import {
   finderGet,
   finderPost,
@@ -101,7 +102,7 @@ describe("tag page", () => {
     const seeded = await seedTag();
     const res = await finderGet(`/t/${seeded.token}`);
     expect(res.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
-    expect(res.headers.get("Referrer-Policy")).toBe("no-referrer");
+    expect(res.headers.get("Referrer-Policy")).toBe("same-origin");
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     const csp = res.headers.get("Content-Security-Policy") ?? "";
     expect(csp).toContain("style-src 'self'");
@@ -316,10 +317,14 @@ describe("tag page", () => {
     const seeded = await seedTag();
     const other = await seedTag();
     const conv = await openConversation(seeded);
-    const withCookie = await (await finderGet(`/t/${seeded.token}`, { cookie: `rc=${conv.token}` })).text();
+    const withCookie = await (
+      await finderGet(`/t/${seeded.token}`, { cookie: `__Host-rc=${conv.token}` })
+    ).text();
     expect(withCookie).toContain(`href="/c/${conv.token}"`);
     expect(withCookie).toContain("Continue your conversation");
-    const wrongTag = await (await finderGet(`/t/${other.token}`, { cookie: `rc=${conv.token}` })).text();
+    const wrongTag = await (
+      await finderGet(`/t/${other.token}`, { cookie: `__Host-rc=${conv.token}` })
+    ).text();
     expect(wrongTag).not.toContain(conv.token);
   });
 });
@@ -338,8 +343,9 @@ describe("starting a conversation", () => {
     const location = res.headers.get("Location") ?? "";
     expect(location).toMatch(/^\/c\/[A-Za-z0-9_-]{43}$/);
     const token = location.slice(3);
-    const setCookie = res.headers.getSetCookie().find((h) => h.startsWith("rc=")) ?? "";
-    expect(setCookie).toContain(`rc=${token}`);
+    const setCookie = res.headers.getSetCookie().find((h) => h.startsWith("__Host-rc=")) ?? "";
+    expect(setCookie).toContain(`__Host-rc=${token}`);
+    expect(setCookie).not.toMatch(/domain=/i);
     for (const attr of ["Path=/", "HttpOnly", "Secure", "SameSite=Lax", "Max-Age=2592000"]) {
       expect(setCookie).toContain(attr);
     }
@@ -360,7 +366,8 @@ describe("starting a conversation", () => {
     const recovery = await env.DB.prepare("SELECT status FROM recoveries WHERE id = ?")
       .bind(recoveryId)
       .first<{ status: string }>();
-    expect(recovery?.status).toBe("found");
+    // An anonymous first contact must not change the recovery state; it is only linked.
+    expect(recovery?.status).toBe("lost");
     expect(
       await count(
         "SELECT COUNT(*) AS n FROM activity_events WHERE tag_id = ? AND type = 'conversation.created'",
@@ -416,6 +423,14 @@ describe("starting a conversation", () => {
     expect(missing.status).toBe(403);
   });
 
+  it("rejects a Turnstile token issued for another hostname", async () => {
+    const seeded = await seedTag();
+    turnstile.hostname = "evil.example";
+    const res = await finderPost(`/t/${seeded.token}/contact`, { message: "hello", ...TURNSTILE_FIELD });
+    expect(res.status).toBe(403);
+    expect(await count("SELECT COUNT(*) AS n FROM conversations WHERE tag_id = ?", seeded.tagId)).toBe(0);
+  });
+
   it("fails closed when Turnstile is unreachable", async () => {
     const seeded = await seedTag();
     turnstile.unreachable = true;
@@ -441,13 +456,96 @@ describe("starting a conversation", () => {
     expect(await count("SELECT COUNT(*) AS n FROM conversations WHERE tag_id = ?", seeded.tagId)).toBe(1);
   });
 
-  it("caps new conversations at 5 per tag per day without saying why", async () => {
+  it("rejects Origin: null unless Sec-Fetch-Site says same-origin", async () => {
     const seeded = await seedTag();
-    for (let n = 0; n < 5; n += 1) await openConversation(seeded);
-    const res = await finderPost(`/t/${seeded.token}/contact`, { message: "one more", ...TURNSTILE_FIELD });
+    const body = { message: "hello", ...TURNSTILE_FIELD };
+    for (const site of ["cross-site", "same-site", "none", undefined]) {
+      const res = await finderPost(`/t/${seeded.token}/contact`, body, {
+        origin: "null",
+        headers: site ? { "Sec-Fetch-Site": site } : {},
+      });
+      expect(res.status, String(site)).toBe(403);
+    }
+    expect(await count("SELECT COUNT(*) AS n FROM conversations WHERE tag_id = ?", seeded.tagId)).toBe(0);
+  });
+
+  it("requires a declared small url-encoded body", async () => {
+    const seeded = await seedTag();
+    const url = `${PUBLIC}/t/${seeded.token}/contact`;
+    const base = { Origin: PUBLIC, "CF-Connecting-IP": uniqueIp() };
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("message=hi"));
+        controller.close();
+      },
+    });
+    const noLength = await worker.fetch(
+      new Request(url, {
+        method: "POST",
+        headers: { ...base, "Content-Type": "application/x-www-form-urlencoded" },
+        body: stream,
+        duplex: "half",
+      } as RequestInit),
+    );
+    expect(noLength.status).toBe(411);
+
+    const form = new FormData();
+    form.set("message", "hi");
+    const multipart = await worker.fetch(
+      new Request(url, { method: "POST", headers: { ...base, "Content-Length": "200" }, body: form }),
+    );
+    expect(multipart.status).toBe(415);
+
+    const big = await finderPost(`/t/${seeded.token}/contact`, { message: "x".repeat(40_000) });
+    expect(big.status).toBe(413);
+  });
+
+  it("caps a tag at 5 distinct sources per day and keeps the finder's text and contact options", async () => {
+    const seeded = await seedTag();
+    const sources: string[] = [];
+    for (let n = 0; n < 5; n += 1) sources.push((await openConversation(seeded)).ip);
+    const res = await finderPost(`/t/${seeded.token}/contact`, {
+      message: "one more please keep me",
+      ...TURNSTILE_FIELD,
+    });
     expect(res.status).toBe(429);
-    expect(await res.text()).toContain("try again later");
+    const html = await res.text();
+    expect(html).toContain("We could not send your message right now");
+    expect(html).toContain("one more please keep me");
+    expect(html).toContain("backup@example.test");
+    expect(html).toContain('href="mailto:ada@example.test"');
     expect(await count("SELECT COUNT(*) AS n FROM conversations WHERE tag_id = ?", seeded.tagId)).toBe(5);
+
+    // A source that already contacted this tag is not locked out by the others.
+    const again = await finderPost(
+      `/t/${seeded.token}/contact`,
+      { message: "second message from a known source", ...TURNSTILE_FIELD },
+      { ip: sources[0] },
+    );
+    expect(again.status).toBe(303);
+  });
+
+  it("keeps one source from locking out the others", async () => {
+    const seeded = await seedTag();
+    const ip = uniqueIp();
+    for (let n = 0; n < 3; n += 1) await openConversation(seeded, {}, { ip });
+    expect(
+      (await finderPost(`/t/${seeded.token}/contact`, { message: "x", ...TURNSTILE_FIELD }, { ip })).status,
+    ).toBe(429);
+    const other = await finderPost(`/t/${seeded.token}/contact`, { message: "hi", ...TURNSTILE_FIELD });
+    expect(other.status).toBe(303);
+  });
+
+  it("applies the per-source cap atomically under concurrency", async () => {
+    const seeded = await seedTag();
+    const ip = uniqueIp();
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        finderPost(`/t/${seeded.token}/contact`, { message: "burst", ...TURNSTILE_FIELD }, { ip }),
+      ),
+    );
+    expect(results.filter((r) => r.status === 303)).toHaveLength(3);
+    expect(await count("SELECT COUNT(*) AS n FROM conversations WHERE tag_id = ?", seeded.tagId)).toBe(3);
   });
 
   it("caps new conversations at 3 per IP per day", async () => {
@@ -459,6 +557,72 @@ describe("starting a conversation", () => {
       { ip },
     );
     expect(res.status).toBe(429);
+    expect(await res.text()).toContain("again");
+  });
+
+  it("treats every address in an IPv6 /64 as one client", async () => {
+    expect(normalizeIp("2001:db8:1:2:aaaa:bbbb:cccc:dddd")).toBe("2001:db8:1:2::/64");
+    expect(normalizeIp("2001:DB8:1:2::9")).toBe("2001:db8:1:2::/64");
+    expect(normalizeIp("::1")).toBe("0:0:0:0::/64");
+    expect(normalizeIp("::ffff:203.0.113.7")).toBe("203.0.113.7");
+    expect(normalizeIp("203.0.113.7")).toBe("203.0.113.7");
+
+    const a = "2001:db8:aa:bb::1";
+    const sameNet = "2001:db8:aa:bb:ffff:eeee:dddd:1";
+    const otherNet = "2001:db8:aa:cc::1";
+    for (let n = 0; n < 3; n += 1) await openConversation(await seedTag(), {}, { ip: a });
+    const capped = await finderPost(
+      `/t/${(await seedTag()).token}/contact`,
+      { message: "from the same /64", ...TURNSTILE_FIELD },
+      { ip: sameNet },
+    );
+    expect(capped.status).toBe(429);
+    const free = await finderPost(
+      `/t/${(await seedTag()).token}/contact`,
+      { message: "from another /64", ...TURNSTILE_FIELD },
+      { ip: otherNet },
+    );
+    expect(free.status).toBe(303);
+
+    // A block on one address covers the whole /64, and the limiter keys on the prefix too.
+    const seeded = await seedTag();
+    const blockedConv = await openConversation(seeded, {}, { ip: "2001:db8:dd:ee::5" });
+    await apiJson("POST", `/conversations/${blockedConv.id}/block`, {});
+    const blocked = await finderPost(
+      `/t/${seeded.token}/contact`,
+      { message: "neighbour", ...TURNSTILE_FIELD },
+      { ip: "2001:db8:dd:ee::99" },
+    );
+    expect(blocked.status).toBe(429);
+
+    const limit = vi.fn().mockResolvedValue({ success: true });
+    const original = env.PUBLIC_WRITE_LIMIT;
+    Object.defineProperty(env, "PUBLIC_WRITE_LIMIT", { value: { limit }, configurable: true });
+    try {
+      await finderPost(`/t/${seeded.token}/contact`, { message: "k" }, { ip: "2001:db8:dd:ee::99" });
+      expect(limit).toHaveBeenCalledWith({ key: "w:2001:db8:dd:ee::/64" });
+    } finally {
+      Object.defineProperty(env, "PUBLIC_WRITE_LIMIT", { value: original, configurable: true });
+    }
+  });
+
+  it("uses a shared bucket when the client IP is missing in production", async () => {
+    const seeded = await seedTag();
+    const limit = vi.fn().mockResolvedValue({ success: true });
+    const originalLimit = env.PUBLIC_WRITE_LIMIT;
+    const originalEnv = env.ENVIRONMENT;
+    Object.defineProperty(env, "PUBLIC_WRITE_LIMIT", { value: { limit }, configurable: true });
+    Object.defineProperty(env, "ENVIRONMENT", { value: "production", configurable: true });
+    try {
+      await finderPost(`/t/${seeded.token}/contact`, { message: "k" }, { ip: null });
+      expect(limit).toHaveBeenCalledWith({ key: "w:unknown" });
+    } finally {
+      Object.defineProperty(env, "PUBLIC_WRITE_LIMIT", { value: originalLimit, configurable: true });
+      Object.defineProperty(env, "ENVIRONMENT", { value: originalEnv, configurable: true });
+    }
+    limit.mockClear();
+    await finderPost(`/t/${seeded.token}/contact`, { message: "k" }, { ip: null });
+    expect(limit).not.toHaveBeenCalled();
   });
 
   it("rejects blocked IPs with the same generic answer", async () => {
@@ -471,7 +635,9 @@ describe("starting a conversation", () => {
       .run();
     const res = await finderPost(`/t/${seeded.token}/contact`, { message: "hi", ...TURNSTILE_FIELD }, { ip });
     expect(res.status).toBe(429);
-    expect(await res.text()).not.toMatch(/block/i);
+    const lockedHtml = await res.text();
+    expect(lockedHtml).not.toMatch(/blocked/i);
+    expect(lockedHtml).toContain("We could not send your message right now");
 
     const expired = uniqueIp();
     await env.DB.prepare(
@@ -704,7 +870,7 @@ describe("conversation page", () => {
     const res = await finderGet(`/c/${conv.token}`);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(res.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
-    expect(res.headers.get("Referrer-Policy")).toBe("no-referrer");
+    expect(res.headers.get("Referrer-Policy")).toBe("same-origin");
     expect(await res.text()).toContain("data-copy");
   });
 
@@ -859,8 +1025,115 @@ describe("rate limiting", () => {
     }
   });
 
-  it("serves cross-host requests only on the public origin", async () => {
-    const res = await worker.fetch(new Request(`${PUBLIC}/robots.txt`));
-    expect(res.status).toBe(200);
+  it("redirects finder paths requested on the app host to the public host", async () => {
+    const res = await worker.fetch(
+      new Request(`${APP}/t/0123456789abcdefghjkmnpqrs`, { redirect: "manual" }),
+    );
+    expect(res.status).toBe(308);
+    expect(res.headers.get("Location")).toBe(`${PUBLIC}/t/0123456789abcdefghjkmnpqrs`);
+  });
+});
+
+describe("degraded mode", () => {
+  it("shows the typed message and the fallback e-mail when the database fails while saving", async () => {
+    const seeded = await seedTag();
+    const original = env.DB.prepare.bind(env.DB);
+    trackSpy(vi.spyOn(env.DB, "prepare")).mockImplementation((sql: string) => {
+      if (sql.includes("INSERT INTO conversations")) throw new Error("D1 write failed");
+      return original(sql);
+    });
+    const res = await finderPost(`/t/${seeded.token}/contact`, {
+      message: "please keep my words",
+      ...TURNSTILE_FIELD,
+    });
+    expect(res.status).toBe(503);
+    const html = await res.text();
+    expect(html).toContain("backup@example.test");
+    expect(html).toContain("please keep my words");
+    expect(html).not.toContain("D1 write failed");
+  });
+
+  it("answers 503 with the fallback e-mail when a conversation page cannot load", async () => {
+    const conv = await openConversation(await seedTag());
+    trackSpy(vi.spyOn(env.DB, "prepare")).mockImplementation(() => {
+      throw new Error("D1 is down");
+    });
+    for (const path of [`/c/${conv.token}`, `/c/${conv.token}/state.json`]) {
+      const res = await finderGet(path);
+      expect(res.status, path).toBe(503);
+      expect(await res.text()).toContain("backup@example.test");
+    }
+  });
+});
+
+describe("conversation privacy and caps", () => {
+  it("never renders the item name, tag label or finder e-mail on the conversation page", async () => {
+    const seeded = await seedTag({
+      settings: { notifications: { notifyFinders: true } },
+      item: { name: "PRIVATE-ITEM-NAME-77" },
+    });
+    const conv = await openConversation(seeded, { email: "finder-secret@example.test" });
+    const tag = await env.DB.prepare("SELECT label FROM tags WHERE id = ?")
+      .bind(seeded.tagId)
+      .first<{ label: string }>();
+    const html = await (await finderGet(`/c/${conv.token}`)).text();
+    expect(html).not.toContain("PRIVATE-ITEM-NAME-77");
+    expect(html).not.toContain("finder-secret@example.test");
+    expect(html).not.toContain(`>${tag?.label}<`);
+    expect(html).not.toContain("Osprey");
+  });
+
+  it("caps finder messages, proposals and locations per conversation per day", async () => {
+    const conv = await openConversation(await seedTag());
+    const now = new Date().toISOString();
+    const statements = [];
+    for (let n = 0; n < 49; n += 1) {
+      statements.push(
+        env.DB.prepare(
+          "INSERT INTO messages (id, conversation_id, sender, body, created_at) VALUES (?, ?, 'finder', 'x', ?)",
+        ).bind(`m-${conv.id}-${n}`, conv.id, now),
+      );
+    }
+    for (let n = 0; n < 20; n += 1) {
+      statements.push(
+        env.DB.prepare(
+          "INSERT INTO proposals (id, conversation_id, proposed_by, kind, place, status, created_at) VALUES (?, ?, 'finder', 'other', 'p', 'proposed', ?)",
+        ).bind(`p-${conv.id}-${n}`, conv.id, now),
+      );
+    }
+    for (let n = 0; n < 10; n += 1) {
+      statements.push(
+        env.DB.prepare(
+          "INSERT INTO shared_locations (id, conversation_id, shared_by, source, label, created_at) VALUES (?, ?, 'finder', 'manual', 'l', ?)",
+        ).bind(`l-${conv.id}-${n}`, conv.id, now),
+      );
+    }
+    await env.DB.batch(statements);
+    const path = `/c/${conv.token}`;
+
+    // 49 + the opening message = 50: the 51st finder message is refused, but 50 would not be.
+    const refused = await finderPost(`${path}/messages`, { message: "message number fifty-one" });
+    expect(refused.status).toBe(429);
+    const html = await refused.text();
+    expect(html).toContain("limit for this conversation");
+    expect(html).toContain("message number fifty-one");
+    expect((await finderPost(`${path}/proposals`, { kind: "other", place: "again" })).status).toBe(429);
+    expect(
+      (await finderPost(`${path}/location`, { location_label: "again", location_confirmed: "yes" })).status,
+    ).toBe(429);
+    expect(
+      await count(
+        "SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ? AND body = 'message number fifty-one'",
+        conv.id,
+      ),
+    ).toBe(0);
+
+    // The owner is never capped.
+    expect((await api("POST", `/conversations/${conv.id}/messages`, { body: "owner reply" })).status).toBe(
+      201,
+    );
+    expect(
+      (await api("POST", `/conversations/${conv.id}/proposals`, { kind: "other", place: "o" })).status,
+    ).toBe(201);
   });
 });

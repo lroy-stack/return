@@ -46,9 +46,15 @@ export const readBudget: MiddlewareHandler<AppEnv> = async (c, next) => {
   return next();
 };
 
+/** Form posts must declare a small size up front and be url-encoded (no multipart parsing of untrusted bodies). */
 export function assertSmallForm(c: C): void {
-  const length = Number(c.req.header("Content-Length") ?? 0);
-  if (length > MAX_FORM_BYTES) throw new AppError(413, "too_large", "Request too large");
+  const length = c.req.header("Content-Length");
+  if (length === undefined) throw new AppError(411, "length_required", "Length required");
+  if (Number(length) > MAX_FORM_BYTES) throw new AppError(413, "too_large", "Request too large");
+  const type = c.req.header("Content-Type") ?? "";
+  if (!type.toLowerCase().startsWith("application/x-www-form-urlencoded")) {
+    throw new AppError(415, "unsupported_media_type", "Unsupported form encoding");
+  }
 }
 
 export async function htmlPage(
@@ -63,9 +69,17 @@ export function inactiveTagResponse(c: C, page: { toString(): string | Promise<s
   return htmlPage(c, page, 404);
 }
 
-export async function degradedResponse(c: C): Promise<Response> {
+export async function degradedResponse(c: C, typedMessage?: string): Promise<Response> {
   c.header("Retry-After", "120");
-  return htmlPage(c, <DegradedPage lang={negotiateLanguage(c)} email={c.env.FALLBACK_CONTACT_EMAIL} />, 503);
+  return htmlPage(
+    c,
+    <DegradedPage
+      lang={negotiateLanguage(c)}
+      email={c.env.FALLBACK_CONTACT_EMAIL}
+      typedMessage={typedMessage}
+    />,
+    503,
+  );
 }
 
 export function errorMessage(err: AppError, lang: ReturnType<typeof negotiateLanguage>): string {
@@ -81,6 +95,11 @@ export function errorMessage(err: AppError, lang: ReturnType<typeof negotiateLan
       return t.notAllowed;
     case "too_large":
       return t.tooLarge;
+    case "length_required":
+    case "unsupported_media_type":
+      return t.badForm;
+    case "conversation_cap":
+      return t.dailyLimit;
     case "rate_limited":
       return t.tryLater;
     case "not_found":
@@ -100,6 +119,8 @@ export async function handlePublicError(err: unknown, c: C): Promise<Response> {
     return c.html(await renderPage(<MessagePage lang={lang} title={message} />), err.status);
   }
   console.error(JSON.stringify({ level: "error", msg: "unhandled", error: String(err), path: c.req.path }));
+  // Finder pages depend on the database: when it fails, point the finder at the printed e-mail.
+  if (/^\/(c|t)\//i.test(c.req.path)) return degradedResponse(c);
   const message = dict(lang).errors.generic;
   return c.html(await renderPage(<MessagePage lang={lang} title={message} />), 500);
 }

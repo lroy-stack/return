@@ -28,9 +28,21 @@ export interface OwnerEvent {
   preview?: string | null;
 }
 
-/** Per-owner ceiling across all notification emails, to blunt spam floods. */
+/** Per-owner hourly ceiling for follow-up emails (messages, proposals, locations, replies). */
 const MAX_EMAILS_PER_HOUR = 30;
-/** At most one "new message" email per conversation in this window. */
+/**
+ * Higher ceiling that only first-contact style emails may use, so a flood of follow-ups from one
+ * conversation can never silence a new finder or a lost-item alert.
+ */
+const MAX_PRIORITY_EMAILS_PER_HOUR = 45;
+const PRIORITY_KINDS = new Set([
+  "owner.new_conversation",
+  "owner.lost_item_scanned",
+  "trusted.alert",
+  "finder.link",
+  "owner.test",
+]);
+/** At most one follow-up email per conversation in this window. */
 const MESSAGE_COOLDOWN_MS = 10 * 60_000;
 
 const EVENT_SETTING: Record<OwnerEventKind, keyof Settings["notifications"]["events"]> = {
@@ -64,11 +76,8 @@ export async function notifyOwner(env: Env, ownerId: string, event: OwnerEvent):
       await logNotification(env, ownerId, kind, recipient, event.conversationId, "skipped", "muted");
       return;
     }
-    if (
-      event.kind === "new_message" &&
-      event.conversationId &&
-      (await recentlyNotified(env, event.conversationId))
-    ) {
+    const isFollowUp = event.kind !== "new_conversation" && event.kind !== "lost_item_scanned";
+    if (isFollowUp && event.conversationId && (await recentlyNotified(env, event.conversationId))) {
       return;
     }
 
@@ -89,7 +98,8 @@ export async function notifyOwner(env: Env, ownerId: string, event: OwnerEvent):
     await deliver(env, ownerId, kind, recipient, subject, text, event.conversationId);
 
     // Trusted contacts are a safety net for the "lost my bag and my phone" case: they hear
-    // about first contact and scans of lost items, never about every message.
+    // about first contact and scans of lost items, never about every message. The finder's text
+    // is not forwarded: it is unverified input and only the owner should receive it.
     if (event.kind === "new_conversation" || event.kind === "lost_item_scanned") {
       const { results } = await env.DB.prepare(
         "SELECT name, email FROM trusted_contacts WHERE owner_id = ? AND notify = 1 AND email IS NOT NULL",
@@ -97,13 +107,12 @@ export async function notifyOwner(env: Env, ownerId: string, event: OwnerEvent):
         .bind(ownerId)
         .all<{ name: string; email: string }>();
       for (const contact of results) {
-        const ownerName = settings.identity.publicName || "your contact";
+        const ownerName = settings.identity.publicName || "the owner";
         const body = [
           `Hello ${contact.name},`,
           "",
           `You are listed as a trusted contact of ${ownerName} in RETURN.`,
           `${SUBJECTS[event.kind].replace("{item}", item).replace("your", "their")}.`,
-          event.preview ? `\nMessage: "${event.preview.slice(0, 500)}"` : "",
           "",
           `${ownerName} has been notified too. If they might be unreachable, please let them know.`,
         ].join("\n");
@@ -228,7 +237,8 @@ async function deliver(
     return { ok: false, error: "email_not_configured" };
   }
   // Checked per email (not per event) so fan-out to trusted contacts cannot exceed the cap.
-  if (await overHourlyCap(env, ownerId)) {
+  const limit = PRIORITY_KINDS.has(kind) ? MAX_PRIORITY_EMAILS_PER_HOUR : MAX_EMAILS_PER_HOUR;
+  if (await overHourlyCap(env, ownerId, limit)) {
     await logNotification(env, ownerId, kind, to, conversationId, "skipped", "hourly_cap");
     return { ok: false, error: "hourly_cap" };
   }
@@ -260,21 +270,21 @@ async function logNotification(
     .run();
 }
 
-async function overHourlyCap(env: Env, ownerId: string): Promise<boolean> {
+async function overHourlyCap(env: Env, ownerId: string, limit: number): Promise<boolean> {
   const since = new Date(Date.now() - 3_600_000).toISOString();
   const row = await env.DB.prepare(
     "SELECT COUNT(*) AS n FROM notifications WHERE owner_id = ? AND status = 'sent' AND created_at > ?",
   )
     .bind(ownerId, since)
     .first<{ n: number }>();
-  return (row?.n ?? 0) >= MAX_EMAILS_PER_HOUR;
+  return (row?.n ?? 0) >= limit;
 }
 
 async function recentlyNotified(env: Env, conversationId: string): Promise<boolean> {
   const since = new Date(Date.now() - MESSAGE_COOLDOWN_MS).toISOString();
   const row = await env.DB.prepare(
     `SELECT COUNT(*) AS n FROM notifications
-      WHERE conversation_id = ? AND kind IN ('owner.new_message', 'owner.new_conversation') AND status = 'sent' AND created_at > ?`,
+      WHERE conversation_id = ? AND kind LIKE 'owner.%' AND status = 'sent' AND created_at > ?`,
   )
     .bind(conversationId, since)
     .first<{ n: number }>();

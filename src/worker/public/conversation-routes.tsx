@@ -54,7 +54,13 @@ async function loadForWrite(c: Ctx): Promise<Loaded> {
   return loaded;
 }
 
-async function renderConversation(c: Ctx, loaded: Loaded, active?: FormName, form?: FormState, status?: 422) {
+async function renderConversation(
+  c: Ctx,
+  loaded: Loaded,
+  active?: FormName,
+  form?: FormState,
+  status?: 422 | 429,
+) {
   const detail = await getConversationDetail(c.env.DB, loaded.conv);
   return htmlPage(
     c,
@@ -84,6 +90,25 @@ function tellOwner(c: Ctx, conv: ConversationRow, kind: OwnerEvent["kind"], prev
 
 const done = (c: Ctx, token: string) => c.redirect(`/c/${token}`, 303);
 
+/** Over the daily cap: a friendly page that keeps what the finder typed. */
+async function withCap(
+  c: Ctx,
+  loaded: Loaded,
+  active: FormName,
+  values: FormState["values"],
+  run: () => Promise<Response>,
+): Promise<Response> {
+  try {
+    return await run();
+  } catch (err) {
+    if (err instanceof AppError && err.code === "conversation_cap") {
+      const errors = { form: dict(loaded.lang).errors.dailyLimit };
+      return renderConversation(c, loaded, active, { values, errors }, 429);
+    }
+    throw err;
+  }
+}
+
 export const conversationRoutes = new Hono<AppEnv>();
 conversationRoutes.use("*", capabilityHeaders);
 conversationRoutes.use("*", publicWrites);
@@ -105,9 +130,11 @@ conversationRoutes.post("/:token/messages", async (c) => {
   const values = toFormValues(await c.req.parseBody());
   const parsed = parseMessage(values, dict(loaded.lang));
   if (!parsed.ok) return renderConversation(c, loaded, "reply", { values, errors: parsed.errors }, 422);
-  await addMessage(c.env.DB, loaded.conv, "finder", parsed.data);
-  tellOwner(c, loaded.conv, "new_message", parsed.data);
-  return done(c, loaded.token);
+  return withCap(c, loaded, "reply", values, async () => {
+    await addMessage(c.env.DB, loaded.conv, "finder", parsed.data);
+    tellOwner(c, loaded.conv, "new_message", parsed.data);
+    return done(c, loaded.token);
+  });
 });
 
 conversationRoutes.post("/:token/location", async (c) => {
@@ -119,9 +146,12 @@ conversationRoutes.post("/:token/location", async (c) => {
     const errors = parsed.ok ? { location: t.errors.location } : parsed.errors;
     return renderConversation(c, loaded, "location", { values, errors }, 422);
   }
-  const location = await shareLocation(c.env.DB, loaded.conv, "finder", parsed.data);
-  tellOwner(c, loaded.conv, "location_shared", location.label ?? "");
-  return done(c, loaded.token);
+  const data = parsed.data;
+  return withCap(c, loaded, "location", values, async () => {
+    const location = await shareLocation(c.env.DB, loaded.conv, "finder", data);
+    tellOwner(c, loaded.conv, "location_shared", location.label ?? "");
+    return done(c, loaded.token);
+  });
 });
 
 conversationRoutes.post("/:token/proposals", async (c) => {
@@ -129,9 +159,12 @@ conversationRoutes.post("/:token/proposals", async (c) => {
   const values = toFormValues(await c.req.parseBody());
   const parsed = parseProposal(values, dict(loaded.lang));
   if (!parsed.ok) return renderConversation(c, loaded, "proposal", { values, errors: parsed.errors }, 422);
-  const proposal = await createProposal(c.env.DB, loaded.conv, "finder", parsed.data);
-  tellOwner(c, loaded.conv, "proposal", proposal.place);
-  return done(c, loaded.token);
+  const data = parsed.data;
+  return withCap(c, loaded, "proposal", values, async () => {
+    const proposal = await createProposal(c.env.DB, loaded.conv, "finder", data);
+    tellOwner(c, loaded.conv, "proposal", proposal.place);
+    return done(c, loaded.token);
+  });
 });
 
 const respondFormSchema = z.object({ action: proposalResponseSchema.shape.action });

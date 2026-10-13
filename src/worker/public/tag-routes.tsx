@@ -8,7 +8,7 @@ import { createConversation } from "../domain/conversations";
 import type { AppEnv } from "../env";
 import { AppError, capabilityHeaders } from "../lib/http";
 import { hmacHex, isWellFormedSecretToken, normalizeTagToken, sha256Hex } from "../lib/ids";
-import { allowPublicWrite, requestIp } from "../lib/ratelimit";
+import { allowPublicWrite, clientKey, rawClientIp } from "../lib/ratelimit";
 import { nowIso } from "../lib/time";
 import { publicOrigin } from "../lib/urls";
 import { notifyFinder, notifyOwner } from "../services/notify";
@@ -19,7 +19,6 @@ import { categoryName, defaultLostMessage, defaultReturnMessage, dict } from "./
 import { negotiateLanguage } from "./lang";
 import { type ContactLink, InactivePage, TagPage, type TagView } from "./pages";
 import {
-  countRecentConversations,
   findActiveTag,
   findPublicPhoto,
   isIpBlocked,
@@ -38,11 +37,8 @@ import {
   turnstileSiteKey,
 } from "./support";
 
-const DAY_MS = 86_400_000;
 const SCAN_LOG_INTERVAL_MS = 3_600_000;
 const LOST_NOTIFY_INTERVAL_MS = 6 * 3_600_000;
-const MAX_CONVERSATIONS_PER_TAG_PER_DAY = 5;
-const MAX_CONVERSATIONS_PER_IP_PER_DAY = 3;
 const COOKIE_MAX_AGE_SECONDS = 30 * 86_400;
 const SAFE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
 
@@ -120,6 +116,7 @@ function buildView(
     notifyFinders: settings.notifications.notifyFinders,
     continueUrl,
     siteKey: turnstileSiteKey(c.env),
+    fallbackEmail: c.env.FALLBACK_CONTACT_EMAIL,
   };
 }
 
@@ -135,7 +132,7 @@ async function loadTagContext(c: Ctx, token: string): Promise<TagContext | null>
 
 /** The finder's own open conversation for this tag, found through the `rc` cookie. */
 async function existingConversationUrl(c: Ctx, tag: PublicTag): Promise<string | null> {
-  const raw = getCookie(c, "rc");
+  const raw = getCookie(c, "rc", "host");
   if (!raw || !isWellFormedSecretToken(raw)) return null;
   const conv = await findConversationByTokenHash(c.env.DB, await sha256Hex(raw));
   return conv && conv.tag_id === tag.tagId && conv.status === "open" ? `/c/${raw}` : null;
@@ -215,8 +212,7 @@ tagRoutes.get("/:token", async (c) => {
 tagRoutes.post("/:token/contact", async (c) => {
   const token = parseTagParam(c);
   const fallbackPage = <InactivePage lang={negotiateLanguage(c)} />;
-  if (!(await allowPublicWrite(c.env, c.req.raw)))
-    throw new AppError(429, "rate_limited", "Too many requests");
+  const limited = !(await allowPublicWrite(c.env, c.req.raw));
   assertSmallForm(c);
   if (!token) return inactiveTagResponse(c, fallbackPage);
 
@@ -235,44 +231,43 @@ tagRoutes.post("/:token/contact", async (c) => {
     languageSchema.safeParse(values.lang).data ??
     negotiateLanguage(c, settings.identity.defaultPublicLanguage);
   const t = dict(lang);
-  const rerender = (form: FormState, status: 422 | 403) =>
+  const rerender = (form: FormState, status: 422 | 403 | 429) =>
     htmlPage(c, <TagPage lang={lang} view={buildView(c, token, lang, data, null)} form={form} />, status);
+  // Limits, caps and blocks all look the same to the finder, and never lose what they typed.
+  const lockedOut = () => rerender({ values, errors: { form: t.errors.cantSend } }, 429);
 
+  if (limited) return lockedOut();
   const parsed = parseContact(values, t, settings.notifications.notifyFinders);
   if (!parsed.ok) return rerender({ values, errors: parsed.errors }, 422);
 
-  const ip = requestIp(c.req.raw);
-  if (!(await verifyTurnstile(c.env, values["cf-turnstile-response"] ?? null, ip))) {
+  if (!(await verifyTurnstile(c.env, values["cf-turnstile-response"] ?? null, rawClientIp(c.req.raw)))) {
     return rerender({ values, errors: { form: t.errors.verification } }, 403);
   }
 
-  // Blocked IPs and exceeded caps get the same generic answer, so nothing is revealed.
-  const ipHmac = ip ? await hmacHex(c.env.IP_HMAC_SECRET, ip) : null;
-  const dayAgo = new Date(Date.now() - DAY_MS).toISOString();
-  if (ipHmac && (await isIpBlocked(c.env.DB, tag.ownerId, ipHmac, nowIso()))) {
-    throw new AppError(429, "rate_limited", "Too many requests");
-  }
-  const [perTag, perIp] = await Promise.all([
-    countRecentConversations(c.env.DB, { tagId: tag.tagId }, dayAgo),
-    ipHmac ? countRecentConversations(c.env.DB, { ipHmac }, dayAgo) : Promise.resolve(0),
-  ]);
-  if (perTag >= MAX_CONVERSATIONS_PER_TAG_PER_DAY || perIp >= MAX_CONVERSATIONS_PER_IP_PER_DAY) {
-    throw new AppError(429, "rate_limited", "Too many requests");
+  let created: { id: string; token: string };
+  try {
+    const key = clientKey(c.env, c.req.raw);
+    const ipHmac = key ? await hmacHex(c.env.IP_HMAC_SECRET, key) : null;
+    if (ipHmac && (await isIpBlocked(c.env.DB, tag.ownerId, ipHmac, nowIso()))) return lockedOut();
+    created = await createConversation(c.env.DB, {
+      ownerId: tag.ownerId,
+      tagId: tag.tagId,
+      itemId: tag.itemId,
+      subject: tag.publicTitle || categoryName(settings.identity.panelLanguage, tag.category),
+      message: parsed.data.message,
+      name: parsed.data.name,
+      email: parsed.data.email,
+      lang,
+      ipHmac,
+      location: parsed.data.location,
+    });
+  } catch (err) {
+    if (err instanceof AppError && err.status === 429) return lockedOut();
+    console.error(JSON.stringify({ level: "error", msg: "contact failed", error: String(err) }));
+    return degradedResponse(c, parsed.data.message);
   }
 
-  const { id, token: finderToken } = await createConversation(c.env.DB, {
-    ownerId: tag.ownerId,
-    tagId: tag.tagId,
-    itemId: tag.itemId,
-    subject: tag.publicTitle || categoryName(settings.identity.panelLanguage, tag.category),
-    message: parsed.data.message,
-    name: parsed.data.name,
-    email: parsed.data.email,
-    lang,
-    ipHmac,
-    location: parsed.data.location,
-  });
-
+  const { id, token: finderToken } = created;
   const { email } = parsed.data;
   defer(
     c,
@@ -295,6 +290,7 @@ tagRoutes.post("/:token/contact", async (c) => {
   );
 
   setCookie(c, "rc", finderToken, {
+    prefix: "host",
     path: "/",
     httpOnly: true,
     secure: true,

@@ -201,6 +201,45 @@ describe("owner conversations API", () => {
     expect((await finderGet(`/c/${conv.token}`)).status).toBe(404);
   });
 
+  it("keeps exactly one accepted proposal when accepts race", async () => {
+    const seeded = await seedTag();
+    const conv = await openConversation(seeded);
+    await finderPost(`/c/${conv.token}/proposals`, { kind: "meeting_point", place: "Cafe" });
+    const [proposal] = (await apiJson<ConversationDetail>("GET", `/conversations/${conv.id}`)).proposals;
+    const settled = await Promise.allSettled(
+      Array.from({ length: 4 }, () =>
+        api("POST", `/conversations/${conv.id}/proposals/${proposal?.id}/respond`, { action: "accept" }),
+      ),
+    );
+    const statuses = settled.map((r) => (r.status === "fulfilled" ? r.value.status : 0)).sort();
+    expect(statuses.filter((s) => s === 200)).toHaveLength(1);
+    expect(statuses.filter((s) => s === 409)).toHaveLength(3);
+    const after = (await apiJson<ConversationDetail>("GET", `/conversations/${conv.id}`)).proposals;
+    expect(after.map((p) => p.status)).toEqual(["accepted"]);
+  });
+
+  it("blanks notification recipients when a conversation is deleted", async () => {
+    const seeded = await seedTag({
+      settings: { notifications: { notifyFinders: true, emailAddress: "owner@example.test" } },
+    });
+    const conv = await openConversation(seeded, { email: "finder-gone@example.test" });
+    await vi.waitFor(async () => {
+      expect(
+        await count("SELECT COUNT(*) AS n FROM notifications WHERE conversation_id = ?", conv.id),
+      ).toBeGreaterThanOrEqual(2);
+    });
+    expect((await api("DELETE", `/conversations/${conv.id}`, { confirm: "DELETE" })).status).toBe(204);
+    expect(
+      await count(
+        "SELECT COUNT(*) AS n FROM notifications WHERE conversation_id = ? AND recipient <> '[deleted]'",
+        conv.id,
+      ),
+    ).toBe(0);
+    expect(
+      await count("SELECT COUNT(*) AS n FROM notifications WHERE recipient = 'finder-gone@example.test'"),
+    ).toBe(0);
+  });
+
   it("never exposes or changes another owner's conversation (IDOR)", async () => {
     const foreign = await foreignConversation();
     const base = `/conversations/${foreign}`;
