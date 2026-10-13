@@ -2,18 +2,20 @@ import { type FormEvent, useEffect, useState } from "react";
 import { type ItemSummary, type Tag, tagCreateSchema } from "../../shared/schemas";
 import { NfcBadge, TagSheet, TagStatusBadge } from "../components/TagSheet";
 import { ApiRequestError, api, qs } from "../lib/api";
+import { useDataChanged } from "../lib/data-events";
 import { emptyToNull, type FieldErrors, validate } from "../lib/forms";
 import { useResource } from "../lib/hooks";
 import { useT } from "../lib/i18n";
-import { Link, navigate, useLocation } from "../lib/router";
+import { navigate, useLocation } from "../lib/router";
 import { useFormat } from "../lib/settings-context";
 import { Button, ButtonLink } from "../ui/Button";
-import { Checkbox, FormError, Select, TextInput } from "../ui/Field";
+import { Section } from "../ui/Card";
+import { Checkbox, FormError, SegmentedControl, Select, TextInput } from "../ui/Field";
 import { Icon } from "../ui/Icon";
-import { PageHeader } from "../ui/Page";
+import { IconTile, List, ListRow } from "../ui/List";
+import { PageHeader, Toolbar } from "../ui/Page";
 import { Sheet, SheetBody, SheetFooter } from "../ui/Sheet";
 import { EmptyState, ErrorState, LoadingBlock } from "../ui/States";
-import { Chip } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
 
 type Filter = "active" | "revoked" | "";
@@ -30,6 +32,7 @@ export function TagsPage() {
     `tags-${filter}`,
     async (signal) => (await api.get<{ tags: Tag[] }>(`/tags${qs({ status: filter })}`, signal)).tags,
   );
+  useDataChanged(() => res.reload(true));
   const tags = res.state.status === "ready" ? res.state.data : [];
   const open = tags.find((x) => x.id === openId) ?? null;
   const selectable = tags.filter((x) => x.status === "active");
@@ -69,40 +72,35 @@ export function TagsPage() {
         }
       />
 
-      <details className="mb-5 rounded-card border border-line bg-raised px-4 py-1 shadow-card">
-        <summary className="flex min-h-11 items-center gap-2 font-medium">
-          <Icon name="info" className="size-5 text-primary-text" />
-          {t("tags.nfcHelpTitle")}
-        </summary>
-        <div className="space-y-2 pb-3 text-sm text-muted">
+      <Section collapsible title={t("tags.nfcHelpTitle")} className="mb-6">
+        <div className="space-y-2 text-subhead text-muted">
           <p>{t("nfc.help")}</p>
           <p>{t("tags.nfcHelpSteps")}</p>
         </div>
-      </details>
+      </Section>
 
-      <fieldset className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
-        <legend className="sr-only">{t("tags.filter")}</legend>
-        <Chip pressed={filter === "active"} onClick={() => setFilter("active")}>
-          {t("tag.active")}
-        </Chip>
-        <Chip pressed={filter === "revoked"} onClick={() => setFilter("revoked")}>
-          {t("tag.revoked")}
-        </Chip>
-        <Chip pressed={filter === ""} onClick={() => setFilter("")}>
-          {t("inventory.all")}
-        </Chip>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl
+          label={t("tags.filter")}
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: "active", label: t("tag.active") },
+            { value: "revoked", label: t("tag.revoked") },
+            { value: "", label: t("inventory.all") },
+          ]}
+        />
         {selectable.length > 0 ? (
           <Checkbox
-            className="ml-auto"
             label={t("tags.selectAll")}
             checked={allSelected}
             onChange={(on) => setSelected(on ? new Set(selectable.map((x) => x.id)) : new Set())}
           />
         ) : null}
-      </fieldset>
+      </div>
 
       {res.state.status === "loading" ? (
-        <LoadingBlock />
+        <LoadingBlock variant="rows" rows={5} />
       ) : res.state.status === "error" ? (
         <ErrorState error={res.state.error} onRetry={() => res.reload()} />
       ) : tags.length === 0 ? (
@@ -118,60 +116,44 @@ export function TagsPage() {
           {t("tags.emptyBody")}
         </EmptyState>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-raised shadow-card">
+        <List label={t("nav.tags")} className={selected.size > 0 ? "mb-20" : undefined}>
           {tags.map((tag) => (
-            <li
+            <ListRow
               key={tag.id}
-              className={`flex items-center gap-1 pr-2 pl-1 ${tag.status === "revoked" ? "opacity-70" : ""}`}
-            >
-              {tag.status === "active" ? (
-                <label className="flex size-11 shrink-0 cursor-pointer items-center justify-center">
-                  <input
-                    type="checkbox"
-                    className="size-5 accent-primary"
-                    checked={selected.has(tag.id)}
-                    onChange={() => toggle(tag.id)}
-                  />
-                  <span className="sr-only">{t("tags.select", { label: tag.label })}</span>
-                </label>
-              ) : (
-                <span className="size-11 shrink-0" aria-hidden="true" />
-              )}
-              <button
-                type="button"
-                onClick={() => setOpenId(tag.id)}
-                className="grid min-h-16 min-w-0 flex-1 items-center gap-x-4 gap-y-1 rounded-lg px-2 py-2 text-left hover:bg-sunken md:grid-cols-[9rem_1fr_auto_8rem]"
-              >
-                <span className="font-semibold">{tag.label}</span>
-                <span className="min-w-0 truncate text-sm text-muted">
-                  {tag.itemName ?? t("tag.unassigned")}
-                  {tag.note ? ` · ${tag.note}` : ""}
-                </span>
-                <span className="flex flex-wrap gap-1.5">
+              onClick={() => setOpenId(tag.id)}
+              chevron
+              className={tag.status === "revoked" ? "opacity-70" : undefined}
+              select={
+                tag.status === "active"
+                  ? {
+                      checked: selected.has(tag.id),
+                      onChange: () => toggle(tag.id),
+                      label: t("tags.select", { label: tag.label }),
+                    }
+                  : "spacer"
+              }
+              leading={
+                <IconTile tone={tag.status === "revoked" ? "neutral" : "primary"}>
+                  <Icon name="qr" className="size-5" />
+                </IconTile>
+              }
+              title={tag.label}
+              subtitle={`${tag.itemName ?? t("tag.unassigned")}${tag.note ? ` · ${tag.note}` : ""}`}
+              description={tag.lastSeenAt ? format.relative(tag.lastSeenAt) : t("tag.neverSeen")}
+              trailing={
+                <>
                   <TagStatusBadge tag={tag} />
-                  <NfcBadge status={tag.nfcStatus} />
-                </span>
-                <span className="text-sm text-muted md:text-right">
-                  {tag.lastSeenAt ? format.relative(tag.lastSeenAt) : t("tag.neverSeen")}
-                </span>
-              </button>
-              {tag.itemId ? (
-                <Link
-                  to={`/items/${tag.itemId}`}
-                  className="hidden size-11 items-center justify-center rounded-lg text-muted hover:bg-sunken hover:text-fg sm:inline-flex"
-                  aria-label={t("tag.openItem")}
-                >
-                  <Icon name="external" className="size-4" />
-                </Link>
-              ) : null}
-            </li>
+                  {tag.nfcStatus !== "none" ? <NfcBadge status={tag.nfcStatus} /> : null}
+                </>
+              }
+            />
           ))}
-        </ul>
+        </List>
       )}
 
       {selected.size > 0 ? (
-        <div className="no-print fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-2xl border border-line bg-raised p-3 shadow-float lg:bottom-6">
-          <p className="pl-1 font-medium" role="status">
+        <Toolbar floating label={t("tags.printHint")}>
+          <p className="font-semibold" role="status">
             {t("tags.selected", { n: selected.size })}
           </p>
           <div className="flex gap-2">
@@ -186,7 +168,7 @@ export function TagsPage() {
               {t("tags.printCards")}
             </Button>
           </div>
-        </div>
+        </Toolbar>
       ) : null}
 
       <TagSheet tag={open} onClose={() => setOpenId(null)} onChanged={() => res.reload(true)} />

@@ -144,7 +144,7 @@ function ItemForm({
         />
 
         <details
-          className="rounded-xl border border-line bg-sunken/50 px-3 py-1"
+          className="rounded-control border border-line bg-sunken/50 px-3 py-1"
           open={!!(item?.serialNumber || item?.estimatedValueCents || item?.privateNotes)}
         >
           <summary className="flex min-h-11 items-center gap-2 font-medium">
@@ -152,7 +152,7 @@ function ItemForm({
             {t("itemForm.privateDetails")}
           </summary>
           <div className="flex flex-col gap-4 pt-2 pb-3">
-            <p className="text-sm text-muted">{t("private.neverShown")}</p>
+            <p className="text-subhead text-muted">{t("private.neverShown")}</p>
             <TextInput
               label={t("itemForm.serial")}
               value={serial}

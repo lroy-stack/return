@@ -7,6 +7,7 @@ import { Link } from "../../lib/router";
 import { useFormat } from "../../lib/settings-context";
 import { Button } from "../../ui/Button";
 import { EmptyState, ErrorState, LoadingBlock } from "../../ui/States";
+import { Timeline } from "../../ui/Timeline";
 import { SectionCard } from "./shared";
 
 const PAGE = 30;
@@ -75,44 +76,37 @@ export function ActivitySection() {
       ) : null}
       {state === "ready" && events.length > 0 ? (
         <>
-          <ul className="divide-y divide-line rounded-xl border border-line">
-            {events.map((ev) => (
-              <li
-                key={ev.id}
-                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-3 py-2.5"
-              >
-                <span className="min-w-0">
-                  <span className="font-medium">{eventLabel(ev.type, t)}</span>
-                  {ev.country ? <span className="text-sm text-muted"> · {ev.country}</span> : null}
-                  {ev.itemId ? (
-                    <>
-                      {" · "}
+          <Timeline
+            label={t("settings.activity")}
+            entries={events.map((ev) => ({
+              key: ev.id,
+              title: eventLabel(ev.type, t),
+              time: format.dateTime(ev.createdAt),
+              datetime: ev.createdAt,
+              body:
+                ev.country || ev.itemId || ev.conversationId ? (
+                  <span className="flex flex-wrap items-center gap-x-4">
+                    {ev.country ? <span>{ev.country}</span> : null}
+                    {ev.itemId ? (
                       <Link
                         to={`/items/${ev.itemId}`}
-                        className="text-sm font-medium text-primary-text underline"
+                        className="inline-flex min-h-11 items-center font-medium text-primary-text underline"
                       >
                         {t("activity.item")}
                       </Link>
-                    </>
-                  ) : null}
-                  {ev.conversationId ? (
-                    <>
-                      {" · "}
+                    ) : null}
+                    {ev.conversationId ? (
                       <Link
                         to={`/conversations/${ev.conversationId}`}
-                        className="text-sm font-medium text-primary-text underline"
+                        className="inline-flex min-h-11 items-center font-medium text-primary-text underline"
                       >
                         {t("activity.conversation")}
                       </Link>
-                    </>
-                  ) : null}
-                </span>
-                <time dateTime={ev.createdAt} className="text-sm text-muted tabular-nums">
-                  {format.dateTime(ev.createdAt)}
-                </time>
-              </li>
-            ))}
-          </ul>
+                    ) : null}
+                  </span>
+                ) : undefined,
+            }))}
+          />
           {next ? (
             <div>
               <Button loading={loadingMore} onClick={more}>
@@ -120,7 +114,7 @@ export function ActivitySection() {
               </Button>
             </div>
           ) : (
-            <p className="text-sm text-muted">{t("activity.end")}</p>
+            <p className="text-subhead text-muted">{t("activity.end")}</p>
           )}
         </>
       ) : null}

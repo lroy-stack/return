@@ -5,11 +5,13 @@ import type { MessageKey } from "../../lib/dict";
 import { type FieldErrors, validate } from "../../lib/forms";
 import { useMediaQuery } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
-import { Link } from "../../lib/router";
 import { useSettings } from "../../lib/settings-context";
 import { Button } from "../../ui/Button";
-import { Icon, type IconName } from "../../ui/Icon";
-import { PageHeader } from "../../ui/Page";
+import type { IconName } from "../../ui/Icon";
+import { Icon } from "../../ui/Icon";
+import { IconTile, List, ListRow } from "../../ui/List";
+import { PageHeader, Toolbar } from "../../ui/Page";
+import { SplitView } from "../../ui/SplitView";
 import { ErrorState, LoadingBlock } from "../../ui/States";
 import { useToast } from "../../ui/Toast";
 import { ActivitySection } from "./ActivitySection";
@@ -37,13 +39,13 @@ const SECTIONS: { key: string; label: MessageKey; icon: IconName; editable: bool
 export function SettingsPage({ section }: { section?: string }) {
   const t = useT();
   const toast = useToast();
-  const desktop = useMediaQuery("(min-width: 1024px)");
+  const split = useMediaQuery("(min-width: 768px)");
   const { state, settings, save, draft, setDraft, reload } = useSettings();
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const active = SECTIONS.find((s) => s.key === section) ?? (desktop ? SECTIONS[0] : undefined);
+  const active = SECTIONS.find((s) => s.key === section) ?? (split ? SECTIONS[0] : undefined);
   const current = draft ?? settings;
   const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(settings);
 
@@ -85,8 +87,8 @@ export function SettingsPage({ section }: { section?: string }) {
 
   const header = (
     <PageHeader
-      title={!desktop && active ? t(active.label) : t("nav.settings")}
-      back={!desktop && active ? { to: "/settings", label: t("nav.settings") } : undefined}
+      title={!split && active ? t(active.label) : t("nav.settings")}
+      back={!split && active ? { to: "/settings", label: t("nav.settings") } : undefined}
     />
   );
 
@@ -110,75 +112,78 @@ export function SettingsPage({ section }: { section?: string }) {
   const props = { draft: current, update, errors };
   const nav = (
     <nav aria-label={t("settings.sections")}>
-      <ul className="flex flex-col gap-1">
-        {SECTIONS.map((s) => {
-          const isActive = active?.key === s.key;
-          return (
-            <li key={s.key}>
-              <Link
-                to={`/settings/${s.key}`}
-                aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-12 items-center gap-3 rounded-xl px-3 font-medium lg:min-h-11 ${
-                  isActive && desktop ? "bg-primary-tint text-primary-text" : "hover:bg-sunken"
-                } ${desktop ? "" : "border border-line bg-raised"}`}
-              >
-                <Icon name={s.icon} className="text-muted" />
-                {t(s.label)}
-                {!desktop ? <Icon name="chevron" className="ml-auto text-muted" /> : null}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <List>
+        {SECTIONS.map((s) => (
+          <ListRow
+            key={s.key}
+            to={`/settings/${s.key}`}
+            current={split && active?.key === s.key}
+            leading={
+              <IconTile tone={s.key === "system" || s.key === "activity" ? "neutral" : "primary"}>
+                <Icon name={s.icon} className="size-5" />
+              </IconTile>
+            }
+            title={t(s.label)}
+          />
+        ))}
+      </List>
     </nav>
   );
 
   return (
     <>
       {header}
-      <div className="lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
-        {desktop || !active ? (
-          <div className="mb-5 lg:sticky lg:top-8 lg:mb-0 lg:self-start">{nav}</div>
-        ) : null}
-        {active ? (
-          <div className="min-w-0 pb-24">
-            {active.key === "identity" ? <IdentitySection {...props} /> : null}
-            {active.key === "messages" ? <MessagesSection {...props} /> : null}
-            {active.key === "contact" ? <ContactSection {...props} /> : null}
-            {active.key === "notifications" ? <NotificationsSection {...props} dirty={dirty} /> : null}
-            {active.key === "privacy" ? <PrivacySection {...props} /> : null}
-            {active.key === "tags" ? <TagsSettingsSection {...props} /> : null}
-            {active.key === "public" ? <PublicPageSection {...props} /> : null}
-            {active.key === "activity" ? <ActivitySection /> : null}
-            {active.key === "system" ? <SystemSection /> : null}
-          </div>
-        ) : null}
-      </div>
+      <SplitView
+        listWidth="sm"
+        listLabel={t("settings.nav")}
+        detailLabel={t("settings.detail")}
+        showDetail={Boolean(active)}
+        placeholder={t("settings.selectHint")}
+        list={nav}
+        detail={
+          active ? (
+            <div className="min-w-0 pb-28">
+              {active.key === "identity" ? <IdentitySection {...props} /> : null}
+              {active.key === "messages" ? <MessagesSection {...props} /> : null}
+              {active.key === "contact" ? <ContactSection {...props} /> : null}
+              {active.key === "notifications" ? <NotificationsSection {...props} dirty={dirty} /> : null}
+              {active.key === "privacy" ? <PrivacySection {...props} /> : null}
+              {active.key === "tags" ? <TagsSettingsSection {...props} /> : null}
+              {active.key === "public" ? <PublicPageSection {...props} /> : null}
+              {active.key === "activity" ? <ActivitySection /> : null}
+              {active.key === "system" ? <SystemSection /> : null}
+            </div>
+          ) : null
+        }
+      />
 
       {dirty ? (
-        <div className="no-print sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 mt-4 lg:bottom-4 lg:ml-[calc(14rem+2rem)]">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-raised p-3 shadow-float">
-            <div role="status" className="min-w-0 pl-1">
-              <p className="font-semibold">{t("settings.unsaved")}</p>
-              {formError ? <p className="text-sm font-medium text-danger">{formError}</p> : null}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setDraft(null);
-                  setErrors({});
-                  setFormError(null);
-                }}
-              >
-                {t("settings.discard")}
-              </Button>
-              <Button variant="primary" loading={saving} onClick={onSave}>
-                {t("common.save")}
-              </Button>
-            </div>
+        <Toolbar floating label={t("settings.unsaved")}>
+          <div role="status" className="min-w-0">
+            <p className="font-semibold">{t("settings.unsaved")}</p>
+            {formError ? (
+              <p className="flex items-center gap-1.5 text-footnote font-semibold">
+                <Icon name="alert" className="size-4 text-danger" />
+                {formError}
+              </p>
+            ) : null}
           </div>
-        </div>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setDraft(null);
+                setErrors({});
+                setFormError(null);
+              }}
+            >
+              {t("settings.discard")}
+            </Button>
+            <Button variant="primary" loading={saving} onClick={onSave}>
+              {t("common.save")}
+            </Button>
+          </div>
+        </Toolbar>
       ) : null}
     </>
   );

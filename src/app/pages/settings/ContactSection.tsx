@@ -6,14 +6,15 @@ import { useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
 import { unwrapList } from "../../lib/lists";
 import { Badge } from "../../ui/Badge";
-import { Button } from "../../ui/Button";
+import { Button, IconButton } from "../../ui/Button";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { FormError, TextInput, Toggle } from "../../ui/Field";
-import { Icon } from "../../ui/Icon";
+import { List, ListRow } from "../../ui/List";
 import { Sheet, SheetBody, SheetFooter } from "../../ui/Sheet";
 import { ErrorState, LoadingBlock } from "../../ui/States";
+import { Avatar } from "../../ui/Thumb";
 import { useToast } from "../../ui/Toast";
-import { SectionCard, type SectionProps } from "./shared";
+import { FieldGroup, SectionCard, type SectionProps } from "./shared";
 
 const CHANNELS = ["email", "phone", "whatsapp", "trustedContacts"] as const;
 
@@ -60,9 +61,8 @@ export function ContactSection({ draft, update, errors }: SectionProps) {
             error={errors["contact.whatsapp"]}
           />
         </div>
-        <fieldset className="rounded-xl border border-line p-3">
-          <legend className="px-1 text-sm font-semibold">{t("contact.visibility")}</legend>
-          <p className="mb-2 text-sm text-muted">{t("contact.visibilityHint")}</p>
+        <FieldGroup legend={t("contact.visibility")}>
+          <p className="mb-2 text-subhead text-muted">{t("contact.visibilityHint")}</p>
           {CHANNELS.map((ch) => (
             <Toggle
               key={ch}
@@ -75,7 +75,7 @@ export function ContactSection({ draft, update, errors }: SectionProps) {
               }
             />
           ))}
-        </fieldset>
+        </FieldGroup>
       </SectionCard>
       <TrustedContacts />
     </div>
@@ -103,42 +103,40 @@ function TrustedContacts() {
         res.state.data.length === 0 ? (
           <p className="text-muted">{t("contacts.empty")}</p>
         ) : (
-          <ul className="divide-y divide-line rounded-xl border border-line">
+          <List label={t("contacts.title")}>
             {res.state.data.map((c) => (
-              <li key={c.id} className="flex items-start gap-3 px-3 py-2.5">
-                <Icon name="user" className="mt-1 text-muted" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">
-                    {c.name}
-                    {c.relationship ? (
-                      <span className="font-normal text-muted"> · {c.relationship}</span>
-                    ) : null}
-                  </p>
-                  <p className="truncate text-sm text-muted">
-                    {[c.email, c.phone].filter(Boolean).join(" · ")}
-                  </p>
-                  <p className="mt-1 flex flex-wrap gap-1.5">
-                    {c.notify ? <Badge tone="info">{t("contacts.notify")}</Badge> : null}
-                    {c.showPublic ? <Badge tone="success">{t("contacts.showPublic")}</Badge> : null}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon="edit"
-                  aria-label={t("contacts.edit", { name: c.name })}
-                  onClick={() => setEditing(c)}
-                />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon="trash"
-                  aria-label={t("contacts.remove", { name: c.name })}
-                  onClick={() => setRemoving(c)}
-                />
-              </li>
+              <ListRow
+                key={c.id}
+                leading={<Avatar name={c.name} />}
+                title={c.name}
+                subtitle={[c.relationship, c.email, c.phone].filter(Boolean).join(" · ") || undefined}
+                description={
+                  c.notify || c.showPublic ? (
+                    <span className="flex flex-wrap gap-1.5">
+                      {c.notify ? <Badge tone="info">{t("contacts.notify")}</Badge> : null}
+                      {c.showPublic ? <Badge tone="success">{t("contacts.showPublic")}</Badge> : null}
+                    </span>
+                  ) : undefined
+                }
+                trailing={
+                  <span className="flex">
+                    <IconButton
+                      icon="edit"
+                      size="sm"
+                      label={t("contacts.edit", { name: c.name })}
+                      onClick={() => setEditing(c)}
+                    />
+                    <IconButton
+                      icon="trash"
+                      size="sm"
+                      label={t("contacts.remove", { name: c.name })}
+                      onClick={() => setRemoving(c)}
+                    />
+                  </span>
+                }
+              />
             ))}
-          </ul>
+          </List>
         )
       ) : null}
       <div>
@@ -267,7 +265,7 @@ function ContactForm({
           onChange={setNotify}
         />
         {errors.notify ? (
-          <p className="text-sm font-medium text-danger">{t("contacts.notifyNeedsEmail")}</p>
+          <p className="text-subhead font-medium text-danger">{t("contacts.notifyNeedsEmail")}</p>
         ) : null}
         <Toggle
           label={t("contacts.showPublicLabel")}

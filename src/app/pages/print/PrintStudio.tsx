@@ -22,7 +22,8 @@ import { Button, IconButton } from "../../ui/Button";
 import { Card, SectionHeading } from "../../ui/Card";
 import { Select, Toggle } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
-import { PageHeader } from "../../ui/Page";
+import { IconTile, List, ListRow } from "../../ui/List";
+import { PageHeader, Toolbar } from "../../ui/Page";
 import { useToast } from "../../ui/Toast";
 import { downloadBlob, fileStem, svgDataUrl, svgToPng } from "./export";
 import { type PrintKey, type PrintT, printTranslator } from "./strings";
@@ -143,24 +144,7 @@ export function PrintStudio({ tags, settings }: { tags: Tag[]; settings: Setting
         title={t("print.title")}
         subtitle={p("subtitle")}
         back={{ to: "/tags", label: t("nav.tags") }}
-        actions={
-          <Button
-            variant="primary"
-            icon="download"
-            onClick={downloadPdf}
-            loading={busy === "pdf"}
-            disabled={selectedTags.length === 0 || busy !== null}
-            aria-describedby="print-pdf-summary"
-          >
-            {p("pdf")}
-          </Button>
-        }
       />
-      <p id="print-pdf-summary" className="-mt-3 mb-5 text-sm text-muted tabular-nums">
-        {selectedTags.length === 0
-          ? p("pdfNone")
-          : p("pdfCount", { n: selectedTags.length, pages: selectedTags.length * 2 })}
-      </p>
 
       {proofHosts.length > 0 ? <ProofBanner hosts={proofHosts} p={p} /> : null}
 
@@ -207,7 +191,7 @@ export function PrintStudio({ tags, settings }: { tags: Tag[]; settings: Setting
           </Card>
           <Card aria-labelledby="print-pdf">
             <SectionHeading id="print-pdf" title={p("pdfAbout")} />
-            <p className="text-sm text-muted">{p("pdfHint")}</p>
+            <p className="text-subhead text-muted">{p("pdfHint")}</p>
           </Card>
         </div>
       </div>
@@ -217,6 +201,24 @@ export function PrintStudio({ tags, settings }: { tags: Tag[]; settings: Setting
         tags={selectedTags}
         onCopied={(ok) => toast(ok ? p("copied") : p("copyFailed"), ok ? "success" : "error")}
       />
+
+      <Toolbar floating label={p("pdfAbout")}>
+        <p id="print-pdf-summary" className="min-w-0 text-subhead font-semibold tabular-nums" role="status">
+          {selectedTags.length === 0
+            ? p("pdfNone")
+            : p("pdfCount", { n: selectedTags.length, pages: selectedTags.length * 2 })}
+        </p>
+        <Button
+          variant="primary"
+          icon="download"
+          onClick={downloadPdf}
+          loading={busy === "pdf"}
+          disabled={selectedTags.length === 0 || busy !== null}
+          aria-describedby="print-pdf-summary"
+        >
+          {p("pdf")}
+        </Button>
+      </Toolbar>
     </>
   );
 }
@@ -233,11 +235,11 @@ function ProofBanner({ hosts, p }: { hosts: string[]; p: PrintT }) {
   return (
     <section
       aria-labelledby="print-proof-title"
-      className="mb-5 flex items-start gap-3 rounded-card border-2 border-lost bg-lost-tint p-4 text-fg sm:p-5"
+      className="mb-5 flex items-start gap-3 rounded-card bg-warning-tint p-4 text-fg ring-1 ring-warning/50 sm:p-5"
     >
-      <Icon name="alert" className="mt-0.5 size-6 shrink-0 text-lost" />
+      <Icon name="alert" className="mt-0.5 size-6 shrink-0 text-warning" />
       <div className="min-w-0">
-        <h2 id="print-proof-title" className="text-lg font-bold text-lost">
+        <h2 id="print-proof-title" className="text-title3 font-bold text-warning">
           {p("proofTitle")}
         </h2>
         <p className="mt-1">{p("proofBody", { hosts: hosts.join(", ") })}</p>
@@ -285,14 +287,14 @@ function PreviewPanel({
           </span>
         }
       />
-      <div className="grid gap-4 rounded-xl bg-sunken p-3 sm:p-6">
+      <div className="grid gap-4 rounded-control bg-sunken p-3 sm:p-6">
         <CardFace caption={p("front")} alt={p("frontAlt", { label })} svg={svgs.front} marks={marks} />
         <CardFace caption={p("back")} alt={p("backAlt", { label })} svg={svgs.back} marks={marks} />
       </div>
 
       {card.meta.warnings.length > 0 ? (
-        <div className="mt-4 rounded-xl border border-lost/40 bg-lost-tint p-3 text-sm">
-          <p className="flex items-center gap-2 font-semibold text-lost">
+        <div className="mt-4 rounded-control bg-warning-tint p-3 text-subhead">
+          <p className="flex items-center gap-2 font-semibold text-warning">
             <Icon name="alert" className="size-4" />
             {p("warnings")}
           </p>
@@ -305,7 +307,7 @@ function PreviewPanel({
       ) : null}
 
       <div className="mt-4">
-        <h3 className="text-sm font-semibold">{p("thisCard")}</h3>
+        <h3 className="text-subhead font-semibold">{p("thisCard")}</h3>
         <div className="mt-2 flex flex-wrap gap-2">
           {(["svg", "png"] as const).flatMap((format) =>
             (["front", "back"] as const).map((face) => {
@@ -325,7 +327,7 @@ function PreviewPanel({
             }),
           )}
         </div>
-        <p className="mt-2 text-sm text-muted">{p("pngHint")}</p>
+        <p className="mt-2 text-subhead text-muted">{p("pngHint")}</p>
       </div>
     </Card>
   );
@@ -365,7 +367,7 @@ function CardFace({
           />
         </div>
       )}
-      <figcaption className="text-sm font-medium text-muted">{caption}</figcaption>
+      <figcaption className="text-subhead font-medium text-muted">{caption}</figcaption>
     </figure>
   );
 }
@@ -395,7 +397,7 @@ function TagPicker({
 }) {
   const baseId = useId();
   return (
-    <Card aria-labelledby={`${baseId}-title`}>
+    <Card aria-labelledby={`${baseId}-title`} padding="sm">
       <SectionHeading
         id={`${baseId}-title`}
         title={p("cards")}
@@ -410,47 +412,54 @@ function TagPicker({
           </>
         }
       />
-      <ul className="-mx-1 flex max-h-[26rem] flex-col overflow-y-auto">
+      <List variant="plain" label={p("cards")} className="-mx-1 max-h-[26rem] overflow-y-auto">
         {tags.map((tag) => {
           const revoked = tag.status !== "active";
-          const id = `${baseId}-${tag.id}`;
           const shown = previewId === tag.id;
-          return (
-            <li
+          return revoked ? (
+            <ListRow
               key={tag.id}
-              className={`flex min-h-12 items-center gap-3 rounded-xl px-1 ${shown ? "bg-primary-tint/60" : ""}`}
-            >
-              <input
-                id={id}
-                type="checkbox"
-                className="size-5 shrink-0 accent-primary"
-                checked={!revoked && selected.has(tag.id)}
-                disabled={revoked}
-                onChange={(e) => onToggle(tag.id, e.target.checked)}
-              />
-              <label htmlFor={id} className={`min-w-0 flex-1 py-2 ${revoked ? "opacity-60" : ""}`}>
-                <span className="block font-mono text-[0.95rem] font-semibold tracking-wide">
-                  {tag.label}
-                </span>
-                <span className="block truncate text-sm text-muted">{tag.itemName ?? p("unassigned")}</span>
-              </label>
-              {revoked ? (
-                <Badge>{p("revoked")}</Badge>
-              ) : (
-                <Button
-                  size="sm"
-                  variant={shown ? "secondary" : "ghost"}
-                  aria-pressed={shown}
-                  aria-label={`${p("preview")} ${tag.label}`}
-                  onClick={() => onPreview(tag.id)}
+              select="spacer"
+              className="opacity-60"
+              leading={
+                <IconTile tone="neutral">
+                  <Icon name="qr" className="size-5" />
+                </IconTile>
+              }
+              title={<span className="font-mono tracking-wide">{tag.label}</span>}
+              subtitle={tag.itemName ?? p("unassigned")}
+              trailing={<Badge>{p("revoked")}</Badge>}
+            />
+          ) : (
+            <ListRow
+              key={tag.id}
+              current={shown}
+              chevron={false}
+              onClick={() => onPreview(tag.id)}
+              select={{
+                checked: selected.has(tag.id),
+                onChange: (on) => onToggle(tag.id, on),
+                label: `${p("cards")}: ${tag.label}`,
+              }}
+              leading={
+                <IconTile tone={shown ? "primary" : "neutral"}>
+                  <Icon name="qr" className="size-5" />
+                </IconTile>
+              }
+              title={<span className="font-mono tracking-wide">{tag.label}</span>}
+              subtitle={tag.itemName ?? p("unassigned")}
+              trailing={
+                <span
+                  className={shown ? "inline-flex items-center gap-1 font-semibold text-primary-text" : ""}
                 >
+                  {shown ? <Icon name="check" className="size-4" /> : null}
                   {p("preview")}
-                </Button>
-              )}
-            </li>
+                </span>
+              }
+            />
           );
         })}
-      </ul>
+      </List>
     </Card>
   );
 }
@@ -469,7 +478,7 @@ function ThemePicker({
   const name = useId();
   return (
     <fieldset>
-      <legend className="mb-1.5 text-sm font-medium">{p("theme")}</legend>
+      <legend className="mb-1.5 text-subhead font-medium">{p("theme")}</legend>
       <div className="grid grid-cols-3 gap-2">
         {CARD_THEMES.map((theme) => {
           const palette = CARD_PALETTES[theme];
@@ -483,13 +492,13 @@ function ThemePicker({
                 onChange={() => onChange(theme)}
                 className="peer sr-only"
               />
-              <span className="flex flex-col gap-1.5 rounded-xl border border-line-strong bg-raised p-2 transition-colors duration-150 group-hover:bg-sunken peer-checked:border-2 peer-checked:border-primary peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring">
+              <span className="flex flex-col gap-1.5 rounded-control border border-line-strong bg-raised p-2 transition-colors duration-150 group-hover:bg-sunken peer-checked:border-2 peer-checked:border-primary peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring">
                 <ThemeSwatch
                   front={palette.front.background}
                   stub={palette.front.stub}
                   panel={palette.qrLight}
                 />
-                <span className="flex items-center justify-between gap-1 text-sm font-medium">
+                <span className="flex items-center justify-between gap-1 text-subhead font-medium">
                   {t(`theme.card.${theme}`)}
                   {value === theme ? <Icon name="check" className="size-4 text-primary-text" /> : null}
                 </span>
@@ -526,21 +535,21 @@ function ThemeSwatch({ front, stub, panel }: { front: string; stub: string; pane
 
 function NfcPanel({ p, tags, onCopied }: { p: PrintT; tags: Tag[]; onCopied: (ok: boolean) => void }) {
   return (
-    <Card aria-labelledby="print-nfc" className="mt-5">
+    <Card aria-labelledby="print-nfc" className="mt-5 mb-24">
       <SectionHeading id="print-nfc" title={p("nfcTitle")} description={p("nfcIntro")} />
       <ol className="list-decimal space-y-1 pl-5 text-[0.95rem]">
         <li>{p("nfcStep1")}</li>
         <li>{p("nfcStep2")}</li>
         <li>{p("nfcStep3")}</li>
       </ol>
-      <p className="mt-3 flex items-start gap-2 rounded-xl border border-line-strong bg-sunken p-3 text-sm font-medium">
+      <p className="mt-3 flex items-start gap-2 rounded-control border border-line-strong bg-sunken p-3 text-subhead font-medium">
         <Icon name="lock" className="mt-0.5 size-4 shrink-0" />
         <span>
           {p("nfcNever")} {p("nfcCapacity")}
         </span>
       </p>
       {tags.length === 0 ? (
-        <p className="mt-4 text-sm text-muted">{p("nfcEmpty")}</p>
+        <p className="mt-4 text-subhead text-muted">{p("nfcEmpty")}</p>
       ) : (
         <ul className="mt-4 divide-y divide-line border-y border-line">
           {tags.map((tag) => {
@@ -548,20 +557,22 @@ function NfcPanel({ p, tags, onCopied }: { p: PrintT; tags: Tag[]; onCopied: (ok
             const tooLong = bytes > NFC_WARN_BYTES;
             return (
               <li key={tag.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 sm:flex-nowrap">
-                <span className="w-24 shrink-0 font-mono text-sm font-semibold">{tag.label}</span>
+                <span className="w-24 shrink-0 font-mono text-subhead font-semibold">{tag.label}</span>
                 <span
-                  className="min-w-0 flex-1 basis-full font-mono text-sm break-all sm:basis-auto"
+                  className="min-w-0 flex-1 basis-full font-mono text-subhead break-all sm:basis-auto"
                   title={tag.url}
                 >
                   {tag.url}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   {tooLong ? (
-                    <Badge tone="lost" icon="alert">
+                    <Badge tone="warning" icon="alert">
                       {p("nfcBytes", { n: bytes })}
                     </Badge>
                   ) : (
-                    <span className="text-sm text-muted tabular-nums">{p("nfcBytes", { n: bytes })}</span>
+                    <span className="text-subhead text-muted tabular-nums">
+                      {p("nfcBytes", { n: bytes })}
+                    </span>
                   )}
                   <IconButton
                     icon="copy"
@@ -569,7 +580,7 @@ function NfcPanel({ p, tags, onCopied }: { p: PrintT; tags: Tag[]; onCopied: (ok
                     onClick={async () => onCopied(await copyText(tag.url))}
                   />
                 </span>
-                {tooLong ? <p className="basis-full text-sm text-lost">{p("nfcTooLong")}</p> : null}
+                {tooLong ? <p className="basis-full text-subhead text-warning">{p("nfcTooLong")}</p> : null}
               </li>
             );
           })}

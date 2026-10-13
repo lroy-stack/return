@@ -2,20 +2,24 @@ import { type FormEvent, useState } from "react";
 import { type Item, type ItemDetail, itemPatchSchema, type Recovery } from "../../../shared/schemas";
 import { ItemFormSheet } from "../../components/ItemFormSheet";
 import { ApiRequestError, api } from "../../lib/api";
+import { useDataChanged } from "../../lib/data-events";
 import { useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
 import { useOverview } from "../../lib/overview-context";
 import { Link, navigate } from "../../lib/router";
 import { useFormat } from "../../lib/settings-context";
-import { Badge } from "../../ui/Badge";
-import { Button } from "../../ui/Button";
-import { Card, SectionHeading } from "../../ui/Card";
+import { Badge, StatusPill } from "../../ui/Badge";
+import { Button, ButtonLink, IconButton } from "../../ui/Button";
+import { Card, Section } from "../../ui/Card";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { FormError, TextInput } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
+import { KeyValue } from "../../ui/KeyValue";
+import { IconTile, List, ListRow } from "../../ui/List";
 import { PageHeader } from "../../ui/Page";
 import { Sheet, SheetBody, SheetFooter } from "../../ui/Sheet";
 import { ErrorState, errorMessage, LoadingBlock } from "../../ui/States";
+import { Timeline, type TimelineEntry } from "../../ui/Timeline";
 import { useToast } from "../../ui/Toast";
 import { Gallery } from "./Gallery";
 import { ItemContents } from "./ItemContents";
@@ -32,7 +36,7 @@ function ParentLink({ parentId }: { parentId: string }) {
   );
   if (parent.state.status !== "ready") return null;
   return (
-    <p className="text-sm text-muted">
+    <p className="text-subhead text-muted">
       {t("item.insideOf")}{" "}
       <Link to={`/items/${parentId}`} className="font-medium text-primary-text underline">
         {parent.state.data.name}
@@ -49,6 +53,7 @@ export function ItemDetailPage({ id }: { id: string }) {
     res.reload(true);
     overview.reload(true);
   };
+  useDataChanged(reload);
 
   if (res.state.status === "loading") {
     return (
@@ -81,7 +86,7 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
   const lost = item.status === "lost";
   const archived = item.archivedAt !== null;
   const [dialog, setDialog] = useState<
-    "edit" | "lost" | "recovered" | "public" | "archive" | "delete" | "location" | null
+    "edit" | "lost" | "recovered" | "public" | "archive" | "delete" | "location" | "actions" | null
   >(null);
   const [recovery, setRecovery] = useState<Recovery | null>(null);
   const close = () => setDialog(null);
@@ -97,15 +102,13 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
         badges={
           <>
             {lost ? (
-              <Badge tone="lost" icon="alert">
+              <StatusPill tone="lost" pulse>
                 {t("item.lost")}
-              </Badge>
+              </StatusPill>
             ) : (
-              <Badge tone="success" icon="check">
-                {t("item.safe")}
-              </Badge>
+              <StatusPill tone="success">{t("item.safe")}</StatusPill>
             )}
-            {archived ? <Badge>{t("item.archived")}</Badge> : null}
+            {archived ? <StatusPill>{t("item.archived")}</StatusPill> : null}
           </>
         }
         actions={
@@ -115,13 +118,22 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
                 {t("item.markRecovered")}
               </Button>
             ) : !archived ? (
-              <Button variant="danger" icon="alert" onClick={() => setDialog("lost")}>
+              <Button variant="danger-soft" icon="alert" onClick={() => setDialog("lost")}>
                 {t("item.markLost")}
               </Button>
             ) : null}
-            <Button icon="edit" onClick={() => setDialog("edit")}>
-              {t("common.edit")}
-            </Button>
+            {!archived ? (
+              <ButtonLink variant="tinted" icon="card" to={`/items/${item.id}?quick-card=1`}>
+                {t("quick.card")}
+              </ButtonLink>
+            ) : null}
+            <IconButton
+              icon="more"
+              variant="secondary"
+              label={t("common.more")}
+              aria-haspopup="dialog"
+              onClick={() => setDialog("actions")}
+            />
           </>
         }
       />
@@ -129,139 +141,193 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
       {item.parentId ? <ParentLink parentId={item.parentId} /> : null}
 
       {lost ? (
-        <div
-          role="status"
-          className="mb-5 flex gap-3 rounded-card border border-lost/50 bg-lost-tint p-4 text-lost"
-        >
-          <Icon name="alert" className="mt-0.5" />
-          <div>
+        <Card variant="lost" padding="sm" className="mb-6 flex gap-3 text-lost">
+          <Icon name="alert" className="mt-0.5 size-5 shrink-0" />
+          <div role="status">
             <p className="font-semibold">{t("item.lostBanner")}</p>
             {openRecovery ? (
-              <p className="text-sm">
+              <p className="text-subhead">
                 {[openRecovery.lostPlace, openRecovery.lostAt ? format.dateTime(openRecovery.lostAt) : null]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
             ) : null}
-            <p className="mt-1 text-sm">{t("item.lostBannerHint")}</p>
+            <p className="mt-1 text-subhead">{t("item.lostBannerHint")}</p>
           </div>
-        </div>
+        </Card>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-5">
-          <Card aria-labelledby="sec-photos">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-start">
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
+          <Card aria-labelledby="sec-photos" padding="sm" className="order-1">
             <h2 id="sec-photos" className="sr-only">
               {t("gallery.title")}
             </h2>
             <Gallery detail={detail} onChanged={onChanged} />
           </Card>
-          <Card aria-labelledby="sec-about">
-            <SectionHeading id="sec-about" title={t("item.about")} />
-            {item.description ? (
-              <p className="whitespace-pre-wrap">{item.description}</p>
-            ) : (
-              <p className="text-muted">{t("item.noDescription")}</p>
-            )}
-            <hr className="my-4 border-line" />
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="flex items-center gap-1.5 text-sm font-semibold">
-                  <Icon name="pin" className="size-4" />
-                  {t("item.lastKnown")}
-                </h3>
-                <p>
-                  {item.lastKnownLocation ?? <span className="text-muted">{t("item.lastKnownEmpty")}</span>}
-                </p>
-                {item.lastKnownAt ? (
-                  <p className="text-sm text-muted">{format.dateTime(item.lastKnownAt)}</p>
-                ) : null}
-              </div>
-              <Button size="sm" icon="edit" onClick={() => setDialog("location")}>
-                {t("item.setLocation")}
+          <Section
+            id="sec-about"
+            className="order-3"
+            title={t("item.about")}
+            actions={
+              <Button size="sm" variant="tinted" icon="edit" onClick={() => setDialog("edit")}>
+                {t("common.edit")}
               </Button>
-            </div>
-          </Card>
-          <ItemContents detail={detail} onChanged={onChanged} />
-          <ItemConversations detail={detail} />
-          <RecoveriesTimeline recoveries={detail.recoveries} onEdit={setRecovery} />
+            }
+          >
+            <Card padding="sm" className="flex flex-col gap-3">
+              {item.description ? (
+                <p className="whitespace-pre-wrap">{item.description}</p>
+              ) : (
+                <p className="text-muted">{t("item.noDescription")}</p>
+              )}
+              <List variant="plain" label={t("item.whereIs")}>
+                <ListRow
+                  flush
+                  onClick={() => setDialog("location")}
+                  leading={
+                    <IconTile>
+                      <Icon name="pin" className="size-5" />
+                    </IconTile>
+                  }
+                  title={item.lastKnownLocation ?? t("item.lastKnownEmpty")}
+                  subtitle={
+                    item.lastKnownAt
+                      ? `${t("item.lastKnown")} · ${format.dateTime(item.lastKnownAt)}`
+                      : t("item.lastKnown")
+                  }
+                  trailing={<span className="font-semibold text-primary-text">{t("item.setLocation")}</span>}
+                  chevron={false}
+                />
+              </List>
+            </Card>
+          </Section>
+          <ItemContents detail={detail} onChanged={onChanged} className="order-8" />
         </div>
 
-        <div className="flex min-w-0 flex-col gap-5">
-          <ItemTags detail={detail} onChanged={onChanged} />
-          <ItemTrackers detail={detail} onChanged={onChanged} />
-          <Card aria-labelledby="sec-public">
-            <SectionHeading
-              id="sec-public"
-              title={t("publicPage.title")}
-              description={t("publicPage.desc")}
-              actions={
-                <Button size="sm" icon="edit" onClick={() => setDialog("public")}>
-                  {t("common.edit")}
-                </Button>
-              }
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
+          <ItemTags detail={detail} onChanged={onChanged} className="order-2" />
+          <ItemConversations detail={detail} className="order-4" />
+          <RecoveriesTimeline recoveries={detail.recoveries} onEdit={setRecovery} className="order-5" />
+          <ItemTrackers detail={detail} onChanged={onChanged} className="order-6" />
+          <Section
+            id="sec-public"
+            className="order-7"
+            collapsible
+            title={t("publicPage.title")}
+            description={t("publicPage.summary")}
+            actions={
+              <Button size="sm" variant="tinted" icon="edit" onClick={() => setDialog("public")}>
+                {t("common.edit")}
+              </Button>
+            }
+          >
+            <KeyValue
+              entries={[
+                {
+                  key: "title",
+                  label: t("publicPage.publicTitle"),
+                  value: item.publicTitle,
+                  empty: t("publicPage.useName"),
+                },
+                {
+                  key: "message",
+                  label: t("publicPage.message"),
+                  value: item.publicMessage,
+                  empty: t("publicPage.defaultMessage"),
+                },
+                {
+                  key: "reward",
+                  label: t("publicPage.reward"),
+                  value: item.rewardText,
+                  empty: t("common.none"),
+                },
+                {
+                  key: "contact",
+                  label: t("publicPage.contact"),
+                  value: item.contactVisibility ? t("publicPage.custom") : t("publicPage.usesDefault"),
+                },
+              ]}
             />
-            <dl className="grid gap-2 text-sm">
-              <div>
-                <dt className="text-muted">{t("publicPage.publicTitle")}</dt>
-                <dd>{item.publicTitle ?? <span className="text-muted">{t("publicPage.useName")}</span>}</dd>
-              </div>
-              <div>
-                <dt className="text-muted">{t("publicPage.message")}</dt>
-                <dd className="whitespace-pre-wrap">
-                  {item.publicMessage ?? <span className="text-muted">{t("publicPage.defaultMessage")}</span>}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted">{t("publicPage.reward")}</dt>
-                <dd>{item.rewardText ?? <span className="text-muted">{t("common.none")}</span>}</dd>
-              </div>
-              <div>
-                <dt className="text-muted">{t("publicPage.contact")}</dt>
-                <dd>{item.contactVisibility ? t("publicPage.custom") : t("publicPage.usesDefault")}</dd>
-              </div>
-            </dl>
-          </Card>
-          <PrivateSection detail={detail} onChanged={onChanged} />
-          <Card aria-labelledby="sec-manage">
-            <SectionHeading id="sec-manage" title={t("item.manage")} />
-            {archived ? (
-              <div className="flex flex-col gap-3">
-                <p className="text-sm text-muted">{t("item.archivedHint")}</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    icon="refresh"
-                    onClick={async () => {
-                      try {
-                        await api.post(`/items/${item.id}/unarchive`);
-                        toast(t("item.unarchived"));
-                        onChanged();
-                      } catch (e) {
-                        toast(errorMessage(e, t), "error");
-                      }
-                    }}
-                  >
-                    {t("item.unarchive")}
-                  </Button>
-                  <Button variant="danger" icon="trash" onClick={() => setDialog("delete")}>
-                    {t("item.deleteForever")}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <p className="text-sm text-muted">{t("item.archiveHint")}</p>
-                <div>
-                  <Button icon="box" onClick={() => setDialog("archive")}>
-                    {t("item.archive")}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Card>
+          </Section>
+          <PrivateSection
+            detail={detail}
+            onChanged={onChanged}
+            onEdit={() => setDialog("edit")}
+            className="order-9"
+          />
         </div>
       </div>
 
+      <Sheet
+        open={dialog === "actions"}
+        onClose={close}
+        title={t("item.actions")}
+        description={t("item.actionsDesc")}
+        placement="compact"
+      >
+        <SheetBody>
+          <List>
+            <ListRow
+              onClick={() => setDialog("edit")}
+              chevron={false}
+              leading={
+                <IconTile>
+                  <Icon name="edit" className="size-5" />
+                </IconTile>
+              }
+              title={t("item.editItem")}
+            />
+            {archived ? (
+              <>
+                <ListRow
+                  onClick={async () => {
+                    try {
+                      await api.post(`/items/${item.id}/unarchive`);
+                      toast(t("item.unarchived"));
+                      close();
+                      onChanged();
+                    } catch (e) {
+                      toast(errorMessage(e, t), "error");
+                    }
+                  }}
+                  chevron={false}
+                  leading={
+                    <IconTile tone="neutral">
+                      <Icon name="refresh" className="size-5" />
+                    </IconTile>
+                  }
+                  title={t("item.unarchive")}
+                  subtitle={t("item.archivedHint")}
+                />
+                <ListRow
+                  onClick={() => setDialog("delete")}
+                  chevron={false}
+                  tone="danger"
+                  leading={
+                    <IconTile tone="neutral">
+                      <Icon name="trash" className="size-5" />
+                    </IconTile>
+                  }
+                  title={t("item.deleteForever")}
+                />
+              </>
+            ) : (
+              <ListRow
+                onClick={() => setDialog("archive")}
+                chevron={false}
+                leading={
+                  <IconTile tone="neutral">
+                    <Icon name="box" className="size-5" />
+                  </IconTile>
+                }
+                title={t("item.archive")}
+                subtitle={t("item.archiveHint")}
+              />
+            )}
+          </List>
+        </SheetBody>
+      </Sheet>
       <ItemFormSheet
         open={dialog === "edit"}
         item={item}
@@ -378,89 +444,104 @@ function LocationForm({ item, onClose, onSaved }: { item: Item; onClose: () => v
   );
 }
 
-function ItemConversations({ detail }: { detail: ItemDetail }) {
+function ItemConversations({ detail, className }: { detail: ItemDetail; className?: string }) {
   const t = useT();
   const format = useFormat();
   return (
-    <Card aria-labelledby="sec-convs">
-      <SectionHeading id="sec-convs" title={t("item.conversations")} />
+    <Section id="sec-convs" className={className} title={t("item.conversations")}>
       {detail.conversations.length === 0 ? (
-        <p className="text-muted">{t("item.noConversations")}</p>
+        <p className="rounded-card bg-sunken px-4 py-5 text-subhead text-muted">
+          {t("item.noConversations")}
+        </p>
       ) : (
-        <ul className="divide-y divide-line rounded-xl border border-line">
+        <List label={t("item.conversations")}>
           {detail.conversations.map((c) => (
-            <li key={c.id}>
-              <Link
-                to={`/conversations/${c.id}`}
-                className="flex min-h-14 items-center gap-3 px-3 py-2 hover:bg-sunken"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className={`block truncate ${c.unread ? "font-bold" : "font-medium"}`}>
-                    {c.subject}
-                  </span>
-                  <span className="block truncate text-sm text-muted">{c.lastMessagePreview ?? ""}</span>
-                </span>
-                <span className="flex flex-col items-end gap-1 text-xs text-muted">
-                  {format.relative(c.lastMessageAt)}
+            <ListRow
+              key={c.id}
+              to={`/conversations/${c.id}`}
+              strong={c.unread}
+              title={c.subject}
+              subtitle={c.lastMessagePreview ?? undefined}
+              trailing={
+                <>
+                  <span>{format.relative(c.lastMessageAt)}</span>
                   {c.unread ? (
                     <Badge tone="lost">{t("inbox.unread")}</Badge>
                   ) : (
                     <Badge>{t(`conv.status.${c.status}` as const)}</Badge>
                   )}
-                </span>
-              </Link>
-            </li>
+                </>
+              }
+            />
           ))}
-        </ul>
+        </List>
       )}
-    </Card>
+    </Section>
   );
 }
 
 function RecoveriesTimeline({
   recoveries,
   onEdit,
+  className,
 }: {
   recoveries: Recovery[];
   onEdit: (r: Recovery) => void;
+  className?: string;
 }) {
   const t = useT();
   const format = useFormat();
+  if (recoveries.length === 0) {
+    return (
+      <Section
+        id="sec-rec"
+        className={className}
+        collapsible
+        title={t("recovery.title")}
+        summary={t("common.none")}
+      >
+        <p className="text-subhead text-muted">{t("recovery.empty")}</p>
+      </Section>
+    );
+  }
   return (
-    <Card aria-labelledby="sec-rec">
-      <SectionHeading id="sec-rec" title={t("recovery.title")} />
-      {recoveries.length === 0 ? (
-        <p className="text-muted">{t("recovery.empty")}</p>
-      ) : (
-        <ol className="relative flex flex-col gap-4 border-l-2 border-line pl-5">
-          {recoveries.map((r) => {
+    <Section id="sec-rec" className={className} title={t("recovery.title")}>
+      <Card padding="sm">
+        <Timeline
+          label={t("recovery.title")}
+          entries={recoveries.map((r) => {
             const done = r.status === "recovered" || r.status === "closed";
-            return (
-              <li key={r.id} className="relative">
-                <span
-                  className={`absolute top-1.5 -left-[1.6rem] size-3 rounded-full ring-4 ring-raised ${done ? "bg-accent" : "bg-lost"}`}
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={done ? "success" : "lost"}>{t(`recovery.s.${r.status}` as const)}</Badge>
-                  <span className="text-sm text-muted">{format.dateTime(r.lostAt ?? r.createdAt)}</span>
-                </div>
-                {r.lostPlace ? <p>{r.lostPlace}</p> : null}
-                {r.notes ? <p className="text-sm whitespace-pre-wrap text-muted">{r.notes}</p> : null}
-                {r.recoveredAt ? (
-                  <p className="text-sm text-accent-text">
-                    {t("recovery.recoveredOn", { when: format.dateTime(r.recoveredAt) })}
-                  </p>
-                ) : null}
-                {!done ? (
-                  <Button size="sm" className="mt-1" onClick={() => onEdit(r)}>
-                    {t("recovery.update")}
-                  </Button>
-                ) : null}
-              </li>
-            );
+            return {
+              key: r.id,
+              tone: done ? "success" : "lost",
+              title: (
+                <StatusPill tone={done ? "success" : "lost"}>
+                  {t(`recovery.s.${r.status}` as const)}
+                </StatusPill>
+              ),
+              time: format.dateTime(r.lostAt ?? r.createdAt),
+              datetime: r.lostAt ?? r.createdAt,
+              body:
+                r.lostPlace || r.notes || r.recoveredAt ? (
+                  <>
+                    {r.lostPlace ? <p className="text-fg">{r.lostPlace}</p> : null}
+                    {r.notes ? <p className="whitespace-pre-wrap">{r.notes}</p> : null}
+                    {r.recoveredAt ? (
+                      <p className="text-accent-text">
+                        {t("recovery.recoveredOn", { when: format.dateTime(r.recoveredAt) })}
+                      </p>
+                    ) : null}
+                  </>
+                ) : undefined,
+              actions: !done ? (
+                <Button size="sm" onClick={() => onEdit(r)}>
+                  {t("recovery.update")}
+                </Button>
+              ) : undefined,
+            } satisfies TimelineEntry;
           })}
-        </ol>
-      )}
-    </Card>
+        />
+      </Card>
+    </Section>
   );
 }

@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { useI18n } from "../lib/i18n";
+import { useT } from "../lib/i18n";
 import { matchPath, navigate, useLocation } from "../lib/router";
 import { applyTheme, readTheme, type ThemeChoice } from "../lib/theme";
 import { SegmentedControl } from "../ui/Field";
 import { Icon } from "../ui/Icon";
 import { IconTile, List, ListRow } from "../ui/List";
 import { Sheet, SheetBody } from "../ui/Sheet";
-import { shellString } from "./shell-strings";
 
 /**
  * Global create actions behind the floating "+" (phone), the rail button (tablet) and the sidebar "New"
@@ -14,7 +13,7 @@ import { shellString } from "./shell-strings";
  * `?new=item`, `?quick-card=1` (on an item page: that item), `/tags?new=1`.
  */
 export function QuickActionsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { lang, t } = useI18n();
+  const t = useT();
   const { pathname } = useLocation();
   const item = matchPath("/items/:id", pathname);
   const go = (to: string) => {
@@ -22,7 +21,7 @@ export function QuickActionsSheet({ open, onClose }: { open: boolean; onClose: (
     navigate(to);
   };
   return (
-    <Sheet open={open} onClose={onClose} title={shellString(lang, "quickTitle")} placement="compact">
+    <Sheet open={open} onClose={onClose} title={t("quick.title")} placement="compact">
       <SheetBody>
         <List>
           <ListRow
@@ -32,8 +31,8 @@ export function QuickActionsSheet({ open, onClose }: { open: boolean; onClose: (
                 <Icon name="card" className="size-5" />
               </IconTile>
             }
-            title={shellString(lang, "quickCard")}
-            subtitle={shellString(lang, "quickCardDesc")}
+            title={t("quick.card")}
+            subtitle={t("quick.cardDesc")}
           />
           <ListRow
             onClick={() => go("/?new=item")}
@@ -43,7 +42,7 @@ export function QuickActionsSheet({ open, onClose }: { open: boolean; onClose: (
               </IconTile>
             }
             title={t("inventory.addItem")}
-            subtitle={shellString(lang, "quickAddItemDesc")}
+            subtitle={t("quick.addItemDesc")}
           />
           <ListRow
             onClick={() => go("/tags?new=1")}
@@ -53,7 +52,7 @@ export function QuickActionsSheet({ open, onClose }: { open: boolean; onClose: (
               </IconTile>
             }
             title={t("tags.new")}
-            subtitle={shellString(lang, "quickNewTagsDesc")}
+            subtitle={t("quick.newTagsDesc")}
           />
         </List>
       </SheetBody>
@@ -65,11 +64,11 @@ const THEMES: ThemeChoice[] = ["system", "light", "dark"];
 
 /** Auto / Light / Dark as a segmented control. State is the stored choice (lib/theme). */
 export function AppearanceControl({ block }: { block?: boolean }) {
-  const { lang, t } = useI18n();
+  const t = useT();
   const [choice, setChoice] = useState<ThemeChoice>(readTheme);
   return (
     <SegmentedControl
-      label={shellString(lang, "appearance")}
+      label={t("theme.appearance")}
       size="sm"
       block={block}
       value={choice}
@@ -83,9 +82,9 @@ export function AppearanceControl({ block }: { block?: boolean }) {
 }
 
 export function AppearanceSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { lang } = useI18n();
+  const t = useT();
   return (
-    <Sheet open={open} onClose={onClose} title={shellString(lang, "appearance")} placement="center">
+    <Sheet open={open} onClose={onClose} title={t("theme.appearance")} placement="center">
       <SheetBody>
         <AppearanceControl block />
       </SheetBody>

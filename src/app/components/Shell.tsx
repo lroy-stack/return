@@ -1,12 +1,12 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { useI18n } from "../lib/i18n";
+import { useT } from "../lib/i18n";
 import { useOverview } from "../lib/overview-context";
 import { Link, useLocation } from "../lib/router";
 import { CountBadge } from "../ui/Badge";
 import { cx } from "../ui/cx";
 import { Icon, type IconName } from "../ui/Icon";
 import { AppearanceControl, AppearanceSheet, QuickActionsSheet } from "./QuickActions";
-import { shellString } from "./shell-strings";
+import { QuickCardHost } from "./QuickCardHost";
 
 interface NavDef {
   to: string;
@@ -74,7 +74,7 @@ function useScrollChrome(pathname: string) {
  * Content scrolls underneath; chrome never carries content.
  */
 export function Shell({ children }: { children: ReactNode }) {
-  const { lang, t } = useI18n();
+  const t = useT();
   const { pathname } = useLocation();
   const overview = useOverview();
   const unread = overview.state.status === "ready" ? overview.state.data.unreadConversations.length : 0;
@@ -101,7 +101,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const isActive = (n: NavDef) => new RegExp(n.match).test(pathname);
   const unreadLabel = t("nav.unread", { n: unread });
-  const quickLabel = shellString(lang, "quickOpen");
+  const quickLabel = t("quick.open");
 
   /** Sidebar / expanded-rail row: icon + label inline. */
   const rowLink = (n: NavDef) => {
@@ -187,7 +187,7 @@ export function Shell({ children }: { children: ReactNode }) {
           className="pressable specular flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 font-semibold text-primary-fg hover:bg-primary-hover"
         >
           <Icon name="plus" className="size-5" />
-          {shellString(lang, "newShort")}
+          {t("common.new")}
         </button>
         <nav aria-label={t("nav.main")} className="flex flex-col gap-1">
           {NAV.map(rowLink)}
@@ -217,7 +217,7 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
         >
           <Icon name="plus" className="size-6" />
-          {railExpanded ? shellString(lang, "newShort") : null}
+          {railExpanded ? t("common.new") : null}
         </button>
         <nav aria-label={t("nav.main")} className="flex flex-col gap-1">
           {NAV.map((n) => (railExpanded ? rowLink(n) : stackLink(n, "rail")))}
@@ -230,8 +230,8 @@ export function Shell({ children }: { children: ReactNode }) {
               type="button"
               onClick={() => setAppearanceOpen(true)}
               aria-haspopup="dialog"
-              aria-label={shellString(lang, "appearance")}
-              title={shellString(lang, "appearance")}
+              aria-label={t("theme.appearance")}
+              title={t("theme.appearance")}
               className="pressable mx-auto inline-flex size-11 items-center justify-center rounded-full text-on-glass-muted hover:bg-fill hover:text-fg"
             >
               <Icon name="sun" />
@@ -241,15 +241,15 @@ export function Shell({ children }: { children: ReactNode }) {
             type="button"
             onClick={toggleRail}
             aria-expanded={railExpanded}
-            aria-label={shellString(lang, railExpanded ? "navCollapse" : "navExpand")}
-            title={shellString(lang, railExpanded ? "navCollapse" : "navExpand")}
+            aria-label={t(railExpanded ? "nav.collapse" : "nav.expand")}
+            title={t(railExpanded ? "nav.collapse" : "nav.expand")}
             className={cx(
               "pressable inline-flex min-h-11 items-center gap-3 rounded-full text-subhead font-semibold text-on-glass-muted hover:bg-fill hover:text-fg",
               railExpanded ? "px-3.5" : "mx-auto size-11 justify-center",
             )}
           >
             <Icon name="sidebar" />
-            {railExpanded ? shellString(lang, "navCollapse") : null}
+            {railExpanded ? t("nav.collapse") : null}
           </button>
         </div>
       </aside>
@@ -278,8 +278,8 @@ export function Shell({ children }: { children: ReactNode }) {
               type="button"
               onClick={() => setAppearanceOpen(true)}
               aria-haspopup="dialog"
-              aria-label={shellString(lang, "appearance")}
-              title={shellString(lang, "appearance")}
+              aria-label={t("theme.appearance")}
+              title={t("theme.appearance")}
               className="pressable inline-flex size-11 items-center justify-center rounded-full text-on-glass-muted hover:bg-fill hover:text-fg sm:hidden"
             >
               <Icon name="sun" />
@@ -315,6 +315,7 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
 
       <QuickActionsSheet open={quickOpen} onClose={() => setQuickOpen(false)} />
+      <QuickCardHost />
       <AppearanceSheet open={appearanceOpen} onClose={() => setAppearanceOpen(false)} />
     </div>
   );

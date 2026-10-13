@@ -3,65 +3,70 @@ import { ITEM_CATEGORIES, type ItemCategory, type ItemStatus, type ItemSummary }
 import { ItemCard } from "../components/ItemCard";
 import { ItemFormSheet } from "../components/ItemFormSheet";
 import { api, qs } from "../lib/api";
+import { useDataChanged } from "../lib/data-events";
 import { useDebounced, useResource } from "../lib/hooks";
 import { useT } from "../lib/i18n";
 import { useOverview } from "../lib/overview-context";
-import { Link, navigate, useLocation } from "../lib/router";
+import { navigate, useLocation } from "../lib/router";
 import { Button, ButtonLink } from "../ui/Button";
-import { Select } from "../ui/Field";
+import { Section } from "../ui/Card";
+import { SearchField, Select } from "../ui/Field";
 import { Icon } from "../ui/Icon";
+import { IconTile, List, ListRow } from "../ui/List";
 import { PageHeader } from "../ui/Page";
 import { EmptyState, ErrorState, Skeleton } from "../ui/States";
 import { Chip } from "../ui/Tabs";
 
 const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
 
+/** What needs the owner now. Neutral rows; only the lost row carries the lost colour. */
 function AttentionStrip() {
   const t = useT();
   const { state } = useOverview();
   if (state.status !== "ready") return null;
   const { unreadConversations, lostItems, openRecoveries } = state.data;
-  const parts: { to: string; text: string }[] = [];
-  if (unreadConversations.length > 0)
-    parts.push({ to: "/conversations", text: t("attention.unread", { n: unreadConversations.length }) });
-  if (lostItems.length > 0) {
-    const first = lostItems[0];
-    parts.push({
-      to: lostItems.length === 1 && first ? `/items/${first.id}` : "/?status=lost",
-      text: t("attention.lost", { n: lostItems.length }),
-    });
-  }
-  if (openRecoveries.length > 0) {
-    const first = openRecoveries[0];
-    parts.push({
-      to: first ? `/items/${first.itemId}` : "/",
-      text: t("attention.recoveries", { n: openRecoveries.length }),
-    });
-  }
-  if (parts.length === 0) return null;
+  const firstLost = lostItems[0];
+  const firstRecovery = openRecoveries[0];
+  if (unreadConversations.length + lostItems.length + openRecoveries.length === 0) return null;
   return (
-    <section
-      aria-label={t("attention.title")}
-      className="mb-5 flex flex-col gap-2 rounded-card border border-lost/40 bg-lost-tint p-3 sm:flex-row sm:flex-wrap sm:items-center sm:p-4"
-    >
-      <h2 className="flex items-center gap-2 px-1 font-semibold text-lost">
-        <Icon name="alert" />
-        {t("attention.title")}
-      </h2>
-      <ul className="flex flex-wrap gap-2">
-        {parts.map((p) => (
-          <li key={p.to + p.text}>
-            <Link
-              to={p.to}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-raised px-3.5 text-sm font-medium text-fg shadow-card hover:bg-sunken"
-            >
-              {p.text}
-              <Icon name="chevron" className="size-4 text-muted" />
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <Section title={t("attention.title")} className="mb-6">
+      <List label={t("attention.title")}>
+        {unreadConversations.length > 0 ? (
+          <ListRow
+            to="/conversations"
+            leading={
+              <IconTile>
+                <Icon name="inbox" className="size-5" />
+              </IconTile>
+            }
+            title={t("attention.unread", { n: unreadConversations.length })}
+          />
+        ) : null}
+        {lostItems.length > 0 ? (
+          <ListRow
+            to={lostItems.length === 1 && firstLost ? `/items/${firstLost.id}` : "/?status=lost"}
+            tone="lost"
+            leading={
+              <IconTile tone="lost">
+                <Icon name="alert" className="size-5" />
+              </IconTile>
+            }
+            title={t("attention.lost", { n: lostItems.length })}
+          />
+        ) : null}
+        {openRecoveries.length > 0 ? (
+          <ListRow
+            to={firstRecovery ? `/items/${firstRecovery.itemId}` : "/"}
+            leading={
+              <IconTile tone="neutral">
+                <Icon name="refresh" className="size-5" />
+              </IconTile>
+            }
+            title={t("attention.recoveries", { n: openRecoveries.length })}
+          />
+        ) : null}
+      </List>
+    </Section>
   );
 }
 
@@ -91,6 +96,10 @@ export function InventoryPage() {
     return res.items;
   });
   const overview = useOverview();
+  useDataChanged(() => {
+    items.reload(true);
+    overview.reload(true);
+  });
 
   const resultsText =
     items.state.status === "ready" ? t("inventory.results", { n: items.state.data.length }) : "";
@@ -100,6 +109,7 @@ export function InventoryPage() {
       <PageHeader
         title={t("nav.inventory")}
         subtitle={t("inventory.subtitle")}
+        hideActionsOnPhone
         actions={
           <>
             <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
@@ -114,23 +124,13 @@ export function InventoryPage() {
       <AttentionStrip />
 
       <search className="mb-5 flex flex-col gap-3">
-        <div className="relative">
-          <label htmlFor="inv-search" className="sr-only">
-            {t("inventory.search")}
-          </label>
-          <Icon
-            name="search"
-            className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted"
-          />
-          <input
-            id="inv-search"
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t("inventory.searchPlaceholder")}
-            className="block min-h-12 w-full rounded-xl border border-line-strong bg-raised pr-3 pl-11 text-fg placeholder:text-muted/80"
-          />
-        </div>
+        <SearchField
+          label={t("inventory.search")}
+          clearLabel={t("common.clear")}
+          value={q}
+          onChange={setQ}
+          placeholder={t("inventory.searchPlaceholder")}
+        />
         <div className="flex flex-wrap items-center gap-2">
           <Chip pressed={status === ""} onClick={() => setStatus("")}>
             {t("inventory.all")}

@@ -7,7 +7,7 @@ import { Button } from "../../ui/Button";
 import { TextInput, Toggle } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
 import { errorMessage } from "../../ui/States";
-import { SectionCard, type SectionProps } from "./shared";
+import { FieldGroup, SectionCard, type SectionProps } from "./shared";
 
 const EVENTS = ["newConversation", "newMessage", "locationShared", "proposal", "lostItemScanned"] as const;
 
@@ -73,8 +73,7 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
           error={errors["notifications.emailAddress"]}
           autoComplete="email"
         />
-        <fieldset className="rounded-xl border border-line p-3">
-          <legend className="px-1 text-sm font-semibold">{t("notif.events")}</legend>
+        <FieldGroup legend={t("notif.events")}>
           {EVENTS.map((ev) => (
             <Toggle
               key={ev}
@@ -87,10 +86,9 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
               }
             />
           ))}
-        </fieldset>
-        <fieldset className="rounded-xl border border-line p-3">
-          <legend className="px-1 text-sm font-semibold">{t("notif.mute")}</legend>
-          <p className="mb-2 text-sm" aria-live="polite">
+        </FieldGroup>
+        <FieldGroup legend={t("notif.mute")}>
+          <p className="mb-2 text-subhead" aria-live="polite">
             {muted && n.mutedUntil
               ? t("notif.mutedUntil", { when: format.dateTime(n.mutedUntil) })
               : t("notif.notMuted")}
@@ -120,7 +118,7 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
             }
             error={errors["notifications.mutedUntil"]}
           />
-        </fieldset>
+        </FieldGroup>
         <Toggle
           label={t("notif.notifyFinders")}
           description={t("notif.notifyFindersHint")}
@@ -138,12 +136,12 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
           <Button icon="send" loading={testing} onClick={sendTest}>
             {t("notif.sendTest")}
           </Button>
-          {dirty ? <span className="text-sm text-muted">{t("notif.saveFirst")}</span> : null}
+          {dirty ? <span className="text-subhead text-muted">{t("notif.saveFirst")}</span> : null}
         </div>
         <div aria-live="polite">
           {result ? (
             <p
-              className={`flex items-start gap-2 rounded-xl px-3 py-2 font-medium ${result.ok ? "bg-accent-tint text-accent-text" : "bg-danger-tint text-danger"}`}
+              className={`flex items-start gap-2 rounded-control px-3 py-2 font-medium ${result.ok ? "bg-accent-tint text-accent-text" : "bg-danger-tint text-danger"}`}
             >
               <Icon name={result.ok ? "check" : "alert"} className="mt-0.5" />
               {result.text}

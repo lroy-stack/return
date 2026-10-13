@@ -1,41 +1,73 @@
 import { useState } from "react";
 import type { ItemDetail, ItemSummary } from "../../../shared/schemas";
-import { ItemCard } from "../../components/ItemCard";
 import { api, qs } from "../../lib/api";
 import { useDebounced, useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
 import { Button } from "../../ui/Button";
-import { Card, SectionHeading } from "../../ui/Card";
+import { Section } from "../../ui/Card";
+import { SearchField } from "../../ui/Field";
+import { List, ListRow } from "../../ui/List";
 import { Sheet, SheetBody } from "../../ui/Sheet";
 import { ErrorState, LoadingBlock } from "../../ui/States";
+import { Thumb } from "../../ui/Thumb";
 import { useToast } from "../../ui/Toast";
 
-export function ItemContents({ detail, onChanged }: { detail: ItemDetail; onChanged: () => void }) {
+export function ItemContents({
+  detail,
+  onChanged,
+  className,
+}: {
+  detail: ItemDetail;
+  onChanged: () => void;
+  className?: string;
+}) {
   const t = useT();
   const [picking, setPicking] = useState(false);
+  const n = detail.children.length;
   return (
-    <Card aria-labelledby="sec-contents">
-      <SectionHeading
+    <>
+      <Section
         id="sec-contents"
+        className={className}
+        collapsible
         title={t("contents.title")}
         description={t("contents.desc")}
+        summary={n > 0 ? t("contents.count", { n }) : t("common.none")}
         actions={
-          <Button size="sm" icon="plus" onClick={() => setPicking(true)}>
+          <Button size="sm" variant="tinted" icon="plus" onClick={() => setPicking(true)}>
             {t("contents.add")}
           </Button>
         }
-      />
-      {detail.children.length === 0 ? (
-        <p className="text-muted">{t("contents.empty")}</p>
-      ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {detail.children.map((c) => (
-            <ItemCard key={c.id} item={c} />
-          ))}
-        </ul>
-      )}
+      >
+        {n === 0 ? (
+          <p className="text-subhead text-muted">{t("contents.empty")}</p>
+        ) : (
+          <List variant="plain" label={t("contents.title")}>
+            {detail.children.map((c) => (
+              <ItemRow key={c.id} item={c} to={`/items/${c.id}`} />
+            ))}
+          </List>
+        )}
+      </Section>
       <PickItemSheet open={picking} parent={detail} onClose={() => setPicking(false)} onChanged={onChanged} />
-    </Card>
+    </>
+  );
+}
+
+function ItemRow({ item, to, onClick }: { item: ItemSummary; to?: string; onClick?: () => void }) {
+  const t = useT();
+  return (
+    <ListRow
+      to={to}
+      onClick={onClick}
+      chevron={Boolean(to)}
+      flush={Boolean(to)}
+      leading={<Thumb src={item.coverPhotoUrl} category={item.category} size="sm" />}
+      title={item.name}
+      subtitle={
+        [item.brand, item.model].filter(Boolean).join(" · ") || t(`category.${item.category}` as const)
+      }
+    />
   );
 }
 
@@ -100,43 +132,28 @@ function PickList({
       : [];
   return (
     <SheetBody>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="pick-q" className="text-sm font-medium">
-          {t("inventory.search")}
-        </label>
-        <input
-          id="pick-q"
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="block min-h-11 w-full rounded-xl border border-line-strong bg-raised px-3"
-        />
-      </div>
-      {items.state.status === "loading" ? <LoadingBlock rows={2} /> : null}
+      <SearchField
+        label={t("inventory.search")}
+        clearLabel={t("common.clear")}
+        value={q}
+        onChange={setQ}
+        placeholder={t("inventory.searchPlaceholder")}
+      />
+      {items.state.status === "loading" ? <LoadingBlock variant="rows" rows={3} /> : null}
       {items.state.status === "error" ? (
         <ErrorState error={items.state.error} onRetry={() => items.reload()} />
       ) : null}
       {items.state.status === "ready" && candidates.length === 0 ? (
-        <p className="text-muted">{t("inventory.noResults")}</p>
+        <p className="text-subhead text-muted">{t("inventory.noResults")}</p>
       ) : null}
-      <ul className="flex flex-col gap-1">
-        {candidates.map((i) => (
-          <li key={i.id}>
-            <button
-              type="button"
-              disabled={busy !== null}
-              onClick={() => pick(i.id)}
-              className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 text-left hover:bg-sunken"
-            >
-              <span className="min-w-0 truncate font-medium">{i.name}</span>
-              <span className="text-sm text-muted">
-                {busy === i.id ? t("common.loading") : t(`category.${i.category}` as const)}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      <p role="alert" className="text-sm font-medium text-danger empty:hidden">
+      {candidates.length > 0 ? (
+        <List label={t("contents.pickTitle")}>
+          {candidates.map((i) => (
+            <ItemRow key={i.id} item={i} onClick={busy === null ? () => void pick(i.id) : undefined} />
+          ))}
+        </List>
+      ) : null}
+      <p role="alert" className="text-subhead font-medium text-danger empty:hidden">
         {error}
       </p>
     </SheetBody>

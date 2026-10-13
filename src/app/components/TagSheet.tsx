@@ -109,11 +109,11 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
           <TagStatusBadge tag={tag} />
           <NfcBadge status={tag.nfcStatus} />
           {tag.lastSeenAt ? (
-            <span className="text-sm text-muted">
+            <span className="text-subhead text-muted">
               {t("tag.lastSeen", { when: format.relative(tag.lastSeenAt) })}
             </span>
           ) : (
-            <span className="text-sm text-muted">{t("tag.neverSeen")}</span>
+            <span className="text-subhead text-muted">{t("tag.neverSeen")}</span>
           )}
         </div>
 
@@ -124,7 +124,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
               alt={t("tag.qrAlt", { label: tag.label })}
               width={192}
               height={192}
-              className="size-48 rounded-xl border border-line bg-white p-2"
+              className="size-48 rounded-control border border-line bg-white p-2"
             />
             <ButtonLink
               to={`/api/tags/${tag.id}/qr.svg`}
@@ -137,7 +137,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
           </div>
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium" id="tag-url-l">
+              <span className="text-subhead font-medium" id="tag-url-l">
                 {t("tag.url")}
               </span>
               <div className="flex gap-2">
@@ -146,7 +146,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
                   value={tag.url}
                   aria-labelledby="tag-url-l"
                   onFocus={(e) => e.currentTarget.select()}
-                  className="min-h-11 min-w-0 flex-1 rounded-xl border border-line-strong bg-sunken px-3 text-sm"
+                  className="min-h-11 min-w-0 flex-1 rounded-control border border-line-strong bg-sunken px-3 text-subhead"
                 />
                 <Button icon="copy" onClick={copy}>
                   {t("tag.copy")}
@@ -209,8 +209,8 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
           </div>
         </div>
 
-        <fieldset className="rounded-xl border border-line p-3">
-          <legend className="px-1 text-sm font-semibold">NFC</legend>
+        <fieldset className="rounded-control bg-sunken p-3">
+          <legend className="px-1 text-subhead font-semibold">NFC</legend>
           <Select
             label={t("tag.nfcStatus")}
             value={tag.nfcStatus}
@@ -223,7 +223,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
               </option>
             ))}
           </Select>
-          <p className="mt-2 flex gap-2 text-sm text-muted">
+          <p className="mt-2 flex gap-2 text-subhead text-muted">
             <Icon name="info" className="mt-0.5 size-4" />
             {t("nfc.help")}
           </p>
@@ -232,11 +232,11 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
         <div aria-live="polite">
           {verification ? (
             verification.ok ? (
-              <p className="flex items-center gap-2 rounded-xl bg-accent-tint px-3 py-2 font-medium text-accent-text">
+              <p className="flex items-center gap-2 rounded-control bg-accent-tint px-3 py-2 font-medium text-accent-text">
                 <Icon name="check" /> {t("tag.verifyOk")}
               </p>
             ) : (
-              <div className="rounded-xl border border-lost/40 bg-lost-tint px-3 py-2 text-lost">
+              <div className="rounded-control bg-warning-tint px-3 py-2 text-warning">
                 <p className="font-semibold">{t("tag.verifyProblems")}</p>
                 <ul className="list-disc pl-5">
                   {verification.problems.map((p) => (

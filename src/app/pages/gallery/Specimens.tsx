@@ -364,6 +364,67 @@ export function ContentSpecimens() {
             </List>
           </Section>
         </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Section
+            collapsible
+            defaultOpen
+            title="Section · collapsible"
+            description="Secondary or private information on long pages."
+            summary="2 items"
+            actions={
+              <Button size="sm" variant="tinted" icon="plus">
+                Add
+              </Button>
+            }
+            footer="Native disclosure: keyboard, find-in-page and no-JS work."
+          >
+            <List variant="plain" label="Items inside">
+              <ListRow
+                flush
+                to="/gallery#cards"
+                leading={<Thumb category="laptop" size="sm" />}
+                title="Laptop 14″"
+                subtitle="Graphite"
+              />
+              <ListRow
+                flush
+                to="/gallery#cards"
+                leading={<Thumb category="headphones" size="sm" />}
+                title="Noise-cancelling headphones"
+              />
+            </List>
+          </Section>
+          <Section title="ListRow · selectable">
+            <List>
+              <ListRow
+                onClick={() => undefined}
+                chevron
+                select={{ checked: true, onChange: () => undefined, label: "Select 003" }}
+                leading={
+                  <IconTile>
+                    <Icon name="qr" className="size-5" />
+                  </IconTile>
+                }
+                title="003"
+                subtitle="Cabin suitcase"
+                trailing={<StatusPill tone="success">Active</StatusPill>}
+              />
+              <ListRow
+                onClick={() => undefined}
+                chevron
+                select="spacer"
+                leading={
+                  <IconTile tone="neutral">
+                    <Icon name="qr" className="size-5" />
+                  </IconTile>
+                }
+                title="002"
+                subtitle="Revoked: cannot be selected"
+                trailing={<StatusPill tone="danger">Revoked</StatusPill>}
+              />
+            </List>
+          </Section>
+        </div>
         <Row label="Thumb sizes (photo · category fallback) and Avatar">
           {(["xs", "sm", "md", "lg", "xl"] as const).map((s) => (
             <Thumb key={s} size={s} src={samplePhoto(215)} category="backpack" />

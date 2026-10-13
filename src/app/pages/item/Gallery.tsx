@@ -4,6 +4,7 @@ import { CategoryTile } from "../../components/ItemCard";
 import { api } from "../../lib/api";
 import { useT } from "../../lib/i18n";
 import { resizePhoto } from "../../lib/image";
+import { StatusPill } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { Icon } from "../../ui/Icon";
@@ -67,7 +68,7 @@ export function Gallery({ detail, onChanged }: { detail: ItemDetail; onChanged: 
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative aspect-4/3 w-full overflow-hidden rounded-card border border-line bg-sunken">
+      <div className="relative aspect-4/3 w-full overflow-hidden rounded-card bg-sunken max-sm:max-h-72">
         {selected ? (
           <img
             src={selected.url}
@@ -78,9 +79,11 @@ export function Gallery({ detail, onChanged }: { detail: ItemDetail; onChanged: 
           <CategoryTile category={item.category} className="size-full" />
         )}
         {isPublic ? (
-          <span className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-primary-fg">
-            <Icon name="star" className="size-3.5" />
-            {t("gallery.publicBadge")}
+          <span className="absolute top-3 left-3">
+            <StatusPill tone="info" solid>
+              <Icon name="star" className="size-3" />
+              {t("gallery.publicBadge")}
+            </StatusPill>
           </span>
         ) : null}
       </div>
@@ -94,7 +97,7 @@ export function Gallery({ detail, onChanged }: { detail: ItemDetail; onChanged: 
                 onClick={() => setSelectedId(p.id)}
                 aria-pressed={p.id === selected?.id}
                 aria-label={t("gallery.showPhoto", { n: i + 1 })}
-                className={`block size-16 overflow-hidden rounded-xl border-2 ${p.id === selected?.id ? "border-primary" : "border-transparent"}`}
+                className={`block size-14 overflow-hidden rounded-control ring-2 pointer-coarse:size-16 ${p.id === selected?.id ? "ring-primary" : "ring-transparent"}`}
               >
                 <img src={p.url} alt="" loading="lazy" className="size-full object-cover" />
               </button>
@@ -115,7 +118,7 @@ export function Gallery({ detail, onChanged }: { detail: ItemDetail; onChanged: 
           onChange={(e) => void onFiles(e.target.files)}
           tabIndex={-1}
         />
-        <Button icon="camera" loading={progress !== null} onClick={() => input.current?.click()}>
+        <Button size="sm" icon="camera" loading={progress !== null} onClick={() => input.current?.click()}>
           {progress
             ? t("gallery.uploading", { done: progress.done, total: progress.total })
             : t("gallery.add")}
@@ -123,25 +126,29 @@ export function Gallery({ detail, onChanged }: { detail: ItemDetail; onChanged: 
         {selected ? (
           <>
             <Button
+              size="sm"
               icon="star"
               onClick={() => void setPublic(isPublic ? null : selected.id)}
               aria-pressed={isPublic}
             >
               {isPublic ? t("gallery.unsetPublic") : t("gallery.setPublic")}
             </Button>
-            <Button icon="trash" variant="ghost" onClick={() => setDeleting(true)}>
+            <Button size="sm" icon="trash" variant="ghost" onClick={() => setDeleting(true)}>
               {t("gallery.delete")}
             </Button>
           </>
         ) : null}
       </div>
-      <p className="flex gap-2 text-sm text-muted">
-        <Icon name="info" className="mt-0.5 size-4" />
-        <span>
+      <details className="text-footnote text-muted">
+        <summary className="flex min-h-11 cursor-pointer items-center gap-1.5">
+          <Icon name="info" className="size-4" />
+          {t("item.photoNotes")}
+        </summary>
+        <p className="pt-1 pb-2">
           {t("gallery.exifNote")} {t("gallery.publicNote")}
-        </span>
-      </p>
-      <p role="alert" className="text-sm font-medium text-danger empty:hidden">
+        </p>
+      </details>
+      <p role="alert" className="text-subhead font-medium text-danger empty:hidden">
         {error}
       </p>
 

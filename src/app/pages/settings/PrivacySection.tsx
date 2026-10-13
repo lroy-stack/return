@@ -48,7 +48,7 @@ export function PrivacySection({ draft, update, errors }: SectionProps) {
           })
         }
       />
-      <p className="text-sm text-muted">
+      <p className="text-subhead text-muted">
         {t("privacy.exportLead")}{" "}
         <Link to="/settings/system" className="font-medium text-primary-text underline">
           {t("settings.system")}

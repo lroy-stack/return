@@ -1,25 +1,17 @@
 import { useRef, useState } from "react";
 import type { ItemDetail } from "../../../shared/schemas";
-import { ItemFormSheet } from "../../components/ItemFormSheet";
 import { api } from "../../lib/api";
 import { useT } from "../../lib/i18n";
 import { useFormat } from "../../lib/settings-context";
-import { Button } from "../../ui/Button";
-import { Card, SectionHeading } from "../../ui/Card";
+import { Button, IconButton } from "../../ui/Button";
+import { Section } from "../../ui/Card";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { Icon } from "../../ui/Icon";
+import { KeyValue } from "../../ui/KeyValue";
+import { IconTile, List, ListRow } from "../../ui/List";
 import { errorMessage } from "../../ui/States";
 import { useToast } from "../../ui/Toast";
 import { uploadFile } from "./Gallery";
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-0.5 py-2 sm:grid-cols-[11rem_1fr] sm:gap-4">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="min-w-0 whitespace-pre-wrap">{children}</dd>
-    </div>
-  );
-}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -27,13 +19,23 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function PrivateSection({ detail, onChanged }: { detail: ItemDetail; onChanged: () => void }) {
+/** Serial, value, notes and documents: collapsed by default so private data is never on show by accident. */
+export function PrivateSection({
+  detail,
+  onChanged,
+  onEdit,
+  className,
+}: {
+  detail: ItemDetail;
+  onChanged: () => void;
+  onEdit: () => void;
+  className?: string;
+}) {
   const t = useT();
   const format = useFormat();
   const toast = useToast();
   const { item } = detail;
   const docs = detail.files.filter((f) => f.kind === "document");
-  const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [removeId, setRemoveId] = useState<string | null>(null);
@@ -58,90 +60,102 @@ export function PrivateSection({ detail, onChanged }: { detail: ItemDetail; onCh
   };
 
   return (
-    <Card aria-labelledby="sec-private" className="border-line-strong">
-      <SectionHeading
+    <>
+      <Section
         id="sec-private"
-        icon={<Icon name="lock" className="size-5 text-muted" />}
+        className={className}
+        collapsible
         title={t("private.title")}
         description={t("private.neverShown")}
+        summary={docs.length > 0 ? t("private.docsCount", { n: docs.length }) : undefined}
         actions={
-          <Button size="sm" icon="edit" onClick={() => setEditing(true)}>
+          <Button size="sm" variant="tinted" icon="edit" onClick={onEdit}>
             {t("common.edit")}
           </Button>
         }
-      />
-      {empty ? (
-        <p className="text-muted">{t("private.empty")}</p>
-      ) : (
-        <dl className="divide-y divide-line">
-          {item.serialNumber ? <Row label={t("itemForm.serial")}>{item.serialNumber}</Row> : null}
-          {item.estimatedValueCents != null ? (
-            <Row label={t("itemForm.value")}>{format.money(item.estimatedValueCents, item.currency)}</Row>
-          ) : null}
-          {item.acquiredOn ? (
-            <Row label={t("itemForm.acquiredOn")}>{format.date(`${item.acquiredOn}T12:00:00Z`)}</Row>
-          ) : null}
-          {item.privateNotes ? <Row label={t("itemForm.privateNotes")}>{item.privateNotes}</Row> : null}
-        </dl>
-      )}
+      >
+        {empty ? (
+          <p className="text-subhead text-muted">{t("private.empty")}</p>
+        ) : (
+          <KeyValue
+            layout="inline"
+            entries={[
+              { key: "serial", label: t("itemForm.serial"), value: item.serialNumber, mono: true },
+              {
+                key: "value",
+                label: t("itemForm.value"),
+                value:
+                  item.estimatedValueCents != null
+                    ? format.money(item.estimatedValueCents, item.currency)
+                    : null,
+              },
+              {
+                key: "acquired",
+                label: t("itemForm.acquiredOn"),
+                value: item.acquiredOn ? format.date(`${item.acquiredOn}T12:00:00Z`) : null,
+              },
+              { key: "notes", label: t("itemForm.privateNotes"), value: item.privateNotes },
+            ].filter((e) => e.value)}
+          />
+        )}
 
-      <h3 className="mt-5 mb-2 font-semibold">{t("private.documents")}</h3>
-      {docs.length === 0 ? (
-        <p className="text-sm text-muted">{t("private.noDocs")}</p>
-      ) : (
-        <ul className="divide-y divide-line rounded-xl border border-line">
-          {docs.map((d) => (
-            <li key={d.id} className="flex items-center gap-3 px-3 py-1.5">
-              <Icon name="documents" className="text-muted" />
-              <a
-                href={d.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-w-0 flex-1 truncate py-2 font-medium text-primary-text hover:underline"
-              >
-                {d.filename}
-                <span className="sr-only"> ({t("common.opensNewTab")})</span>
-              </a>
-              <span className="hidden text-sm text-muted sm:inline">{formatSize(d.sizeBytes)}</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="trash"
-                aria-label={t("private.removeDoc", { name: d.filename })}
-                onClick={() => setRemoveId(d.id)}
+        <h3 className="mt-2 text-subhead font-semibold">{t("private.documents")}</h3>
+        {docs.length === 0 ? (
+          <p className="text-subhead text-muted">{t("private.noDocs")}</p>
+        ) : (
+          <List variant="plain" label={t("private.documents")}>
+            {docs.map((d) => (
+              <ListRow
+                key={d.id}
+                flush
+                leading={
+                  <IconTile tone="neutral">
+                    <Icon name="documents" className="size-5" />
+                  </IconTile>
+                }
+                title={
+                  <a
+                    href={d.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-text hover:underline"
+                  >
+                    {d.filename}
+                    <span className="sr-only"> ({t("common.opensNewTab")})</span>
+                  </a>
+                }
+                subtitle={formatSize(d.sizeBytes)}
+                trailing={
+                  <IconButton
+                    icon="trash"
+                    size="sm"
+                    label={t("private.removeDoc", { name: d.filename })}
+                    onClick={() => setRemoveId(d.id)}
+                  />
+                }
               />
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <input
-          ref={input}
-          type="file"
-          aria-label={t("private.addDoc")}
-          multiple
-          className="sr-only"
-          tabIndex={-1}
-          onChange={(e) => void onFiles(e.target.files)}
-        />
-        <Button icon="plus" loading={uploading} onClick={() => input.current?.click()}>
-          {t("private.addDoc")}
-        </Button>
-        <span className="text-sm text-muted">{t("private.docHint")}</span>
-      </div>
-      <p role="alert" className="mt-2 text-sm font-medium text-danger empty:hidden">
-        {error}
-      </p>
-
-      <ItemFormSheet
-        open={editing}
-        item={item}
-        onClose={() => setEditing(false)}
-        onSaved={() => {
-          toast(t("common.saved"));
-          onChanged();
-        }}
-      />
+            ))}
+          </List>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={input}
+            type="file"
+            aria-label={t("private.addDoc")}
+            multiple
+            className="sr-only"
+            tabIndex={-1}
+            onChange={(e) => void onFiles(e.target.files)}
+          />
+          <Button size="sm" icon="plus" loading={uploading} onClick={() => input.current?.click()}>
+            {t("private.addDoc")}
+          </Button>
+          <span className="text-footnote text-muted">{t("private.docHint")}</span>
+        </div>
+        <p role="alert" className="text-subhead font-medium text-danger empty:hidden">
+          {error}
+        </p>
+      </Section>
       <ConfirmDialog
         open={removeId !== null}
         title={t("private.removeTitle")}
@@ -154,6 +168,6 @@ export function PrivateSection({ detail, onChanged }: { detail: ItemDetail; onCh
           onChanged();
         }}
       />
-    </Card>
+    </>
   );
 }

@@ -5,99 +5,113 @@ import { isoToLocalInput, localInputToIso } from "../../lib/format";
 import { emptyToNull, type FieldErrors, validate } from "../../lib/forms";
 import { useT } from "../../lib/i18n";
 import { useFormat } from "../../lib/settings-context";
-import { Button } from "../../ui/Button";
-import { Card, SectionHeading } from "../../ui/Card";
+import { Button, IconButton } from "../../ui/Button";
+import { Section } from "../../ui/Card";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { FormError, Select, TextArea, TextInput } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
+import { IconTile, List, ListRow } from "../../ui/List";
 import { Sheet, SheetBody, SheetFooter } from "../../ui/Sheet";
 import { useToast } from "../../ui/Toast";
 
 const APPLE_LOST_MODE = "https://support.apple.com/en-us/104978";
 const APPLE_SHARE_LOCATION = "https://support.apple.com/guide/iphone/share-item-location-iph0fe5b59ff/ios";
 
-export function ItemTrackers({ detail, onChanged }: { detail: ItemDetail; onChanged: () => void }) {
+export function ItemTrackers({
+  detail,
+  onChanged,
+  className,
+}: {
+  detail: ItemDetail;
+  onChanged: () => void;
+  className?: string;
+}) {
   const t = useT();
   const format = useFormat();
   const [editing, setEditing] = useState<Tracker | "new" | null>(null);
   const [removing, setRemoving] = useState<Tracker | null>(null);
+  const n = detail.trackers.length;
 
   return (
-    <Card aria-labelledby="sec-trackers">
-      <SectionHeading
+    <>
+      <Section
         id="sec-trackers"
+        className={className}
+        collapsible
         title={t("trackers.title")}
+        summary={n > 0 ? t("trackers.count", { n }) : t("common.none")}
         actions={
-          <Button size="sm" icon="plus" onClick={() => setEditing("new")}>
+          <Button size="sm" variant="tinted" icon="plus" onClick={() => setEditing("new")}>
             {t("trackers.add")}
           </Button>
         }
-      />
-      <p className="mb-3 flex gap-2 rounded-xl bg-sunken px-3 py-2 text-sm text-muted">
-        <Icon name="info" className="mt-0.5 size-4" />
-        <span>
-          {t("trackers.help")}{" "}
-          <a
-            className="font-medium text-primary-text underline"
-            href={APPLE_LOST_MODE}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {t("trackers.lostMode")}
-          </a>
-          {" · "}
-          <a
-            className="font-medium text-primary-text underline"
-            href={APPLE_SHARE_LOCATION}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {t("trackers.shareLocation")}
-          </a>
-        </span>
-      </p>
-      {detail.trackers.length === 0 ? (
-        <p className="text-muted">{t("trackers.empty")}</p>
-      ) : (
-        <ul className="divide-y divide-line rounded-xl border border-line">
-          {detail.trackers.map((tr) => (
-            <li key={tr.id} className="flex items-start gap-3 px-3 py-2.5">
-              <Icon name="pin" className="mt-1 text-muted" />
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">
-                  {tr.name}{" "}
-                  <span className="text-sm font-normal text-muted">· {t(`tracker.${tr.kind}` as const)}</span>
-                </p>
-                {tr.lastLocationText ? (
-                  <p className="text-sm">
-                    {tr.lastLocationText}
-                    {tr.lastLocationAt ? (
-                      <span className="text-muted"> · {format.dateTime(tr.lastLocationAt)}</span>
-                    ) : null}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted">{t("trackers.noLocation")}</p>
-                )}
-                {tr.notes ? <p className="text-sm text-muted">{tr.notes}</p> : null}
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="edit"
-                aria-label={t("trackers.edit", { name: tr.name })}
-                onClick={() => setEditing(tr)}
+        footer={
+          <span className="flex gap-2">
+            <Icon name="info" className="mt-0.5 size-4 shrink-0" />
+            <span>
+              {t("trackers.help")}{" "}
+              <a
+                className="font-medium text-primary-text underline"
+                href={APPLE_LOST_MODE}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t("trackers.lostMode")}
+              </a>
+              {" · "}
+              <a
+                className="font-medium text-primary-text underline"
+                href={APPLE_SHARE_LOCATION}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t("trackers.shareLocation")}
+              </a>
+            </span>
+          </span>
+        }
+      >
+        {n === 0 ? (
+          <p className="text-subhead text-muted">{t("trackers.empty")}</p>
+        ) : (
+          <List variant="plain" label={t("trackers.title")}>
+            {detail.trackers.map((tr) => (
+              <ListRow
+                key={tr.id}
+                flush
+                leading={
+                  <IconTile tone="neutral">
+                    <Icon name="pin" className="size-5" />
+                  </IconTile>
+                }
+                title={`${tr.name} · ${t(`tracker.${tr.kind}` as const)}`}
+                subtitle={
+                  tr.lastLocationText
+                    ? `${tr.lastLocationText}${tr.lastLocationAt ? ` · ${format.dateTime(tr.lastLocationAt)}` : ""}`
+                    : t("trackers.noLocation")
+                }
+                description={tr.notes ?? undefined}
+                trailing={
+                  <span className="flex">
+                    <IconButton
+                      icon="edit"
+                      size="sm"
+                      label={t("trackers.edit", { name: tr.name })}
+                      onClick={() => setEditing(tr)}
+                    />
+                    <IconButton
+                      icon="trash"
+                      size="sm"
+                      label={t("trackers.remove", { name: tr.name })}
+                      onClick={() => setRemoving(tr)}
+                    />
+                  </span>
+                }
               />
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="trash"
-                aria-label={t("trackers.remove", { name: tr.name })}
-                onClick={() => setRemoving(tr)}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
+            ))}
+          </List>
+        )}
+      </Section>
       <TrackerSheet
         itemId={detail.item.id}
         editing={editing}
@@ -116,7 +130,7 @@ export function ItemTrackers({ detail, onChanged }: { detail: ItemDetail; onChan
           onChanged();
         }}
       />
-    </Card>
+    </>
   );
 }
 

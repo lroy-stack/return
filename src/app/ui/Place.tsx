@@ -4,9 +4,21 @@ import { useT } from "../lib/i18n";
 import { cx } from "./cx";
 import { Icon } from "./Icon";
 
-// Move both to src/shared when the contract owner next touches it. Licence wording: never translated.
-
 const coord = (n: number) => n.toFixed(5);
+
+/** "© OpenStreetMap contributors" linked to the licence. Licence wording is never translated. */
+export function OsmAttribution({ className }: { className?: string }) {
+  return (
+    <a
+      href={OSM_COPYRIGHT_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cx("underline decoration-line-strong underline-offset-2 hover:text-fg", className)}
+    >
+      {OSM_ATTRIBUTION}
+    </a>
+  );
+}
 
 /**
  * A shared or proposed location, readable first: resolved name → context line → small coordinates
@@ -39,20 +51,13 @@ export function PlaceLabel({
       <div className="min-w-0">
         <p className="text-body font-semibold">{title}</p>
         {place?.detail ? <p className="text-subhead text-muted">{place.detail}</p> : null}
-        {place && label ? <p className="text-subhead">“{label}”</p> : null}
+        {place && label && label !== place.name ? <p className="text-subhead">“{label}”</p> : null}
         {coords && title !== coords ? (
           <p className="font-mono text-caption text-muted tabular-nums">{coords}</p>
         ) : null}
         {place ? (
           <p className="text-caption text-muted">
-            <a
-              href={OSM_COPYRIGHT_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline decoration-line-strong underline-offset-2 hover:text-fg"
-            >
-              {OSM_ATTRIBUTION}
-            </a>
+            <OsmAttribution />
           </p>
         ) : null}
       </div>

@@ -7,7 +7,7 @@ import { useT } from "../../lib/i18n";
 import { Button, ButtonLink } from "../../ui/Button";
 import { Select, TextInput, Toggle } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
-import { LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
+import { FieldGroup, LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
 
 export function PublicPageSection({ draft, update, errors }: SectionProps) {
   const t = useT();
@@ -43,8 +43,7 @@ export function PublicPageSection({ draft, update, errors }: SectionProps) {
             })
           }
         />
-        <fieldset className="rounded-xl border border-line p-3">
-          <legend className="px-1 text-sm font-semibold">{t("public.defaultReward")}</legend>
+        <FieldGroup legend={t("public.defaultReward")}>
           <div className="flex flex-col gap-3">
             {LANGUAGES.map((l) => (
               <TextInput
@@ -61,7 +60,7 @@ export function PublicPageSection({ draft, update, errors }: SectionProps) {
               />
             ))}
           </div>
-        </fieldset>
+        </FieldGroup>
       </SectionCard>
 
       <SectionCard title={t("public.previewTitle")} description={t("public.previewDesc")}>
@@ -103,7 +102,7 @@ export function PublicPageSection({ draft, update, errors }: SectionProps) {
                 </ButtonLink>
               ) : null}
             </div>
-            <p className="flex gap-2 text-sm text-muted">
+            <p className="flex gap-2 text-subhead text-muted">
               <Icon name="info" className="mt-0.5 size-4" />
               {t("public.previewNote")}
             </p>

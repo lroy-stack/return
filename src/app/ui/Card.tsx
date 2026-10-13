@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cx } from "./cx";
+import { Icon } from "./Icon";
 
 export type CardVariant = "raised" | "outline" | "inset" | "tinted" | "lost";
 export type CardPadding = "none" | "sm" | "md";
@@ -80,6 +81,10 @@ export function SectionHeading({
 /**
  * Page section without a card frame (iOS grouped style): small heading above, content (often a `List`) below,
  * optional footer note. Use for settings and detail pages instead of stacking cards.
+ *
+ * `collapsible` turns the section into a native disclosure (a framed row with the title and an optional
+ * `summary`; the content, `actions` and `footer` appear when it is open). Use it for secondary or private
+ * information on long pages. Keyboard and find-in-page work without JS.
  */
 export function Section({
   id,
@@ -89,6 +94,9 @@ export function Section({
   footer,
   children,
   className,
+  collapsible,
+  defaultOpen,
+  summary,
 }: {
   id?: string;
   title?: string;
@@ -97,8 +105,41 @@ export function Section({
   footer?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Needs `title`. */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+  /** Short state shown on the closed row, e.g. a count. */
+  summary?: ReactNode;
 }) {
   const headingId = id ? `${id}-title` : undefined;
+  if (collapsible && title) {
+    return (
+      <details
+        id={id}
+        open={defaultOpen}
+        className={cx("group rounded-card bg-raised shadow-card ring-1 ring-line/70", className)}
+      >
+        <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-card px-4 py-2.5 select-none hover:bg-fill [&::-webkit-details-marker]:hidden">
+          <span className="flex min-w-0 flex-1 flex-col">
+            <h2 id={headingId} className="text-headline font-semibold">
+              {title}
+            </h2>
+            {description ? <span className="text-footnote text-muted">{description}</span> : null}
+          </span>
+          {summary ? <span className="shrink-0 text-footnote text-muted">{summary}</span> : null}
+          <Icon
+            name="chevron_down"
+            className="size-4 shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
+          />
+        </summary>
+        <div className="flex flex-col gap-3 border-t border-line px-4 py-4">
+          {actions ? <div className="flex flex-wrap items-center justify-end gap-2">{actions}</div> : null}
+          {children}
+          {footer ? <div className="text-footnote text-muted">{footer}</div> : null}
+        </div>
+      </details>
+    );
+  }
   return (
     <section
       id={id}

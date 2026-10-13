@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Language, Settings } from "../../../shared/settings";
 import type { FieldErrors } from "../../lib/forms";
+import { Card, Section } from "../../ui/Card";
 
 export interface SectionProps {
   draft: Settings;
@@ -10,6 +11,7 @@ export interface SectionProps {
 
 export const LANGUAGE_NAMES: Record<Language, string> = { en: "English", de: "Deutsch", es: "Español" };
 
+/** One settings group: a titled `Section` whose fields sit in a single raised card. */
 export function SectionCard({
   title,
   description,
@@ -20,14 +22,28 @@ export function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-card border border-line bg-raised p-4 shadow-card sm:p-5">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      {description ? (
-        <p className="mt-0.5 mb-4 text-sm text-muted">{description}</p>
-      ) : (
-        <div className="mb-3" />
-      )}
-      <div className="flex flex-col gap-4">{children}</div>
-    </section>
+    <Section title={title} description={description}>
+      <Card>
+        <div className="flex flex-col gap-4">{children}</div>
+      </Card>
+    </Section>
+  );
+}
+
+/** A labelled cluster of related controls inside a card (inset, no extra border). */
+export function FieldGroup({
+  legend,
+  children,
+  className,
+}: {
+  legend: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <fieldset className={`min-w-0 rounded-control bg-sunken p-3 ${className ?? ""}`}>
+      <legend className="px-1 text-subhead font-semibold">{legend}</legend>
+      {children}
+    </fieldset>
   );
 }

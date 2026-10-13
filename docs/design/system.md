@@ -175,8 +175,8 @@ All components: typed props, no `any`, semantic HTML first, visible `:focus-visi
 | `SegmentedControl` | Field.tsx | `sm · md`, `block`, icons | selected thumb, focus, disabled | 2–4 short exclusive options (filters, appearance, paper size). Native radios. |
 | `FormError` | Field.tsx | — | role=alert | One per form, above the footer. |
 | `Card`, `SectionHeading` | Card.tsx | `raised · outline · inset · tinted · lost`; padding `none · sm · md` | — | Content layer, never glass. |
-| `Section` | Card.tsx | `title`, `description`, `actions`, `footer` | — | Grouped page sections (prefer over stacking Cards). |
-| `List`, `ListRow`, `IconTile` | List.tsx | List `inset · plain`; Row `to · href · onClick · static`, `leading`, `subtitle`, `description`, `trailing`, `strong`, `current`, `tone` | hover, pressed, current (aria-current) | Settings-style rows ≥ 56 px; chevron for navigation; external icon for `href`. |
+| `Section` | Card.tsx | `title`, `description`, `actions`, `footer`; `collapsible` (+`summary`, `defaultOpen`) | open, closed | Grouped page sections (prefer over stacking Cards). `collapsible` = native disclosure for secondary/private info; actions appear inside when open. |
+| `List`, `ListRow`, `IconTile` | List.tsx | List `inset · plain`; Row `to · href · onClick · static`, `leading`, `subtitle`, `description`, `trailing`, `strong`, `current`, `tone` | hover, pressed, current (aria-current) | Settings-style rows ≥ 56 px; chevron for navigation; external icon for `href`. `flush` inside padded containers; `select` adds a 48 px checkbox cell (bulk actions) or a `"spacer"`; `tone` `lost` only for lost-state rows. |
 | `Badge` | Badge.tsx | tones `neutral · info · success · warning · lost · danger`; `solid` | — | A property. |
 | `StatusPill` | Badge.tsx | tones; `pulse`; `solid` | — | The state of a thing (dot + word). |
 | `CountBadge` | Badge.tsx | `count`, spoken `label` | hidden at 0, "99+" | Navigation counts only. |

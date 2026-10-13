@@ -1,7 +1,7 @@
 import { CARD_THEMES, LANGUAGES, type Language } from "../../../shared/settings";
 import { useT } from "../../lib/i18n";
 import { Select, TextInput, Toggle } from "../../ui/Field";
-import { LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
+import { FieldGroup, LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
 
 export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
   const t = useT();
@@ -90,8 +90,7 @@ export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
         }
         error={errors["tags.printedEmail"]}
       />
-      <fieldset className="rounded-xl border border-line p-3">
-        <legend className="px-1 text-sm font-semibold">{t("tagsCfg.cardMessage")}</legend>
+      <FieldGroup legend={t("tagsCfg.cardMessage")}>
         <div className="flex flex-col gap-3">
           {LANGUAGES.map((l) => (
             <TextInput
@@ -108,7 +107,7 @@ export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
             />
           ))}
         </div>
-      </fieldset>
+      </FieldGroup>
     </SectionCard>
   );
 }

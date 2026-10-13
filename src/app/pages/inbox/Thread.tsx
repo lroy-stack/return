@@ -1,20 +1,23 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ConversationDetail,
-  MapLinks,
   Message,
   Proposal,
+  ProposalStatus,
   SharedLocation,
 } from "../../../shared/schemas";
 import { api } from "../../lib/api";
-import { useResource } from "../../lib/hooks";
+import { useMediaQuery, useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
 import { didNavigate, Link, navigate } from "../../lib/router";
 import { useFormat } from "../../lib/settings-context";
-import { Badge } from "../../ui/Badge";
-import { Button, ButtonLink } from "../../ui/Button";
+import { StatusPill } from "../../ui/Badge";
+import { Button, IconButton } from "../../ui/Button";
+import { Card } from "../../ui/Card";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { TextArea } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
+import { MapLinks, PlaceLabel } from "../../ui/Place";
 import { Sheet, SheetBody } from "../../ui/Sheet";
 import { ErrorState, errorMessage, LoadingBlock } from "../../ui/States";
 import { useToast } from "../../ui/Toast";
@@ -25,20 +28,13 @@ type Entry =
   | { kind: "location"; at: string; id: string; location: SharedLocation }
   | { kind: "proposal"; at: string; id: string; proposal: Proposal };
 
-function MapButtons({ maps }: { maps: MapLinks | null }) {
-  const t = useT();
-  if (!maps) return null;
-  return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      <ButtonLink to={maps.google} external size="sm" icon="external">
-        {t("thread.openGoogle")}
-      </ButtonLink>
-      <ButtonLink to={maps.apple} external size="sm" icon="external">
-        {t("thread.openApple")}
-      </ButtonLink>
-    </div>
-  );
-}
+const PLAN_TONE: Record<ProposalStatus, "success" | "info" | "neutral"> = {
+  proposed: "info",
+  accepted: "success",
+  declined: "neutral",
+  cancelled: "neutral",
+  superseded: "neutral",
+};
 
 export function Thread({ id, onChanged }: { id: string; onChanged: () => void }) {
   const t = useT();
@@ -49,6 +45,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
     (signal) => api.get<ConversationDetail>(`/conversations/${id}`, signal),
     { pollMs: 30_000 },
   );
+  const finePointer = useMediaQuery("(pointer: fine)");
   const heading = useRef<HTMLHeadingElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const [body, setBody] = useState("");
@@ -98,7 +95,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
       <div className="flex flex-col gap-3">
         <Link
           to="/conversations"
-          className="inline-flex min-h-11 items-center gap-1 font-medium text-primary-text lg:hidden"
+          className="inline-flex min-h-11 items-center gap-1 font-medium text-primary-text md:hidden"
         >
           <Icon name="back" className="size-4" />
           {t("nav.inbox")}
@@ -155,21 +152,21 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col lg:rounded-card lg:border lg:border-line lg:bg-raised">
-      <header className="flex flex-col gap-2 border-b border-line pb-3 lg:px-5 lg:pt-4">
+    <div className="flex min-h-0 flex-1 flex-col md:h-[calc(100dvh-12rem)] md:min-h-[30rem] md:rounded-card md:bg-raised md:shadow-card md:ring-1 md:ring-line/70">
+      <header className="flex flex-col gap-2 border-b border-line pb-3 md:px-5 md:pt-4">
         <Link
           to="/conversations"
-          className="-ml-2 inline-flex min-h-11 w-fit items-center gap-1 rounded-lg px-2 text-sm font-medium text-primary-text lg:hidden"
+          className="-ml-2 inline-flex min-h-11 w-fit items-center gap-0.5 rounded-full pr-3 pl-1.5 text-body font-medium text-primary-text hover:bg-fill md:hidden"
         >
-          <Icon name="back" className="size-4" />
+          <Icon name="back" className="size-5" />
           {t("nav.inbox")}
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 ref={heading} tabIndex={-1} className="text-xl font-bold outline-none">
+            <h2 ref={heading} tabIndex={-1} className="text-title2 font-bold outline-none">
               {conv.subject}
             </h2>
-            <p className="text-sm text-muted">
+            <p className="text-subhead text-muted">
               {[conv.finderName ?? t("thread.finder"), conv.tagLabel].filter(Boolean).join(" · ")}
               {conv.itemId ? (
                 <>
@@ -180,13 +177,19 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
                 </>
               ) : null}
             </p>
-            {conv.finderEmail ? <p className="text-sm text-muted">{conv.finderEmail}</p> : null}
+            {conv.finderEmail ? <p className="text-subhead text-muted">{conv.finderEmail}</p> : null}
           </div>
           <div className="flex items-center gap-2">
-            <Badge tone={conv.status === "open" ? "success" : "neutral"}>
+            <StatusPill tone={conv.status === "open" ? "success" : "neutral"}>
               {t(`conv.status.${conv.status}` as const)}
-            </Badge>
-            <Button size="sm" icon="more" aria-label={t("thread.more")} onClick={() => setDialog("manage")} />
+            </StatusPill>
+            <IconButton
+              icon="more"
+              size="sm"
+              variant="secondary"
+              label={t("thread.more")}
+              onClick={() => setDialog("manage")}
+            />
           </div>
         </div>
       </header>
@@ -196,7 +199,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
         role="log"
         aria-live="polite"
         aria-label={t("inbox.thread")}
-        className="flex min-h-0 flex-1 flex-col gap-3 py-4 lg:overflow-y-auto lg:px-5"
+        className="flex min-h-0 flex-1 flex-col gap-3 py-4 md:overflow-y-auto md:px-5"
       >
         {entries.map((entry) => {
           if (entry.kind === "message") {
@@ -205,7 +208,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
               return (
                 <p
                   key={entry.id}
-                  className="self-center rounded-full bg-sunken px-3 py-1 text-center text-xs text-muted"
+                  className="self-center rounded-full bg-sunken px-3 py-1 text-center text-footnote text-muted"
                 >
                   {m.body}
                 </p>
@@ -217,69 +220,71 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
                 className={`flex max-w-[85%] flex-col gap-1 ${mine ? "items-end self-end" : "items-start self-start"}`}
               >
                 <div
-                  className={`rounded-2xl px-4 py-2.5 whitespace-pre-wrap ${mine ? "rounded-br-md bg-primary text-primary-fg" : "rounded-bl-md bg-sunken text-fg"}`}
+                  className={`rounded-[1.25rem] px-4 py-2.5 whitespace-pre-wrap ${mine ? "rounded-br-md bg-primary text-primary-fg" : "rounded-bl-md bg-sunken text-fg"}`}
                 >
                   <span className="sr-only">{mine ? t("thread.you") : t("thread.finder")}: </span>
                   {m.body}
                 </div>
-                <span className="px-1 text-xs text-muted">{format.dateTime(m.createdAt)}</span>
+                <span className="px-1 text-footnote text-muted">{format.dateTime(m.createdAt)}</span>
               </div>
             );
           }
           if (entry.kind === "location") {
             const l = entry.location;
             return (
-              <div
+              <Card
                 key={entry.id}
-                className={`w-full max-w-sm rounded-2xl border border-line bg-raised p-3.5 ${l.sharedBy === "owner" ? "self-end" : "self-start"}`}
+                as="div"
+                variant="outline"
+                padding="sm"
+                className={`flex w-full max-w-sm flex-col gap-3 ${l.sharedBy === "owner" ? "self-end" : "self-start"}`}
               >
-                <p className="flex items-center gap-2 font-semibold">
-                  <Icon name="pin" className="size-4 text-primary-text" />
+                <p className="text-footnote font-semibold text-muted">
                   {l.sharedBy === "finder" ? t("thread.finderLocation") : t("thread.yourLocation")}
                 </p>
-                <p>
-                  {l.label ??
-                    (l.lat != null && l.lng != null ? `${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}` : "")}
+                <PlaceLabel place={l.place} label={l.label} lat={l.lat} lng={l.lng} accuracyM={l.accuracyM} />
+                <p className="text-footnote text-muted">
+                  {l.source === "gps" ? t("thread.gps") : t("thread.manual")} · {format.dateTime(l.createdAt)}
                 </p>
-                <p className="text-xs text-muted">
-                  {l.source === "gps" ? t("thread.gps") : t("thread.manual")}
-                  {l.accuracyM != null ? ` · ±${Math.round(l.accuracyM)} m` : ""} ·{" "}
-                  {format.dateTime(l.createdAt)}
-                </p>
-                <MapButtons maps={l.maps} />
-              </div>
+                <MapLinks maps={l.maps} />
+              </Card>
             );
           }
           const p = entry.proposal;
           const open = p.status === "proposed";
           return (
-            <div
+            <Card
               key={entry.id}
-              className={`w-full max-w-sm rounded-2xl border-2 bg-raised p-3.5 ${open ? "border-primary" : "border-line"} ${p.proposedBy === "owner" ? "self-end" : "self-start"}`}
+              as="div"
+              variant="outline"
+              padding="sm"
+              className={`flex w-full max-w-sm flex-col gap-3 ${p.proposedBy === "owner" ? "self-end" : "self-start"} ${open ? "ring-2 ring-primary" : ""}`}
             >
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="flex items-center gap-2 font-semibold">
-                  <Icon name="map" className="size-4 text-primary-text" />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-subhead font-semibold">
                   {t("thread.proposal", { kind: t(`proposal.kind.${p.kind}` as const) })}
                 </p>
-                <Badge
-                  tone={p.status === "accepted" ? "success" : p.status === "proposed" ? "info" : "neutral"}
-                >
+                <StatusPill tone={PLAN_TONE[p.status]}>
                   {t(`proposal.status.${p.status}` as const)}
-                </Badge>
+                </StatusPill>
               </div>
-              <p className="mt-1 font-medium">{p.place}</p>
-              {p.meetAt ? <p className="text-sm">{format.wallClock(p.meetAt)}</p> : null}
-              {p.instructions ? (
-                <p className="text-sm whitespace-pre-wrap text-muted">{p.instructions}</p>
+              <PlaceLabel place={p.resolvedPlace} label={p.place} lat={p.lat} lng={p.lng} />
+              {p.meetAt ? (
+                <p className="flex items-center gap-2 text-subhead">
+                  <Icon name="clock" className="size-4 text-muted" />
+                  {format.wallClock(p.meetAt)}
+                </p>
               ) : null}
-              <p className="text-xs text-muted">
+              {p.instructions ? (
+                <p className="text-subhead whitespace-pre-wrap text-muted">{p.instructions}</p>
+              ) : null}
+              <p className="text-footnote text-muted">
                 {p.proposedBy === "owner" ? t("thread.byYou") : t("thread.byFinder")} ·{" "}
                 {format.dateTime(p.createdAt)}
               </p>
-              <MapButtons maps={p.maps} />
+              <MapLinks maps={p.maps} />
               {open ? (
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
                   {p.proposedBy === "finder" ? (
                     <>
                       <Button
@@ -306,22 +311,20 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
                   )}
                 </div>
               ) : null}
-            </div>
+            </Card>
           );
         })}
       </div>
 
-      <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-20 border-t border-line bg-surface pt-3 pb-2 lg:static lg:bg-raised lg:px-5 lg:pb-4">
-        <p role="alert" className="mb-2 text-sm font-medium text-danger empty:hidden">
+      <div className="z-20 border-t border-line bg-surface pt-3 pb-2 max-md:sticky max-md:bottom-[var(--shell-bottom)] md:bg-raised md:px-5 md:pb-4">
+        <p role="alert" className="mb-2 text-subhead font-medium text-danger empty:hidden">
           {error}
         </p>
         {canReply ? (
           <form onSubmit={send} className="flex flex-col gap-2">
-            <label htmlFor="reply" className="sr-only">
-              {t("thread.reply")}
-            </label>
-            <textarea
-              id="reply"
+            <TextArea
+              label={t("thread.reply")}
+              labelHidden
               rows={2}
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -330,7 +333,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
               }}
               maxLength={4000}
               placeholder={t("thread.replyPlaceholder")}
-              className="block max-h-40 min-h-12 w-full resize-y rounded-xl border border-line-strong bg-raised px-3 py-2.5"
+              hint={finePointer ? t("thread.replyHint") : undefined}
             />
             <div className="flex flex-wrap justify-between gap-2">
               <Button icon="map" onClick={() => setDialog("proposal")}>
@@ -342,8 +345,8 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
             </div>
           </form>
         ) : (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-sunken px-4 py-3">
-            <p className="text-sm text-muted">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-sunken px-4 py-3">
+            <p className="text-subhead text-muted">
               {conv.status === "blocked" ? t("thread.blockedNote") : t("thread.closedNote")}
             </p>
             <Button onClick={() => status("reopen")}>

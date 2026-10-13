@@ -1,5 +1,6 @@
 /** Browser-side exports for the print studio: SVG/PNG/PDF downloads. */
 
+import { type PaperPage, paperPixelSize } from "../../../shared/card";
 import { setPngDpi } from "../../../shared/card/png";
 import type { CardSide } from "../../../shared/card/types";
 
@@ -15,9 +16,8 @@ export function pixelSize(side: CardSide, dpi = PRINT_DPI): { width: number; hei
   return { width: toPx(side.widthMm + 2 * side.bleedMm), height: toPx(side.heightMm + 2 * side.bleedMm) };
 }
 
-/** Rasterise a face's SVG through an <img> + canvas; the PNG declares its dpi. */
-export async function svgToPng(svg: string, side: CardSide, dpi = PRINT_DPI): Promise<Blob> {
-  const { width, height } = pixelSize(side, dpi);
+/** Rasterise an SVG through an <img> + canvas; the PNG declares its dpi. */
+async function rasterise(svg: string, width: number, height: number, dpi: number): Promise<Blob> {
   const img = new Image(width, height);
   img.decoding = "async";
   img.src = svgDataUrl(svg);
@@ -33,6 +33,18 @@ export async function svgToPng(svg: string, side: CardSide, dpi = PRINT_DPI): Pr
   );
   const bytes = setPngDpi(new Uint8Array(await blob.arrayBuffer()), dpi);
   return new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "image/png" });
+}
+
+/** A card face as PNG, including bleed. */
+export function svgToPng(svg: string, side: CardSide, dpi = PRINT_DPI): Promise<Blob> {
+  const { width, height } = pixelSize(side, dpi);
+  return rasterise(svg, width, height, dpi);
+}
+
+/** A whole paper page (A4 / Letter) as a 300 dpi PNG that prints at true size. */
+export function paperToPng(svg: string, page: PaperPage, dpi = PRINT_DPI): Promise<Blob> {
+  const { width, height } = paperPixelSize(page, dpi);
+  return rasterise(svg, width, height, dpi);
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {

@@ -99,8 +99,8 @@ function PublicForm({ item, onClose, onSaved }: { item: Item; onClose: () => voi
           error={errors.rewardText}
           maxLength={200}
         />
-        <fieldset className="rounded-xl border border-line p-3">
-          <legend className="px-1 text-sm font-semibold">{t("publicPage.contact")}</legend>
+        <fieldset className="rounded-control bg-sunken p-3">
+          <legend className="px-1 text-subhead font-semibold">{t("publicPage.contact")}</legend>
           <Toggle
             label={t("publicPage.useDefault")}
             description={t("publicPage.useDefaultHint")}

@@ -4,12 +4,21 @@ import { NfcBadge, TagSheet, TagStatusBadge } from "../../components/TagSheet";
 import { api } from "../../lib/api";
 import { useT } from "../../lib/i18n";
 import { Button, ButtonLink } from "../../ui/Button";
-import { Card, SectionHeading } from "../../ui/Card";
+import { Section } from "../../ui/Card";
 import { Icon } from "../../ui/Icon";
+import { IconTile, List, ListRow } from "../../ui/List";
 import { errorMessage } from "../../ui/States";
 import { useToast } from "../../ui/Toast";
 
-export function ItemTags({ detail, onChanged }: { detail: ItemDetail; onChanged: () => void }) {
+export function ItemTags({
+  detail,
+  onChanged,
+  className,
+}: {
+  detail: ItemDetail;
+  onChanged: () => void;
+  className?: string;
+}) {
   const t = useT();
   const toast = useToast();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -34,53 +43,58 @@ export function ItemTags({ detail, onChanged }: { detail: ItemDetail; onChanged:
   };
 
   return (
-    <Card aria-labelledby="sec-tags">
-      <SectionHeading
-        id="sec-tags"
-        title={t("itemTags.title")}
-        description={t("itemTags.desc")}
-        actions={
-          <>
-            {active.length > 0 ? (
-              <ButtonLink size="sm" icon="print" to={`/tags/print?ids=${active.map((x) => x.id).join(",")}`}>
-                {t("itemTags.print")}
-              </ButtonLink>
-            ) : null}
-            <Button size="sm" icon="plus" loading={adding} onClick={add}>
-              {t("itemTags.add")}
-            </Button>
-          </>
-        }
-      />
+    <Section
+      id="sec-tags"
+      className={className}
+      title={t("itemTags.title")}
+      actions={
+        <>
+          {active.length > 0 ? (
+            <ButtonLink
+              size="sm"
+              variant="ghost"
+              icon="print"
+              to={`/tags/print?ids=${active.map((x) => x.id).join(",")}`}
+            >
+              {t("itemTags.print")}
+            </ButtonLink>
+          ) : null}
+          <Button size="sm" variant="tinted" icon="plus" loading={adding} onClick={add}>
+            {t("itemTags.add")}
+          </Button>
+        </>
+      }
+    >
       {tags.length === 0 ? (
-        <p className="text-muted">{t("itemTags.empty")}</p>
+        <p className="rounded-card bg-sunken px-4 py-5 text-subhead text-muted">{t("itemTags.empty")}</p>
       ) : (
-        <ul className="divide-y divide-line rounded-xl border border-line">
+        <List label={t("itemTags.title")}>
           {tags.map((tag) => (
-            <li key={tag.id}>
-              <button
-                type="button"
-                onClick={() => setOpenId(tag.id)}
-                className={`flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left hover:bg-sunken ${tag.status === "revoked" ? "opacity-70" : ""}`}
-              >
-                <Icon name="qr" className="text-muted" />
-                <span className="min-w-0 flex-1">
-                  <span className="block font-semibold">{tag.label}</span>
-                  <span className="mt-1 flex flex-wrap gap-1.5">
-                    <TagStatusBadge tag={tag} />
-                    <NfcBadge status={tag.nfcStatus} />
-                  </span>
-                </span>
-                <Icon name="chevron" className="text-muted" />
-              </button>
-            </li>
+            <ListRow
+              key={tag.id}
+              onClick={() => setOpenId(tag.id)}
+              className={tag.status === "revoked" ? "opacity-70" : undefined}
+              leading={
+                <IconTile tone={tag.status === "revoked" ? "neutral" : "primary"}>
+                  <Icon name="qr" className="size-5" />
+                </IconTile>
+              }
+              title={tag.label}
+              subtitle={tag.note ?? undefined}
+              trailing={
+                <>
+                  <TagStatusBadge tag={tag} />
+                  <NfcBadge status={tag.nfcStatus} />
+                </>
+              }
+            />
           ))}
-        </ul>
+        </List>
       )}
-      <p role="alert" className="mt-2 text-sm font-medium text-danger empty:hidden">
+      <p role="alert" className="text-subhead font-medium text-danger empty:hidden">
         {error}
       </p>
       <TagSheet tag={open} onClose={() => setOpenId(null)} onChanged={onChanged} />
-    </Card>
+    </Section>
   );
 }
