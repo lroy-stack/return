@@ -1,0 +1,115 @@
+import { useState } from "react";
+import type { Tag } from "../../../shared/schemas";
+import { LANGUAGES } from "../../../shared/settings";
+import { api, qs } from "../../lib/api";
+import { useResource } from "../../lib/hooks";
+import { useT } from "../../lib/i18n";
+import { Button, ButtonLink } from "../../ui/Button";
+import { Select, TextInput, Toggle } from "../../ui/Field";
+import { Icon } from "../../ui/Icon";
+import { LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
+
+export function PublicPageSection({ draft, update, errors }: SectionProps) {
+  const t = useT();
+  const pp = draft.publicPage;
+  const tags = useResource<Tag[]>(
+    "preview-tags",
+    async (signal) => (await api.get<{ tags: Tag[] }>(`/tags${qs({ status: "active" })}`, signal)).tags,
+  );
+  const [tagId, setTagId] = useState("");
+  const list = tags.state.status === "ready" ? tags.state.data : [];
+  const chosen = list.find((x) => x.id === (tagId || list[0]?.id));
+
+  return (
+    <div className="flex flex-col gap-5">
+      <SectionCard title={t("settings.public")} description={t("settings.publicDesc")}>
+        <Toggle
+          label={t("public.showOwner")}
+          description={t("public.showOwnerHint")}
+          checked={pp.showOwnerName}
+          onChange={(on) =>
+            update((d) => {
+              d.publicPage.showOwnerName = on;
+            })
+          }
+        />
+        <Toggle
+          label={t("public.showPhoto")}
+          description={t("public.showPhotoHint")}
+          checked={pp.showItemPhoto}
+          onChange={(on) =>
+            update((d) => {
+              d.publicPage.showItemPhoto = on;
+            })
+          }
+        />
+        <fieldset className="rounded-xl border border-line p-3">
+          <legend className="px-1 text-sm font-semibold">{t("public.defaultReward")}</legend>
+          <div className="flex flex-col gap-3">
+            {LANGUAGES.map((l) => (
+              <TextInput
+                key={l}
+                label={LANGUAGE_NAMES[l]}
+                maxLength={200}
+                value={pp.defaultRewardText[l]}
+                onChange={(e) =>
+                  update((d) => {
+                    d.publicPage.defaultRewardText[l] = e.target.value;
+                  })
+                }
+                error={errors[`publicPage.defaultRewardText.${l}`]}
+              />
+            ))}
+          </div>
+        </fieldset>
+      </SectionCard>
+
+      <SectionCard title={t("public.previewTitle")} description={t("public.previewDesc")}>
+        {tags.state.status === "ready" && list.length === 0 ? (
+          <p className="text-muted">{t("public.noTags")}</p>
+        ) : (
+          <>
+            <Select
+              label={t("public.previewTag")}
+              value={chosen?.id ?? ""}
+              onChange={(e) => setTagId(e.target.value)}
+              disabled={list.length === 0}
+            >
+              {list.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.label}
+                  {x.itemName ? ` — ${x.itemName}` : ""}
+                </option>
+              ))}
+            </Select>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                icon="phone"
+                disabled={!chosen}
+                onClick={() => {
+                  if (chosen)
+                    window.open(
+                      chosen.url,
+                      "return-preview",
+                      "popup,width=390,height=800,noopener,noreferrer",
+                    );
+                }}
+              >
+                {t("public.previewMobile")}
+              </Button>
+              {chosen ? (
+                <ButtonLink to={chosen.url} external icon="external">
+                  {t("public.previewTab")}
+                </ButtonLink>
+              ) : null}
+            </div>
+            <p className="flex gap-2 text-sm text-muted">
+              <Icon name="info" className="mt-0.5 size-4" />
+              {t("public.previewNote")}
+            </p>
+          </>
+        )}
+      </SectionCard>
+    </div>
+  );
+}
