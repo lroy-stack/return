@@ -11,7 +11,7 @@ import {
 } from "../../shared/schemas";
 import { recordActivity } from "../db/activity";
 import { listConversationSummaries } from "../db/conversations";
-import { listItemFiles } from "../db/files";
+import { deleteStoredObjects, listItemFiles } from "../db/files";
 import { createItem, getOwnedItemRow, listItemSummaries, setArchived, toItem, updateItem } from "../db/items";
 import { markLost, markRecovered, RECOVERY_SELECT, type RecoveryRow, toRecovery } from "../db/recoveries";
 import { listTags } from "../db/tags";
@@ -99,7 +99,6 @@ itemsApi.delete("/:id", async (c) => {
   )
     .bind(row.id, ownerId)
     .all<{ r2_key: string }>();
-  if (files.length) await c.env.FILES.delete(files.map((f) => f.r2_key));
   // Tags keep their row (tokens are never reused) but are revoked so the printed URL goes dark.
   const now = nowIso();
   await c.env.DB.batch([
@@ -109,6 +108,11 @@ itemsApi.delete("/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM items WHERE id = ? AND owner_id = ?").bind(row.id, ownerId),
   ]);
   await recordActivity(c.env.DB, { ownerId, type: "item.deleted", data: { name: row.name } });
+  // Rows are gone; removing the objects is best-effort so a storage outage cannot block deletion.
+  await deleteStoredObjects(
+    c.env.FILES,
+    files.map((f) => f.r2_key),
+  );
   return c.body(null, 204);
 });
 

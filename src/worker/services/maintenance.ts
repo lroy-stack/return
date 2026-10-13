@@ -1,1 +1,84 @@
-export async function runMaintenance(_env: Env, _now: Date): Promise<void> {}
+/**
+ * Nightly job (cron): retention, expired blocks and a JSON backup in R2.
+ * Each owner and each step is isolated: one failure is logged and the rest still runs.
+ */
+import { activityStatement } from "../db/activity";
+import { buildExport } from "../db/export";
+import { getSettings } from "../db/settings";
+import { daysAgoIso } from "../lib/time";
+
+const NOTIFICATION_RETENTION_DAYS = 90;
+const BACKUPS_TO_KEEP = 30;
+
+function logFailure(step: string, ownerId: string | null, err: unknown): void {
+  console.error(
+    JSON.stringify({ level: "error", msg: "maintenance step failed", step, ownerId, error: String(err) }),
+  );
+}
+
+async function step(name: string, ownerId: string | null, run: () => Promise<void>): Promise<void> {
+  try {
+    await run();
+  } catch (err) {
+    logFailure(name, ownerId, err);
+  }
+}
+
+async function applyRetention(env: Env, ownerId: string, now: Date): Promise<void> {
+  const { privacy } = await getSettings(env.DB, ownerId);
+  const nowMs = now.getTime();
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM activity_events WHERE owner_id = ? AND created_at < ?").bind(
+      ownerId,
+      daysAgoIso(privacy.activityRetentionDays, nowMs),
+    ),
+    env.DB.prepare(
+      `DELETE FROM conversations
+        WHERE owner_id = ? AND status IN ('closed', 'blocked') AND closed_at IS NOT NULL AND closed_at < ?`,
+    ).bind(ownerId, daysAgoIso(privacy.closedConversationRetentionDays, nowMs)),
+    env.DB.prepare("DELETE FROM notifications WHERE owner_id = ? AND created_at < ?").bind(
+      ownerId,
+      daysAgoIso(NOTIFICATION_RETENTION_DAYS, nowMs),
+    ),
+    env.DB.prepare(
+      "DELETE FROM blocks WHERE owner_id = ? AND expires_at IS NOT NULL AND expires_at < ?",
+    ).bind(ownerId, now.toISOString()),
+  ]);
+}
+
+/** Writes today's backup once, then keeps only the newest BACKUPS_TO_KEEP files. */
+async function backup(env: Env, ownerId: string, now: Date): Promise<void> {
+  const prefix = `backups/${ownerId}/`;
+  const key = `${prefix}${now.toISOString().slice(0, 10)}.json`;
+  if (!(await env.FILES.head(key))) {
+    const doc = await buildExport(env.DB, ownerId);
+    await env.FILES.put(key, JSON.stringify(doc), { httpMetadata: { contentType: "application/json" } });
+    await activityStatement(env.DB, {
+      ownerId,
+      type: "backup.created",
+      data: { key, items: doc.items.length, tags: doc.tags.length },
+    }).run();
+  }
+  const keys: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.FILES.list({ prefix, cursor });
+    keys.push(...page.objects.map((o) => o.key));
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  // Names are ISO dates, so lexical order is chronological.
+  const stale = keys.sort().slice(0, Math.max(0, keys.length - BACKUPS_TO_KEEP));
+  if (stale.length > 0) await env.FILES.delete(stale);
+}
+
+export async function runMaintenance(env: Env, now: Date): Promise<void> {
+  let owners: string[] = [];
+  await step("list_owners", null, async () => {
+    const { results } = await env.DB.prepare("SELECT id FROM owners").all<{ id: string }>();
+    owners = results.map((r) => r.id);
+  });
+  for (const ownerId of owners) {
+    await step("retention", ownerId, () => applyRetention(env, ownerId, now));
+    await step("backup", ownerId, () => backup(env, ownerId, now));
+  }
+}

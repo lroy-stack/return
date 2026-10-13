@@ -1,4 +1,6 @@
-import type { Recovery, RecoveryStatus } from "../../shared/schemas";
+import type { z } from "zod";
+import type { Recovery, RecoveryStatus, recoveryPatchSchema } from "../../shared/schemas";
+import { AppError, notFound } from "../lib/http";
 import { newId } from "../lib/ids";
 import { nowIso } from "../lib/time";
 import { activityStatement } from "./activity";
@@ -132,4 +134,112 @@ export async function markRecovered(
   if (!open) return null;
   const row = await db.prepare(`${RECOVERY_SELECT} WHERE r.id = ?`).bind(open.id).first<RecoveryRow>();
   return row ? toRecovery(row) : null;
+}
+
+/** Allowed status changes. `closed` is terminal; `recovered` can only be closed. */
+export const RECOVERY_TRANSITIONS: Record<RecoveryStatus, readonly RecoveryStatus[]> = {
+  lost: ["found", "returning", "recovered", "closed"],
+  found: ["returning", "recovered", "closed", "lost"],
+  returning: ["recovered", "closed", "found"],
+  recovered: ["closed"],
+  closed: [],
+};
+
+export async function getOwnedRecoveryRow(db: D1Database, ownerId: string, id: string): Promise<RecoveryRow> {
+  const row = await db
+    .prepare(`${RECOVERY_SELECT} WHERE r.id = ? AND r.owner_id = ?`)
+    .bind(id, ownerId)
+    .first<RecoveryRow>();
+  if (!row) throw notFound("Recovery");
+  return row;
+}
+
+export async function listRecoveries(
+  db: D1Database,
+  ownerId: string,
+  filter: { statuses?: readonly RecoveryStatus[] } = {},
+): Promise<Recovery[]> {
+  const where = ["r.owner_id = ?"];
+  const params: unknown[] = [ownerId];
+  if (filter.statuses?.length) {
+    where.push(`r.status IN (${filter.statuses.map(() => "?").join(", ")})`);
+    params.push(...filter.statuses);
+  }
+  const { results } = await db
+    .prepare(`${RECOVERY_SELECT} WHERE ${where.join(" AND ")} ORDER BY r.updated_at DESC LIMIT 200`)
+    .bind(...params)
+    .all<RecoveryRow>();
+  return results.map(toRecovery);
+}
+
+type RecoveryPatch = z.output<typeof recoveryPatchSchema>;
+
+/**
+ * Edit a recovery. A status change must follow RECOVERY_TRANSITIONS (else 409 invalid_transition).
+ * recovered: stamps recovered_at and returns the item to "normal"; closed: stamps closed_at only.
+ */
+export async function updateRecovery(
+  db: D1Database,
+  ownerId: string,
+  id: string,
+  patch: RecoveryPatch,
+): Promise<Recovery> {
+  const current = await getOwnedRecoveryRow(db, ownerId, id);
+  const from = current.status as RecoveryStatus;
+  const to = patch.status ?? from;
+  if (to !== from && !RECOVERY_TRANSITIONS[from].includes(to)) {
+    throw new AppError(409, "invalid_transition", `Cannot move a recovery from ${from} to ${to}`, {
+      from,
+      to,
+      allowed: RECOVERY_TRANSITIONS[from],
+    });
+  }
+  const now = nowIso();
+  const sets = ["updated_at = ?"];
+  const params: unknown[] = [now];
+  if ("lostAt" in patch) {
+    sets.push("lost_at = ?");
+    params.push(patch.lostAt ?? null);
+  }
+  if ("lostPlace" in patch) {
+    sets.push("lost_place = ?");
+    params.push(patch.lostPlace ?? null);
+  }
+  if ("notes" in patch) {
+    sets.push("notes = ?");
+    params.push(patch.notes ?? null);
+  }
+  const statements: D1PreparedStatement[] = [];
+  if (to !== from) {
+    sets.push("status = ?");
+    params.push(to);
+    if (to === "recovered") {
+      sets.push("recovered_at = ?");
+      params.push(now);
+      statements.push(
+        db
+          .prepare("UPDATE items SET status = 'normal', updated_at = ? WHERE id = ? AND owner_id = ?")
+          .bind(now, current.item_id, ownerId),
+        activityStatement(db, { ownerId, type: "item.recovered", itemId: current.item_id }),
+      );
+    } else if (to === "closed") {
+      sets.push("closed_at = ?");
+      params.push(now);
+    }
+    statements.push(
+      activityStatement(db, {
+        ownerId,
+        type: "recovery.updated",
+        itemId: current.item_id,
+        data: { recoveryId: id, from, to },
+      }),
+    );
+  }
+  await db.batch([
+    db
+      .prepare(`UPDATE recoveries SET ${sets.join(", ")} WHERE id = ? AND owner_id = ?`)
+      .bind(...params, id, ownerId),
+    ...statements,
+  ]);
+  return toRecovery(await getOwnedRecoveryRow(db, ownerId, id));
 }

@@ -33,3 +33,36 @@ export async function listItemFiles(db: D1Database, ownerId: string, itemId: str
     .all<FileRow>();
   return results.map(toFileMeta);
 }
+
+/** Content types a stored file may be served as. Anything else is served as an opaque download. */
+export const SERVABLE_CONTENT_TYPES: readonly string[] = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+];
+
+/** R2 key of an item file; the only shape the API ever writes. */
+export function fileKey(ownerId: string, itemId: string, fileId: string): string {
+  return `owners/${ownerId}/items/${itemId}/${fileId}`;
+}
+
+/** R2 accepts at most 1000 keys per delete call. */
+const R2_DELETE_BATCH = 1000;
+
+/**
+ * Best-effort object cleanup, run after the database rows are gone: a failure leaves an orphan
+ * object (logged) instead of a row that points at nothing.
+ */
+export async function deleteStoredObjects(bucket: R2Bucket, keys: string[]): Promise<void> {
+  for (let i = 0; i < keys.length; i += R2_DELETE_BATCH) {
+    const chunk = keys.slice(i, i + R2_DELETE_BATCH);
+    try {
+      await bucket.delete(chunk);
+    } catch (err) {
+      console.error(
+        JSON.stringify({ level: "error", msg: "r2 delete failed", keys: chunk.length, error: String(err) }),
+      );
+    }
+  }
+}

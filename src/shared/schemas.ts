@@ -37,11 +37,12 @@ export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 export const ITEM_STATUSES = ["normal", "lost"] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 
-export const itemInputSchema = z.object({
+/** Item fields without defaults: updates must only touch the keys they send (zod 4 keeps defaults in `.partial()`). */
+const itemFields = z.object({
   name: str(120).min(1),
   brand: nullableStr(80),
   model: nullableStr(80),
-  category: z.enum(ITEM_CATEGORIES).default("other"),
+  category: z.enum(ITEM_CATEGORIES),
   description: nullableStr(2000),
   serialNumber: nullableStr(120),
   estimatedValueCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
@@ -59,8 +60,9 @@ export const itemInputSchema = z.object({
   rewardText: nullableStr(200),
   contactVisibility: contactVisibilitySchema.nullable().optional(),
 });
+export const itemInputSchema = itemFields.extend({ category: z.enum(ITEM_CATEGORIES).default("other") });
 export type ItemInput = z.input<typeof itemInputSchema>;
-export const itemPatchSchema = itemInputSchema.partial();
+export const itemPatchSchema = itemFields.partial();
 export type ItemPatch = z.input<typeof itemPatchSchema>;
 
 export type FileKind = "photo" | "document";
@@ -199,15 +201,16 @@ export interface Tracker {
   createdAt: string;
   updatedAt: string;
 }
-export const trackerInputSchema = z.object({
+const trackerFields = z.object({
   itemId: z.string().max(64).nullable().optional(),
-  kind: z.enum(TRACKER_KINDS).default("airtag"),
+  kind: z.enum(TRACKER_KINDS),
   name: str(80).min(1),
   notes: nullableStr(1000),
   lastLocationText: nullableStr(300),
   lastLocationAt: isoDateTime.nullable().optional(),
 });
-export const trackerPatchSchema = trackerInputSchema.partial();
+export const trackerInputSchema = trackerFields.extend({ kind: z.enum(TRACKER_KINDS).default("airtag") });
+export const trackerPatchSchema = trackerFields.partial();
 
 // ---------------------------------------------------------- recoveries ----
 

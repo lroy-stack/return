@@ -32,6 +32,12 @@ describe("inventory", () => {
     expect(items.map((i) => i.id)).toContain(item.id);
   });
 
+  it("keeps fields that a PATCH does not mention (no schema defaults on update)", async () => {
+    const item = await newItem("Camera bag", { category: "camera" });
+    const updated = await apiJson<Item>("PATCH", `/items/${item.id}`, { description: "Black, padded" });
+    expect(updated.category).toBe("camera");
+  });
+
   it("validates input", async () => {
     const res = await api("POST", "/items", { name: "", category: "spaceship" });
     expect(res.status).toBe(422);

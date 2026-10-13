@@ -1,4 +1,8 @@
-import type { Tracker } from "../../shared/schemas";
+import type { z } from "zod";
+import type { Tracker, trackerInputSchema, trackerPatchSchema } from "../../shared/schemas";
+import { notFound } from "../lib/http";
+import { newId } from "../lib/ids";
+import { nowIso } from "../lib/time";
 
 export interface TrackerRow {
   id: string;
@@ -12,6 +16,9 @@ export interface TrackerRow {
   created_at: string;
   updated_at: string;
 }
+
+export type TrackerUpdate = z.output<typeof trackerPatchSchema>;
+export type TrackerCreate = z.output<typeof trackerInputSchema>;
 
 export function toTracker(r: TrackerRow): Tracker {
   return {
@@ -43,4 +50,76 @@ export async function listTrackers(
     .bind(...params)
     .all<TrackerRow>();
   return results.map(toTracker);
+}
+
+export async function getOwnedTrackerRow(db: D1Database, ownerId: string, id: string): Promise<TrackerRow> {
+  const row = await db
+    .prepare("SELECT * FROM trackers WHERE id = ? AND owner_id = ?")
+    .bind(id, ownerId)
+    .first<TrackerRow>();
+  if (!row) throw notFound("Tracker");
+  return row;
+}
+
+export async function createTracker(db: D1Database, ownerId: string, input: TrackerCreate): Promise<Tracker> {
+  const id = newId();
+  const now = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO trackers (id, owner_id, item_id, kind, name, notes, last_location_text, last_location_at,
+         created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      ownerId,
+      input.itemId ?? null,
+      input.kind,
+      input.name,
+      input.notes ?? null,
+      input.lastLocationText ?? null,
+      input.lastLocationAt ?? null,
+      now,
+      now,
+    )
+    .run();
+  return toTracker(await getOwnedTrackerRow(db, ownerId, id));
+}
+
+const TRACKER_COLUMNS: Record<keyof TrackerUpdate, string> = {
+  itemId: "item_id",
+  kind: "kind",
+  name: "name",
+  notes: "notes",
+  lastLocationText: "last_location_text",
+  lastLocationAt: "last_location_at",
+};
+
+export async function updateTracker(
+  db: D1Database,
+  ownerId: string,
+  id: string,
+  patch: TrackerUpdate,
+): Promise<Tracker> {
+  const current = await getOwnedTrackerRow(db, ownerId, id);
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  for (const [key, column] of Object.entries(TRACKER_COLUMNS) as [keyof TrackerUpdate, string][]) {
+    if (!(key in patch)) continue;
+    sets.push(`${column} = ?`);
+    params.push(patch[key] ?? null);
+  }
+  if (sets.length === 0) return toTracker(current);
+  sets.push("updated_at = ?");
+  params.push(nowIso());
+  await db
+    .prepare(`UPDATE trackers SET ${sets.join(", ")} WHERE id = ? AND owner_id = ?`)
+    .bind(...params, id, ownerId)
+    .run();
+  return toTracker(await getOwnedTrackerRow(db, ownerId, id));
+}
+
+export async function deleteTracker(db: D1Database, ownerId: string, id: string): Promise<void> {
+  await getOwnedTrackerRow(db, ownerId, id);
+  await db.prepare("DELETE FROM trackers WHERE id = ? AND owner_id = ?").bind(id, ownerId).run();
 }

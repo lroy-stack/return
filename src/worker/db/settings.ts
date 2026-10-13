@@ -12,12 +12,19 @@ export async function getSettings(db: D1Database, ownerId: string): Promise<Sett
   return parsed.success ? parsed.data : DEFAULT_SETTINGS;
 }
 
-export async function saveSettings(db: D1Database, ownerId: string, settings: Settings): Promise<void> {
-  await db
+export function saveSettingsStatement(
+  db: D1Database,
+  ownerId: string,
+  settings: Settings,
+): D1PreparedStatement {
+  return db
     .prepare(
       `INSERT INTO settings (owner_id, data, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(owner_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
     )
-    .bind(ownerId, JSON.stringify(settings), nowIso())
-    .run();
+    .bind(ownerId, JSON.stringify(settings), nowIso());
+}
+
+export async function saveSettings(db: D1Database, ownerId: string, settings: Settings): Promise<void> {
+  await saveSettingsStatement(db, ownerId, settings).run();
 }
