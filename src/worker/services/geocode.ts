@@ -18,7 +18,7 @@ import { nowIso } from "../lib/time";
 
 const NOMINATIM = "https://nominatim.openstreetmap.org";
 export const NOMINATIM_USER_AGENT = "RETURN/0.2 (+https://return.lr0y.dev; personal lost-item app)";
-export const OSM_ATTRIBUTION = "© OpenStreetMap contributors";
+export { OSM_ATTRIBUTION } from "../../shared/osm";
 
 const TIMEOUT_MS = 4000;
 const MIN_INTERVAL_MS = 1000;

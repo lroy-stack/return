@@ -1,12 +1,10 @@
+import { OSM_ATTRIBUTION, OSM_COPYRIGHT_URL } from "../../shared/osm";
 import type { MapLinks as MapLinkSet, ResolvedPlace } from "../../shared/schemas";
 import { useT } from "../lib/i18n";
 import { cx } from "./cx";
 import { Icon } from "./Icon";
 
-// Same wording as OSM_ATTRIBUTION in src/worker/services/geocode.ts (worker-only module, not importable here).
 // Move both to src/shared when the contract owner next touches it. Licence wording: never translated.
-const OSM_COPYRIGHT_URL = "https://www.openstreetmap.org/copyright";
-const OSM_ATTRIBUTION_TEXT = "© OpenStreetMap contributors";
 
 const coord = (n: number) => n.toFixed(5);
 
@@ -53,7 +51,7 @@ export function PlaceLabel({
               rel="noopener noreferrer"
               className="underline decoration-line-strong underline-offset-2 hover:text-fg"
             >
-              {OSM_ATTRIBUTION_TEXT}
+              {OSM_ATTRIBUTION}
             </a>
           </p>
         ) : null}

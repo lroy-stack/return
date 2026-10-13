@@ -1,3 +1,4 @@
+import { OSM_ATTRIBUTION, OSM_COPYRIGHT_URL } from "../../shared/osm";
 import {
   type ConversationDetail,
   PROPOSAL_KINDS,
@@ -5,7 +6,6 @@ import {
   type ResolvedPlace,
 } from "../../shared/schemas";
 import type { Language } from "../../shared/settings";
-import { OSM_ATTRIBUTION } from "../services/geocode";
 import { EMPTY_FORM, Field, FormErrorSummary, type FormState, LocationFields } from "./components";
 import { formatCoordinate, formatInstant, formatWallClock } from "./format";
 import { dict, fmt, proposalKindName, proposalStatusName } from "./i18n";
@@ -24,8 +24,6 @@ export interface ConversationViewProps {
   form?: FormState;
 }
 
-const OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright";
-
 /** Resolved place name with its context line and the attribution the OSM licence requires. */
 function ResolvedPlaceInfo({ place }: { place: ResolvedPlace }) {
   return (
@@ -42,7 +40,7 @@ function OsmAttribution() {
   return (
     <p class="muted">
       <small>
-        <a href={OSM_COPYRIGHT} rel="noreferrer noopener" target="_blank">
+        <a href={OSM_COPYRIGHT_URL} rel="noreferrer noopener" target="_blank">
           {OSM_ATTRIBUTION}
         </a>
       </small>
