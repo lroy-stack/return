@@ -122,7 +122,32 @@
     });
   }
 
+  /* Meeting times are sent with the zone they were typed in. */
+  function setupTimeZone() {
+    var zone;
+    try {
+      zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (_e) {
+      return;
+    }
+    if (!zone) return;
+    document.querySelectorAll("[data-browser-tz]").forEach((el) => {
+      el.value = zone;
+    });
+  }
+
+  /* After a failed submit the page reloads with an error summary: move focus there. */
+  function focusErrorSummary() {
+    var summary = document.querySelector("[data-error-summary]");
+    if (!summary) return;
+    var details = summary.closest("details");
+    if (details) details.open = true;
+    summary.focus();
+  }
+
   document.querySelectorAll("[data-location]").forEach(setupLocation);
+  setupTimeZone();
+  focusErrorSummary();
   setupCopy();
   setupPolling();
   localizeTimes();
