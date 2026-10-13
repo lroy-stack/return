@@ -1,0 +1,60 @@
+/** Browser-side exports for the print studio: SVG/PNG/PDF downloads. */
+
+import { setPngDpi } from "../../../shared/card/png";
+import type { CardSide } from "../../../shared/card/types";
+
+export const PRINT_DPI = 300;
+
+export function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/** Pixel size of a face including bleed at `dpi`. */
+export function pixelSize(side: CardSide, dpi = PRINT_DPI): { width: number; height: number } {
+  const toPx = (mm: number) => Math.round((mm / 25.4) * dpi);
+  return { width: toPx(side.widthMm + 2 * side.bleedMm), height: toPx(side.heightMm + 2 * side.bleedMm) };
+}
+
+/** Rasterise a face's SVG through an <img> + canvas; the PNG declares its dpi. */
+export async function svgToPng(svg: string, side: CardSide, dpi = PRINT_DPI): Promise<Blob> {
+  const { width, height } = pixelSize(side, dpi);
+  const img = new Image(width, height);
+  img.decoding = "async";
+  img.src = svgDataUrl(svg);
+  await img.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("This browser cannot create a canvas for the PNG export.");
+  ctx.drawImage(img, 0, 0, width, height);
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("PNG encoding failed."))), "image/png"),
+  );
+  const bytes = setPngDpi(new Uint8Array(await blob.arrayBuffer()), dpi);
+  return new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "image/png" });
+}
+
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+/** File-name-safe label, e.g. "RT-001" → "rt-001". */
+export function fileStem(label: string): string {
+  return (
+    label
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "card"
+  );
+}
