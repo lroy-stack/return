@@ -47,3 +47,72 @@ agents request changes instead of editing them.
 - [ ] Owner: onboard Email Sending for `return.lr0y.dev`, then Settings → send test email
 - [ ] Owner: monthly off-account backup (docs/operations.md §4) and one restore drill on a scratch DB
 - [ ] Physical cards: order samples after real-phone scan test (docs/printing.md)
+
+## J · Everything still open (consolidated 2026-10-14)
+Sources: docs/audit/mobile-audit.md (M-xx), docs/audit/final-audit.md (F-xx, L-xx), docs/specs/003-completion,
+docs/specs/004-mobile-ux, docs/architecture/next-phases.md, ADRs 0002–0006, code reviews. Status: ▶ in progress ·
+☐ to do · ? verify whether already done. Production today = commit 152aa11 (PWA + owner push, migrations 0001–0005).
+
+### J1 · Mobile UX — spec 004 (▶ agents running)
+- ▶ 4M.1 Finder location: apply on first tap (no silent drop, M-01), single consent, two-stage geolocation, iOS/Android
+  re-enable guidance, retry, webview hint, error styling (M-07).
+- ▶ 4M.2 Finder conversation as a chat: one timeline, anchored composer with safe areas, autogrow, send without jump,
+  live refresh in place, smart scroll, aria-live; remove floating bar on /t (M-08); 320 px Turnstile overflow (M-09);
+  native share of the private link; footer tap targets (M-06).
+- ▶ 4M.3 Owner chat: full-height layout, compact autogrow composer, no gap above the tab bar, hide tab bar while typing,
+  "New messages" pill, finder name as title, read receipts (M-05).
+- ▶ 4M.4 Owner location (owner decision: build it all): server API + accuracy rules ▶; panel "Use my location" in
+  return plans and item location, "Share my location" in the thread ☐ (after the API contract) (M-02).
+- ▶ 4M.5 Install: Android install button, iOS Add-to-Home-Screen guide, one-time hint (M-03); theme-color follows the
+  choice, no flash on load, theme controls in sync (M-12); landscape shell (M-10).
+- ▶ 4M.6 No focus zoom (fields ≥ 16 px on touch, M-04) + regression test; settings apply instantly / save bar never
+  covers navigation (M-11).
+- ▶ 4M.7 P2: place search "unavailable"; tag QR as PNG + share; share keeps user activation; offline keeps language;
+  formatted note timestamps; confirm "Add tag"; 404 for unknown slugs; duplicate requests; Trackers link relabel.
+- ☐ Panel P2s not yet assigned: NFC is text only (Web NFC on Android — decide); finder webview hint is in 4M.1.
+- ☐ 4M.9 Verification: real iOS Safari in the Simulator (runtime download failed on a network timeout — retry),
+  ui-qa re-audit at 320/375/393/landscape, code review, deploy.
+
+### J2 · Visual identity (▶)
+- ▶ Custom icon set (grammar, outline + filled tab icons, categories, states) as a shared sprite.
+- ▶ Dimensional luggage illustrations per category as no-photo placeholders, tintable.
+- ☐ Adopt the sprite on finder pages (follow-up from the design agent).
+- ☐ Decide: per-item colour field (migration) so illustrations match the real item.
+
+### J3 · Proof photos and sharing with the finder (▶ ADR 0006 being written)
+- ▶ ADR 0006: guided proof-photo set (owner wants ≥ 4), when it is enforced, what must never appear in them.
+- ☐ Owner-controlled, revocable, time-limited sharing of selected photos into one conversation, served only through
+  the finder's capability (no standalone URLs), watermark, view log, auto-revoke on close/block; later sealed end to
+  end (ADR 0004). Owner decisions listed in the ADR.
+
+### J4 · PWA + push (phase 4–5, deployed; verification open)
+- ☐ S1 on a real iPhone: install, Access login persists after a relaunch the next day (owner).
+- ☐ Real push 5/5 within 10 s on iPhone (Home Screen) and Android; tap opens the conversation (owner + lead).
+- ☐ Safari accepts the payload's extra `return` member; `pushsubscriptionchange` on a real device.
+- ☐ Record S1/push outcomes in ADR 0002/0003; app badge (`setAppBadge`) not implemented.
+
+### J5 · Roadmap (after J1–J4)
+- ☐ Phase 6: finder PWA (install from /c/ only, offline page, nothing private stored) + finder push (opt-in).
+- ☐ Phase 7: sealed conversations on the web (ADR 0004: HPKE, key in the link fragment, owner key + recovery).
+- ☐ Gate G1 (native app needed?) → phases 8–10 Expo (ADR 0005: device pairing, NFC writing, push, sealed chat).
+
+### J6 · Older audit leftovers
+- ? F-19 future `acquiredOn` dates still accepted (schema has no upper bound).
+- ? F-27 long item descriptions not clamped; F-22 typed delete confirmation vs collapsed spaces.
+- ☐ L-11 axe E2E covers only the finder tag page — add panel routes and the conversation page.
+- ☐ Expired temporary blocks close up to ~24 h late (nightly job); derive at read time if it matters.
+- ☐ 3.12 docs drift sweep (README, operations, security, decisions, printing) after J1–J3 land.
+
+### J7 · Operations and repository (lead)
+- ☐ Push pending local commits to GitHub (last push failed on a network timeout).
+- ☐ CI: nightly E2E job green on the public repo; consider Dependabot security updates.
+- ☐ Record the D1 Time Travel bookmark before each migration (done for 0003–0005; keep the habit).
+
+### J8 · Owner actions (only you can do these)
+- ☐ Delete `lroy-stack/return-exposed-history` (`gh auth refresh -s delete_repo`, then `gh repo delete …`); decide
+  whether to keep or delete the private archive `lroy-stack/return-app`.
+- ☐ Keep a copy of the real `wrangler.jsonc` outside the repo (password manager) — it is git-ignored now.
+- ☐ Enable DNSSEC and domain auto-renew for lr0y.dev (expires 2027-05-14).
+- ☐ R2 read-only token + rclone for the monthly off-account backup; one restore drill on a scratch DB (operations §4).
+- ☐ Uptime monitors / heartbeat (operations: UptimeRobot or healthchecks.io) and Cloudflare notifications.
+- ☐ Real-phone checks: scan a printed tag over mobile data; S1 + push (J4); then order physical card samples.
