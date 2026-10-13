@@ -3,7 +3,7 @@
 // Refuses a dirty tree, a branch other than main, a main that differs from origin/main and pending remote
 // migrations. Then runs the gates, builds and deploys with the git sha as version tag.
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 
 const args = new Set(process.argv.slice(2));
@@ -125,7 +125,10 @@ const deployments = run("pnpm", ["exec", "wrangler", "deployments", "list"], {
 });
 console.log(deployments.stdout.trimEnd().split("\n").slice(-12).join("\n")); // newest deployment is last
 
-const cfg = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+const cfgUrl = new URL("../wrangler.jsonc", import.meta.url);
+if (!existsSync(cfgUrl))
+  fail("wrangler.jsonc is missing: copy wrangler.example.jsonc and fill in your deployment's values.");
+const cfg = readFileSync(cfgUrl, "utf8");
 const pub = cfg.match(/"PUBLIC_HOST":\s*"([^"]+)"/)?.[1];
 const app = cfg.match(/"APP_HOST":\s*"([^"]+)"/)?.[1];
 if (!pub || !app) fail("could not read PUBLIC_HOST / APP_HOST from wrangler.jsonc.");

@@ -9,9 +9,9 @@ import { createECDH, randomBytes, randomUUID } from "node:crypto";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 
 const ORIGIN = "http://localhost:5198";
-/** The production VAPID public key from wrangler.jsonc; the private half is not configured locally. */
+/** Throwaway test key (same as vitest.config.ts); the config endpoint is mocked, so any valid P-256 key works. */
 const VAPID_PUBLIC_KEY =
-  "<vapid-public-key>";
+  "BHa-Th-SyO-86cc_ju3NFFPKQiG17_jE-PhYGKzkrnHI8eOsuLPIlT2F4bnkuZK047VBXbnq_YUMrSXEP26DS18";
 
 const ecdh = createECDH("prime256v1");
 ecdh.generateKeys();

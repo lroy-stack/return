@@ -121,16 +121,14 @@ The full procedure is in [`docs/operations.md`](docs/operations.md). In short:
    - `TURNSTILE_SECRET_KEY`
    - `IP_HMAC_SECRET`
    - `VAPID_PRIVATE_KEY` (generate the pair with `node scripts/vapid-keys.mjs`)
-6. **Configuration.** Replace the values in `wrangler.jsonc` with your own: `routes` (hosts), `PUBLIC_HOST`,
-   `APP_HOST`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `OWNER_EMAILS`, `NOTIFY_FROM`, `FALLBACK_CONTACT_EMAIL`,
-   `TURNSTILE_SITE_KEY`, `VAPID_PUBLIC_KEY`, and the D1 `database_id`.
+6. **Configuration.** `cp wrangler.example.jsonc wrangler.jsonc` (git-ignored) and replace every placeholder:
+   `routes` (hosts), `PUBLIC_HOST`, `APP_HOST`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `OWNER_EMAILS`, `NOTIFY_FROM`,
+   `FALLBACK_CONTACT_EMAIL`, `TURNSTILE_SITE_KEY`, `VAPID_PUBLIC_KEY`, and the D1 `database_id`.
 7. **Release.** `pnpm run release --migrate` runs the guarded release: it refuses dirty trees and unapplied
    migration problems, runs the gates, deploys, and checks the public endpoints.
 
-> **Warning:** `wrangler.jsonc` in this repository contains the author's own production configuration: hosts,
-> Access team and application identifiers, email addresses, and database and bucket identifiers. These are not
-> secrets, but they point at someone else's deployment. Replace every value before you deploy. Do not deploy
-> this file unchanged.
+Only the template `wrangler.example.jsonc` is committed. Tests, E2E and `pnpm cf-typegen` always use it; `pnpm dev`
+uses your `wrangler.jsonc` when it exists and the template otherwise.
 
 ## Documentation
 
@@ -158,5 +156,4 @@ Next, in order (see `docs/architecture/next-phases.md`):
 
 ## License
 
-[MIT](LICENSE). Fork it and run your own instance; `wrangler.jsonc` holds the author's production identifiers, so
-replace them with yours before deploying (see "Deploy your own").
+[MIT](LICENSE). Fork it and run your own instance (see "Deploy your own").

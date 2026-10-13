@@ -14,3 +14,5 @@ playwright-report/
 backups/
 .playwright-mcp/
 vapid-private.key
+# Real deployment config (hosts, IDs, emails); the committed template is wrangler.example.jsonc.
+wrangler.jsonc

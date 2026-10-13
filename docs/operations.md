@@ -18,6 +18,12 @@ Cloudflare from day one, no nameserver move). If it is registered at Hostinger i
 3. Change nameservers at Hostinger to the two Cloudflare nameservers (hPanel, or the Hostinger MCP with approval).
 4. Wait until the zone is *Active* in Cloudflare; re-enable DNSSEC in Cloudflare.
 
+## 0. Configuration file
+`wrangler.jsonc` is git-ignored: it holds one deployment's hosts, IDs and emails. Start from the committed template:
+`cp wrangler.example.jsonc wrangler.jsonc`, then fill it in as below. Keep the two files structurally in sync: a new
+binding or var goes into the template first (tests, E2E and `pnpm cf-typegen` read only the template). Keep a copy of
+your real `wrangler.jsonc` outside the repo (e.g. a password manager note): it is not recoverable from git.
+
 ## 1. Create resources (Workers Free plan is enough)
 ```bash
 pnpm exec wrangler login

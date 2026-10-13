@@ -20,7 +20,7 @@
     "screenshots": "SCREENSHOTS=1 playwright test --project=screenshots",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
-    "cf-typegen": "wrangler types --strict-vars=false src/worker/worker-configuration.d.ts",
+    "cf-typegen": "wrangler types --config wrangler.example.jsonc --strict-vars=false src/worker/worker-configuration.d.ts",
     "icons:pwa": "node scripts/generate-pwa-icons.mjs",
     "backup:offsite": "bash scripts/backup-offsite.sh",
     "restore:drill": "bash scripts/restore-drill.sh"

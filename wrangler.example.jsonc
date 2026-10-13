@@ -1,0 +1,58 @@
+{
+  // Template. Copy to wrangler.jsonc (git-ignored) and replace every <placeholder> with your own values;
+  // see README "Deploy your own" and docs/operations.md. Tests, E2E and type generation use this file as is.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "return-app",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-13",
+  // Production is reached only through the custom domains below; no *.workers.dev URL.
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // The Worker decides per host what is served; hashed bundles and public-page
+    // static files skip the Worker entirely.
+    "run_worker_first": ["/*", "!/assets/*", "!/p/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "return-db",
+      // EU jurisdiction (GDPR data residency); fixed at creation.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "return-files", "jurisdiction": "eu" }],
+  "routes": [
+    { "pattern": "return.example.com", "custom_domain": true },
+    { "pattern": "app.return.example.com", "custom_domain": true }
+  ],
+  "ratelimits": [
+    // Per-IP budget for every public request that writes or sends something.
+    { "name": "PUBLIC_WRITE_LIMIT", "namespace_id": "52001", "simple": { "limit": 10, "period": 60 } },
+    // Per-IP budget for reading public tag and conversation pages.
+    { "name": "PUBLIC_READ_LIMIT", "namespace_id": "52002", "simple": { "limit": 60, "period": 60 } }
+  ],
+  "send_email": [{ "name": "EMAIL" }],
+  "triggers": { "crons": ["17 3 * * *"] },
+  "vars": {
+    "ENVIRONMENT": "production",
+    "PUBLIC_HOST": "return.example.com",
+    "APP_HOST": "app.return.example.com",
+    "ACCESS_TEAM_DOMAIN": "<your-team>.cloudflareaccess.com",
+    // AUD tag of the Access application that protects APP_HOST.
+    "ACCESS_AUD": "<access-application-aud>",
+    "OWNER_EMAILS": "you@example.com",
+    "NOTIFY_FROM": "return@return.example.com",
+    // Printed on every card. Rendered by the degraded page if the database is unreachable.
+    "FALLBACK_CONTACT_EMAIL": "backup@example.com",
+    // Cloudflare's always-pass test key; use your widget's site key in production.
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+    // Web Push application server key (public half, not secret). Empty until `node scripts/vapid-keys.mjs`
+    // has been run; push stays disabled while it or the VAPID_PRIVATE_KEY secret is missing.
+    "VAPID_PUBLIC_KEY": ""
+  }
+}

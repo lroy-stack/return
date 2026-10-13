@@ -4,6 +4,8 @@ const PORT = 5199;
 /** Production build served by `vite preview` for the PWA spec, with its own database (see e2e/pwa.spec.ts). */
 const PWA_PORT = 5198;
 const PWA_STATE_DIR = ".wrangler/e2e-pwa";
+/** E2E always runs on the committed template, never on a deployment's real wrangler.jsonc. */
+const CONFIG = "wrangler.example.jsonc";
 const PWA = /pwa.*\.spec\.ts/;
 /** Wiped on every run so each suite starts from an empty database, as in CI (and never touches `pnpm dev` data). */
 const STATE_DIR = ".wrangler/e2e";
@@ -48,8 +50,8 @@ export default defineConfig({
         {
           command: [
             `rm -rf ${SCREENS_STATE_DIR}`,
-            `pnpm exec wrangler d1 migrations apply DB --local --persist-to ${SCREENS_STATE_DIR}`,
-            `LOCAL_STATE_DIR=${SCREENS_STATE_DIR} pnpm exec vite dev --port ${SCREENS_PORT} --strictPort`,
+            `pnpm exec wrangler d1 migrations apply DB --local --config ${CONFIG} --persist-to ${SCREENS_STATE_DIR}`,
+            `WRANGLER_CONFIG=${CONFIG} LOCAL_STATE_DIR=${SCREENS_STATE_DIR} pnpm exec vite dev --port ${SCREENS_PORT} --strictPort`,
           ].join(" && "),
           url: `http://localhost:${SCREENS_PORT}/robots.txt`,
           reuseExistingServer: false,
@@ -60,8 +62,8 @@ export default defineConfig({
         {
           command: [
             `rm -rf ${STATE_DIR}`,
-            `pnpm exec wrangler d1 migrations apply DB --local --persist-to ${STATE_DIR}`,
-            `LOCAL_STATE_DIR=${STATE_DIR} pnpm exec vite dev --port ${PORT} --strictPort`,
+            `pnpm exec wrangler d1 migrations apply DB --local --config ${CONFIG} --persist-to ${STATE_DIR}`,
+            `WRANGLER_CONFIG=${CONFIG} LOCAL_STATE_DIR=${STATE_DIR} pnpm exec vite dev --port ${PORT} --strictPort`,
           ].join(" && "),
           url: `http://localhost:${PORT}/robots.txt`,
           reuseExistingServer: false,
@@ -70,9 +72,9 @@ export default defineConfig({
         {
           command: [
             `rm -rf ${PWA_STATE_DIR}`,
-            `pnpm exec wrangler d1 migrations apply DB --local --persist-to ${PWA_STATE_DIR}`,
-            "pnpm exec vite build",
-            `LOCAL_STATE_DIR=${PWA_STATE_DIR} pnpm exec vite preview --port ${PWA_PORT} --strictPort`,
+            `pnpm exec wrangler d1 migrations apply DB --local --config ${CONFIG} --persist-to ${PWA_STATE_DIR}`,
+            `WRANGLER_CONFIG=${CONFIG} pnpm exec vite build`,
+            `WRANGLER_CONFIG=${CONFIG} LOCAL_STATE_DIR=${PWA_STATE_DIR} pnpm exec vite preview --port ${PWA_PORT} --strictPort`,
           ].join(" && "),
           url: `http://localhost:${PWA_PORT}/robots.txt`,
           reuseExistingServer: false,

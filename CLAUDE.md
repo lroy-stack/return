@@ -21,7 +21,7 @@ Node 24 via fnm, pnpm. Versions pinned in `package.json`; decisions in `docs/dec
 | Test (all / one) | `pnpm test` / `pnpm vitest run test/items.test.ts` |
 | E2E | `pnpm test:e2e` |
 | Build / deploy | `pnpm build` / `pnpm run release` (needs approval; `pnpm deploy` is a different pnpm built-in) |
-| Regenerate binding types | `pnpm cf-typegen` after editing `wrangler.jsonc` |
+| Regenerate binding types | `pnpm cf-typegen` after editing `wrangler.example.jsonc` (the template) |
 
 ## Architecture
 - `src/worker/index.ts` — host routing: `PUBLIC_HOST` serves finder pages (`/t/:token`, `/c/:token`),
@@ -56,6 +56,9 @@ Node 24 via fnm, pnpm. Versions pinned in `package.json`; decisions in `docs/dec
 - E2E runs on a fresh local database in `.wrangler/e2e` (wiped each run via `LOCAL_STATE_DIR`, read by
   `vite.config.ts`); `pnpm dev` keeps using `.wrangler/state`. The Nominatim stub has no reverse result in the
   open South Atlantic, mirroring the real service.
+- `wrangler.jsonc` is git-ignored (real hosts, IDs, emails); `wrangler.example.jsonc` is the committed template.
+  Vitest, E2E (`WRANGLER_CONFIG`) and typegen use the template; `pnpm dev` and releases use the real file. Add new
+  bindings/vars to both.
 - Tests use the `worker` export from `test/helpers/auth.ts` (the generated `Exports` type lacks `default`).
 
 - The service worker exists only in production builds: `vite dev` never registers one. Test it with the `pwa`
