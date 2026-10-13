@@ -92,7 +92,7 @@ describe("reverse geocoding of shared locations", () => {
     );
 
     const html = await (await finderGet(`/c/${conv.token}`)).text();
-    expect(html).toContain("<strong>Estación de Atocha</strong>");
+    expect(html).toContain('<p class="place-name">Estación de Atocha</p>');
     expect(html).toContain("Atocha, Madrid, España");
     expect(html).toContain("© OpenStreetMap contributors");
     expect(html).toContain("https://www.openstreetmap.org/copyright");
@@ -210,7 +210,7 @@ describe("reverse geocoding of shared locations", () => {
 
     const html = await (await finderGet(`/c/${conv.token}`)).text();
     expect(html).toContain("By the clock");
-    expect(html).toContain("<strong>Estación de Atocha</strong>");
+    expect(html).toContain('<p class="place-name">Estación de Atocha</p>');
     expect(html).toContain("© OpenStreetMap contributors");
     const plain = (await apiJson<ConversationDetail>("GET", `/conversations/${conv.id}`)).proposals[1];
     expect(plain?.resolvedPlace).toBeNull();

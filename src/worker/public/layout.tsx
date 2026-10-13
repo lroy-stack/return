@@ -18,7 +18,9 @@ export function Layout({ lang, title, children, switcher = true, turnstile = fal
     <html lang={lang}>
       <head>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#0F1719" media="(prefers-color-scheme: dark)" />
         <meta name="robots" content="noindex, nofollow, noarchive" />
         <meta name="color-scheme" content="light dark" />
         <title>{title}</title>

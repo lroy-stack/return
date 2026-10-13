@@ -18,13 +18,15 @@ interface FieldProps {
   hint?: string;
   optionalLabel?: string;
   error?: string;
+  /** Keep the label for screen readers only (a visible heading already says the same). */
+  labelHidden?: boolean;
   children: Child;
 }
 
-export function Field({ id, label, hint, optionalLabel, error, children }: FieldProps) {
+export function Field({ id, label, hint, optionalLabel, error, labelHidden, children }: FieldProps) {
   return (
     <div class={error ? "field has-error" : "field"}>
-      <label for={id}>
+      <label for={id} class={labelHidden ? "visually-hidden" : undefined}>
         {label}
         {optionalLabel ? <span class="optional"> ({optionalLabel})</span> : null}
       </label>

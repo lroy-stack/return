@@ -28,22 +28,18 @@ export interface ConversationViewProps {
 function ResolvedPlaceInfo({ place }: { place: ResolvedPlace }) {
   return (
     <>
-      <p>
-        <strong>{place.name}</strong>
-      </p>
-      {place.detail ? <p class="muted">{place.detail}</p> : null}
+      <p class="place-name">{place.name}</p>
+      {place.detail ? <p class="place-detail">{place.detail}</p> : null}
     </>
   );
 }
 
 function OsmAttribution() {
   return (
-    <p class="muted">
-      <small>
-        <a href={OSM_COPYRIGHT_URL} rel="noreferrer noopener" target="_blank">
-          {OSM_ATTRIBUTION}
-        </a>
-      </small>
+    <p class="place-attrib">
+      <a href={OSM_COPYRIGHT_URL} rel="noreferrer noopener" target="_blank">
+        {OSM_ATTRIBUTION}
+      </a>
     </p>
   );
 }
@@ -61,11 +57,9 @@ function Coordinates({
 }) {
   const t = dict(lang);
   return (
-    <p class="muted">
-      <small>
-        {formatCoordinate(lat)}, {formatCoordinate(lng)}
-        {accuracyM != null ? ` (${fmt(t.conv.approx, { n: Math.round(accuracyM) })})` : ""}
-      </small>
+    <p class="place-coords">
+      {formatCoordinate(lat)}, {formatCoordinate(lng)}
+      {accuracyM != null ? ` (${fmt(t.conv.approx, { n: Math.round(accuracyM) })})` : ""}
     </p>
   );
 }
@@ -74,11 +68,11 @@ function MapLinks({ lang, links }: { lang: Language; links: { google: string; ap
   const t = dict(lang);
   return (
     <p class="map-links">
-      <a href={links.google} rel="noreferrer noopener" target="_blank">
-        {t.conv.openGoogle}
+      <a href={links.google} rel="noreferrer noopener" target="_blank" aria-label={t.conv.openGoogle}>
+        {t.conv.mapGoogle}
       </a>
-      <a href={links.apple} rel="noreferrer noopener" target="_blank">
-        {t.conv.openApple}
+      <a href={links.apple} rel="noreferrer noopener" target="_blank" aria-label={t.conv.openApple}>
+        {t.conv.mapApple}
       </a>
     </p>
   );
@@ -103,12 +97,12 @@ function ProposalCard({
     <li class={`proposal status-${proposal.status}`}>
       <p class="proposal-head">
         <strong>{proposalKindName(lang, proposal.kind)}</strong>
-        <span class="chip">
+        <span class={`pill pill-${proposal.status}`}>
           {proposal.status === "accepted" ? t.conv.agreed : proposalStatusName(lang, proposal.status)}
         </span>
       </p>
       <p class="muted">{byFinder ? t.conv.proposedByYou : t.conv.proposedByOwner}</p>
-      <p>{proposal.place}</p>
+      <p class="place-label">{proposal.place}</p>
       {proposal.resolvedPlace ? (
         <>
           <ResolvedPlaceInfo place={proposal.resolvedPlace} />
@@ -212,13 +206,13 @@ export function ConversationPage({
               {locations.map((l) => (
                 <li key={l.id} class="card">
                   <p class="muted">{l.sharedBy === "finder" ? t.conv.sharedByYou : t.conv.sharedByOwner}</p>
-                  {l.label ? <p>{l.label}</p> : null}
+                  {l.label ? <p class="place-label">“{l.label}”</p> : null}
                   {l.place ? <ResolvedPlaceInfo place={l.place} /> : null}
                   {l.lat != null && l.lng != null ? (
                     l.place ? (
                       <Coordinates lang={lang} lat={l.lat} lng={l.lng} accuracyM={l.accuracyM} />
                     ) : (
-                      <p>
+                      <p class="place-coords">
                         {formatCoordinate(l.lat)}, {formatCoordinate(l.lng)}
                         {l.accuracyM != null
                           ? ` (${fmt(t.conv.approx, { n: Math.round(l.accuracyM) })})`
@@ -254,7 +248,7 @@ export function ConversationPage({
               <h2 id="reply">{t.form.reply}</h2>
               <FormErrorSummary state={reply} t={t} />
               <form method="post" action={`${base}/messages`} class="stack">
-                <Field id="reply-body" label={t.form.reply} error={reply.errors.message}>
+                <Field id="reply-body" label={t.form.reply} labelHidden error={reply.errors.message}>
                   <textarea id="reply-body" name="message" rows={4} maxlength={4000} required>
                     {reply.values.message ?? ""}
                   </textarea>

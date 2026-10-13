@@ -144,29 +144,31 @@ export function TagPage({
   const v = form.values;
   return (
     <Layout lang={lang} title={view.title} turnstile>
-      {view.lost ? (
-        <div class="banner-lost" role="status">
-          <strong>{t.tag.lostBadge}</strong>
-          <p>{view.lost.message}</p>
-          {view.lost.reward ? (
-            <p>
-              <strong>{t.tag.reward}:</strong> {view.lost.reward}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
       {view.continueUrl ? (
         <a class="btn btn-primary btn-block" href={view.continueUrl}>
           {t.tag.continueConversation}
         </a>
       ) : null}
-      <p class="eyebrow">{t.tag.foundIt}</p>
-      <h1>{view.title}</h1>
-      {view.ownerName ? <p class="owner">{fmt(t.tag.belongsTo, { name: view.ownerName })}</p> : null}
-      {view.photoUrl ? (
-        <img class="photo" src={view.photoUrl} alt={view.title} width={640} height={480} />
-      ) : null}
-      <p class="lead">{view.returnMessage}</p>
+      <section class="hero">
+        <p class="eyebrow">{t.tag.foundIt}</p>
+        <h1>{view.title}</h1>
+        {view.lost ? (
+          <div class="banner-lost" role="status">
+            <strong>{t.tag.lostBadge}</strong>
+            <p>{view.lost.message}</p>
+            {view.lost.reward ? (
+              <p>
+                <strong>{t.tag.reward}:</strong> {view.lost.reward}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {view.ownerName ? <p class="owner">{fmt(t.tag.belongsTo, { name: view.ownerName })}</p> : null}
+        {view.photoUrl ? (
+          <img class="photo" src={view.photoUrl} alt={view.title} width={640} height={480} />
+        ) : null}
+        <p class="lead">{view.returnMessage}</p>
+      </section>
       {view.instructions ? (
         <div class="notice">
           <strong>{t.tag.ownerNote}</strong>
@@ -237,6 +239,12 @@ export function TagPage({
           </button>
         </form>
       </section>
+
+      <nav class="action-bar" aria-label={t.tag.writeHeading}>
+        <a class="btn btn-primary btn-block" href="#write">
+          {t.tag.writeHeading}
+        </a>
+      </nav>
 
       {view.contacts.length > 0 ? (
         <section class="card" aria-labelledby="other">

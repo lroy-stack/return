@@ -63,7 +63,9 @@ describe("static finder routes", () => {
     });
     const res = await finderGet("/emergency");
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain("backup@example.test");
+    const html = await res.text();
+    expect(html).toContain("backup@example.test");
+    expect(html).toContain("viewport-fit=cover");
   });
 });
 
@@ -177,6 +179,20 @@ describe("tag page", () => {
     expect(de).toContain("Hinweis des Eigentümers");
     expect(de).toContain("Ask at the desk");
     expect(await (await finderGet(`/t/${noted.token}?lang=es`)).text()).toContain("Nota del propietario");
+  });
+
+  it("renders the hero, the lost banner under the title and a floating action bar to the form", async () => {
+    const seeded = await seedTag({ item: { status: "lost" } });
+    const html = await (await finderGet(`/t/${seeded.token}`)).text();
+    expect(html).toContain("viewport-fit=cover");
+    expect(html).toContain('name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)"');
+    expect(html).toContain('name="theme-color" content="#0F1719" media="(prefers-color-scheme: dark)"');
+    expect(html).toContain('<section class="hero">');
+    expect(html.indexOf("<h1>")).toBeLessThan(html.indexOf('class="banner-lost"'));
+    expect(html).toContain('<nav class="action-bar" aria-label="Write to the owner">');
+    expect(html).toContain('href="#write"');
+    expect(html).toContain('<h2 id="write">');
+    expect(html).toContain('<div class="turnstile">');
   });
 
   it("shows the lost banner, localized message and reward", async () => {
@@ -756,8 +772,8 @@ describe("starting a conversation", () => {
       shared_by: "finder",
     });
     const html = await (await finderGet(`/c/${conv.token}`)).text();
-    expect(html).toContain("Open in Google Maps");
-    expect(html).toContain("Open in Apple Maps");
+    expect(html).toContain('aria-label="Open in Google Maps">Google Maps</a>');
+    expect(html).toContain('aria-label="Open in Apple Maps">Apple Maps</a>');
     expect(html).toContain("google.com/maps/dir/");
     expect(html).not.toContain("<iframe");
 
@@ -789,6 +805,23 @@ describe("starting a conversation", () => {
 });
 
 describe("conversation page", () => {
+  it.each([
+    ["en", "Return plan"],
+    ["de", "Rückgabeplan"],
+    ["es", "Plan de devolución"],
+  ])("names proposals a return plan in %s and shows the status as a pill", async (lang, term) => {
+    const seeded = await seedTag();
+    const conv = await openConversation(seeded);
+    const path = `/c/${conv.token}`;
+    const proposal = await finderPost(`${path}/proposals`, { kind: "meeting_point", place: "Cafe Central" });
+    expect(proposal.status).toBe(303);
+
+    const html = await (await finderGet(`${path}?lang=${lang}`)).text();
+    expect(html).toContain(`<h2 id="props">${term}</h2>`);
+    expect(html).toContain('class="pill pill-proposed"');
+    expect(html).toContain('<label for="reply-body" class="visually-hidden">');
+  });
+
   it("shows the thread to the holder of the token only", async () => {
     const a = await openConversation(await seedTag(), { message: "Message from finder A" });
     const b = await openConversation(await seedTag(), { message: "Message from finder B" });
