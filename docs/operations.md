@@ -57,8 +57,14 @@ Dashboard steps:
 - **Access**: Zero Trust → Access → Applications → Self-hosted → `app.example.com` (whole host), policy *Allow* →
   emails = owner (+ one-time PIN login). Copy the AUD tag into `ACCESS_AUD`. Do **not** add the apex host.
 - **Turnstile**: add a widget for `example.com` (Managed mode) → site key var + secret.
-- **Email**: Email Routing/Email Service → verify the owner's destination address (and trusted contacts that should
-  get alerts); onboard `example.com` as sender for `NOTIFY_FROM`.
+- **Email**: Email Sending needs the **Workers Paid** plan (the API answers `2036 Unauthorized` on Free). Verify the
+  owner's destination address (Email Routing → Destination addresses), then onboard only the sender subdomain:
+  `wrangler email sending enable return.example.com --zone-id <zone>` (wrangler needs the `email_sending:write`
+  OAuth scope: `wrangler login --scopes … email_sending:write`). It adds `cf-bounce` MX/SPF/DKIM and `_dmarc` on that
+  subdomain only, so mail on the apex (e.g. another provider's MX) is untouched. Do **not** enable Email Routing on
+  the apex if it already receives mail elsewhere: it replaces the MX records. Check with
+  `wrangler email sending dns get return.example.com`; then use the panel's "Send test email".
+  Production (2026-10-13): `return.lr0y.dev` onboarded, DNS status `ready`; `lr0y.dev` mail stays on Hostinger.
 
 ## 3. Deploy and verify
 Releases go through the guarded script (`scripts/release.mjs`, `pnpm run release`):
