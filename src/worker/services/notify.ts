@@ -64,10 +64,6 @@ export async function notifyOwner(env: Env, ownerId: string, event: OwnerEvent):
       await logNotification(env, ownerId, kind, recipient, event.conversationId, "skipped", "muted");
       return;
     }
-    if (await overHourlyCap(env, ownerId)) {
-      await logNotification(env, ownerId, kind, recipient, event.conversationId, "skipped", "hourly_cap");
-      return;
-    }
     if (
       event.kind === "new_message" &&
       event.conversationId &&
@@ -166,7 +162,6 @@ export async function notifyFinder(
     if (!conversation.finderEmail) return;
     const settings = await getSettings(env.DB, ownerId);
     if (!settings.notifications.notifyFinders) return;
-    if (await overHourlyCap(env, ownerId)) return;
     const t = FINDER_TEXT[conversation.lang];
     const thanks = pickLocalized(settings.messages.thankYouMessage, conversation.lang);
     if (message.type === "link") {
@@ -231,6 +226,11 @@ async function deliver(
   if (!emailConfigured(env)) {
     await logNotification(env, ownerId, kind, to, conversationId, "skipped", "email_not_configured");
     return { ok: false, error: "email_not_configured" };
+  }
+  // Checked per email (not per event) so fan-out to trusted contacts cannot exceed the cap.
+  if (await overHourlyCap(env, ownerId)) {
+    await logNotification(env, ownerId, kind, to, conversationId, "skipped", "hourly_cap");
+    return { ok: false, error: "hourly_cap" };
   }
   try {
     await env.EMAIL.send({ from: { email: env.NOTIFY_FROM, name: "RETURN" }, to, subject, text });
