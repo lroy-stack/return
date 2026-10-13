@@ -20,6 +20,13 @@ grew page by page without a catalogue, and locations are shown as raw coordinate
    coordinates stay available as secondary detail. The owner can search a place by name when proposing a meeting
    point (explicit search button, no autocomplete).
 
+4. **Visual language** — Apple-style Liquid Glass (iOS 26/27): floating translucent controls (capsule tab bar, nav
+   rail, sheets), depth, large titles, continuous corners — for BOTH the owner panel and the finder pages, with solid
+   fallbacks (`prefers-reduced-transparency`, no `backdrop-filter`) and AA contrast on every surface.
+5. **Quick card** — from the phone, in a few taps (floating action or item page): create/assign a tag and download a
+   print-ready card for plain paper — a fold-over card PNG + PDF (front and back side by side, fold line, cut marks,
+   A4/Letter, 300 dpi) — or share it through the system share sheet. Works for an item that has no tag yet.
+
 ## Non-goals
 Embedded maps or tile servers, routing, live location, autocomplete, new product features beyond the above.
 
@@ -33,4 +40,6 @@ Embedded maps or tile servers, routing, live location, autocomplete, new product
 - Component gallery route lists every UI component with its variants and states, in light and dark.
 - No horizontal scroll and no clipped content at 375, 768, 1024 and 1440 px on every panel screen and finder page;
   axe shows no serious/critical violations; touch targets ≥ 44 px on touch layouts.
+- Quick card: from an item without a tag, ≤ 4 taps to a downloaded paper PNG whose QR decodes to the new tag URL;
+  the PNG prints at true size (CR80 per side) on A4 and Letter.
 - All gates green; E2E suite still passes (updated where copy/layout changed).

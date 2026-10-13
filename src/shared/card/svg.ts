@@ -36,7 +36,7 @@ export function roundedRectPath(x: number, y: number, w: number, h: number, r: n
   );
 }
 
-function renderElement(el: CardElement): string {
+export function renderElement(el: CardElement): string {
   switch (el.kind) {
     case "rect": {
       const stroke = el.stroke
@@ -98,7 +98,7 @@ export function watermarkGeometry(side: Pick<CardSide, "widthMm" | "heightMm">) 
   };
 }
 
-function renderWatermark(side: CardSide, text: string): string {
+export function renderWatermark(side: CardSide, text: string): string {
   const g = watermarkGeometry(side);
   const len = g.diagonal + 2 * side.bleedMm + 8;
   return (

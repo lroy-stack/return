@@ -41,3 +41,10 @@ export const PROOF_WATERMARK = "PROOF — NOT FOR PRINT";
 export function defaultSecondaryLanguage(primary: Language): Language {
   return primary === "en" ? "de" : "en";
 }
+
+/** One-line cutting guide printed in the margin of paper sheets, in the card language. */
+export const PAPER_INSTRUCTIONS: Record<Language, string> = {
+  en: "Cut along the marks · fold on the dashed line · glue or laminate · punch the hole",
+  de: "An den Marken ausschneiden · an der gestrichelten Linie falten · kleben oder laminieren · Loch stanzen",
+  es: "Recorte por las marcas · doble por la línea discontinua · pegue o plastifique · perfore el agujero",
+};
