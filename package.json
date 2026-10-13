@@ -10,7 +10,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "pnpm build && wrangler deploy",
+    "release": "pnpm build && wrangler deploy",
     "typecheck": "tsc -b",
     "lint": "biome check .",
     "format": "biome check --write .",

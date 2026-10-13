@@ -20,7 +20,7 @@ Node 24 via fnm, pnpm. Versions pinned in `package.json`; decisions in `docs/dec
 | Typecheck | `pnpm typecheck` |
 | Test (all / one) | `pnpm test` / `pnpm vitest run test/items.test.ts` |
 | E2E | `pnpm test:e2e` |
-| Build / deploy | `pnpm build` / `pnpm deploy` (needs approval, see docs/operations.md) |
+| Build / deploy | `pnpm build` / `pnpm run release` (needs approval; `pnpm deploy` is a different pnpm built-in) |
 | Regenerate binding types | `pnpm cf-typegen` after editing `wrangler.jsonc` |
 
 ## Architecture

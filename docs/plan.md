@@ -31,10 +31,12 @@ Shared contracts (`src/shared/schemas.ts`, `settings.ts`, `maps.ts`, `qr.ts`, `b
 agents request changes instead of editing them.
 
 ## H · Deployment (needs authorization)
-- [ ] Create D1 `return-db`, R2 `return-files`; apply migrations remotely
-- [ ] Zone on Cloudflare; Custom Domains `DOMAIN` + `app.DOMAIN`; Access app on `app.DOMAIN`; Turnstile widget; Email sender
-- [ ] Secrets: `TURNSTILE_SECRET_KEY`, `IP_HMAC_SECRET`; vars: hosts, Access team/AUD, owner email, sender, fallback email
-- [ ] Deploy and verify (curl headers, Access redirect, finder flow on a phone)
+- [x] D1 `return-db` (EU jurisdiction) and R2 `return-files` (EU) created; migration 0001 applied remotely
+- [x] Zone lr0y.dev active; Custom Domains `return.lr0y.dev` + `app.return.lr0y.dev`; Access app "RETURN panel" (owner only, OTP); Turnstile widget
+- [ ] Email Sending onboarding of `return.lr0y.dev` (dashboard)
+- [x] Secrets `TURNSTILE_SECRET_KEY`, `IP_HMAC_SECRET` set (never printed); vars in `wrangler.jsonc`
+- [x] Deployed version 3e102cb8; public host verified (routes, 404s, headers, no /api)
+- [ ] Panel host verified behind Access (certificate pending) · finder flow on a real phone
 
 ## I · Final audit
 - [ ] E2E (Playwright, mobile + desktop), security review, accessibility pass, backup/restore drill
