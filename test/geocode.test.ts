@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConversationDetail, GeocodeSearchResponse } from "../src/shared/schemas";
-import { DAILY_OUTBOUND_CAP, NOMINATIM_USER_AGENT, searchPlaces } from "../src/worker/services/geocode";
+import { DAILY_OUTBOUND_CAP, nominatimUserAgent, searchPlaces } from "../src/worker/services/geocode";
 import { stubNominatim } from "../src/worker/services/nominatim-stub";
 import { APP_VERSION } from "../src/worker/version";
 import { api, apiJson } from "./helpers/api";
@@ -92,8 +92,11 @@ describe("reverse geocoding of shared locations", () => {
     expect(call?.url.searchParams.get("accept-language")).toBe("es,en");
     expect(call?.url.searchParams.get("addressdetails")).toBe("1");
     expect(call?.url.origin).toBe(NOMINATIM_BASE);
-    expect(call?.headers.get("User-Agent")).toBe(NOMINATIM_USER_AGENT);
-    expect(NOMINATIM_USER_AGENT).toContain(`RETURN/${APP_VERSION} `);
+    expect(call?.headers.get("User-Agent")).toBe(nominatimUserAgent(env.PUBLIC_HOST));
+    expect(nominatimUserAgent("return.example.com")).toBe(
+      `RETURN/${APP_VERSION} (+https://return.example.com; personal lost-item app)`,
+    );
+    expect(nominatimUserAgent("")).toBe(`RETURN/${APP_VERSION} (personal lost-item app)`);
 
     const html = await (await finderGet(`/c/${conv.token}`)).text();
     expect(html).toContain('<p class="place-name">Estación de Atocha</p>');
@@ -253,7 +256,7 @@ describe("GET /api/geocode/search", () => {
     const call = nominatim.calls[0];
     expect(call?.url.pathname).toBe("/search");
     expect(call?.url.searchParams.get("limit")).toBe("5");
-    expect(call?.headers.get("User-Agent")).toBe(NOMINATIM_USER_AGENT);
+    expect(call?.headers.get("User-Agent")).toBe(nominatimUserAgent(env.PUBLIC_HOST));
 
     const again = await apiJson<GeocodeSearchResponse>(
       "GET",

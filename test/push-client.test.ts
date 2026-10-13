@@ -204,7 +204,7 @@ describe("base64UrlToBytes", () => {
   });
   it("decodes the VAPID public key to a 65-byte uncompressed point", () => {
     const bytes = base64UrlToBytes(
-      "<vapid-public-key>",
+      "BHa-Th-SyO-86cc_ju3NFFPKQiG17_jE-PhYGKzkrnHI8eOsuLPIlT2F4bnkuZK047VBXbnq_YUMrSXEP26DS18",
     );
     expect(bytes).toHaveLength(65);
     expect(bytes[0]).toBe(4);

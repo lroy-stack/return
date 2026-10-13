@@ -24,7 +24,11 @@ import { APP_VERSION } from "../version";
 import { stubNominatim } from "./nominatim-stub";
 
 const DEFAULT_NOMINATIM = "https://nominatim.openstreetmap.org";
-export const NOMINATIM_USER_AGENT = `RETURN/${APP_VERSION} (+https://return.lr0y.dev; personal lost-item app)`;
+/** Nominatim's policy asks for an identifying User-Agent: each deployment names its own public host. */
+export function nominatimUserAgent(publicHost: string | undefined): string {
+  const contact = publicHost ? `+https://${publicHost}; ` : "";
+  return `RETURN/${APP_VERSION} (${contact}personal lost-item app)`;
+}
 export { OSM_ATTRIBUTION } from "../../shared/osm";
 
 const TIMEOUT_MS = 4000;
@@ -222,7 +226,7 @@ async function nominatimGet(env: Env, path: string, params: Record<string, strin
   const url = `${env.NOMINATIM_URL || DEFAULT_NOMINATIM}${path}?${new URLSearchParams(params).toString()}`;
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": NOMINATIM_USER_AGENT, Accept: "application/json" },
+      headers: { "User-Agent": nominatimUserAgent(env.PUBLIC_HOST), Accept: "application/json" },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) {

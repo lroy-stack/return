@@ -22,7 +22,7 @@ Public answers at capture time: A 217.65.159.236, 217.65.156.65 · AAAA 2a02:478
 2a02:4780:80:640b:7f43:b4ba:1ab7:f1a2 (Hostinger CDN).
 
 ## Migration log (2026-10-13)
-1. Cloudflare zone `lr0y.dev` (id <zone-id>, Free, full setup, no auto-import) — assigned NS
+1. Cloudflare zone `lr0y.dev` (Free, full setup, no auto-import) — assigned NS
    carlane.ns.cloudflare.com / garret.ns.cloudflare.com.
 2. Created the 11 records above, all DNS-only (apex ALIAS → flattened CNAME). Verified answer-by-answer against
    ns1.dns-parking.com: identical except apex A/AAAA, which both resolve from the same rotating Hostinger CDN host;
