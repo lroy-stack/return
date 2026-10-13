@@ -32,14 +32,22 @@ Researched 2026-10-13. ✅ = verified in official docs that day; ⚠️ = not ve
 - **Hosts:** finder pages on `return.lr0y.dev`, panel on `app.return.lr0y.dev` (the Custom Domain issues a certificate
   for the second-level name ✅). `lr0y.dev` DNS moved from Hostinger to Cloudflare (records replicated DNS-only; log in
   `docs/infra/`). Domain stays registered at Hostinger — **auto-renew must stay on** (expires 2027-05-14).
-- **CSRF on finder forms:** `Referrer-Policy: no-referrer` makes browsers send `Origin: null` on form POSTs, so the
-  finder routes accept `Origin: null` only together with `Sec-Fetch-Site: same-origin` (a forbidden header scripts
-  cannot set); any other Origin must equal the page origin.
-- **Finder cookie:** only `rc` (HttpOnly, Secure, SameSite=Lax, 30 days) to reopen your own conversation; `lang` is read
+- **CSRF on finder forms:** finder pages send `Referrer-Policy: same-origin`, so browsers send a real `Origin` on
+  same-origin form posts (the capability URL still never leaves the origin). `Origin: null` is accepted only with
+  `Sec-Fetch-Site: same-origin`; any other Origin must equal the page origin. Finder POSTs must be small url-encoded
+  bodies with `Content-Length`.
+- **Finder cookie:** only `__Host-rc` (HttpOnly, Secure, SameSite=Lax, 30 days) to reopen your own conversation; `lang` is read
   but never set — keeps the one strictly-necessary-cookie statement true.
-- **Rate limits:** writes `w:IP` (10/min), reads `r:IP` (60/min); blocked IP, rate limit and caps share one 429 page.
-  Missing binding/IP fails open (Cloudflare always sets `CF-Connecting-IP` in production).
-- **Notifications:** hourly cap is enforced per email (incl. trusted-contact fan-out), not per event.
+- **Abuse limits:** IPs are keyed per /32 (IPv4) or /64 (IPv6). Writes 10/min, reads 60/min per IP; new conversations
+  3/day per source and 5 distinct sources/day per tag (atomic); per conversation 50 messages, 20 proposals, 10
+  locations a day. Hitting any limit re-renders the tag page with the typed text, the contact links and the fallback
+  email (429), so a spammer cannot leave a real finder without a way to reach the owner. Production without
+  `CF-Connecting-IP` uses a shared bucket.
+- **First contact does not change recovery state** (an anonymous message could be a prank); accepting a return
+  proposal moves the recovery to `returning`.
+- **Notifications:** caps are enforced per email: 30/h for follow-ups, 45/h reserved ceiling for first contact and
+  lost-item alerts; one follow-up email per conversation per 10 min. Trusted contacts are told *that* contact happened,
+  never the finder's text.
 - **Cards:** CR80 85.6×54 mm, r 3.18, bleed 2, safe 3; Ø5 hole at 6 mm from the short edge in a 12 mm "stub" band;
   QR 30 mm incl. quiet zone, ECC M, module ≥ 0.5 mm (layout grows the QR or fails `url_too_long`); PDF one page per
   side with TrimBox/BleedBox, vector QR, Helvetica/Courier standard fonts (WinAnsi); exports are watermarked

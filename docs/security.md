@@ -25,6 +25,7 @@ attacker on the internet without any tag, someone with a copied finder link.
 | State tampering | Server-side state machines for recoveries and proposals; actor checks (only the other party accepts) | recovery/proposal tests |
 | Accidental destruction | Delete requires archive + typed name; restore only into an empty inventory; tags never deleted, only revoked; nightly backups | items/data tests |
 
-Residual risks (accepted): someone holding the physical item can always read the public card; Cloudflare account
+Residual risks (accepted): when finder emails are enabled (Workers Paid), anyone holding a tag URL can make RETURN
+send a "your private link" email to an address of their choice (bounded by the per-source and per-tag caps); someone holding the physical item can always read the public card; Cloudflare account
 compromise bypasses everything (protect it with a hardware key); D1 and R2 live in the same account (keep the
 periodic local backup from `docs/operations.md`).
