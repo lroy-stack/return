@@ -27,3 +27,23 @@ Researched 2026-10-13. ✅ = verified in official docs that day; ⚠️ = not ve
 - Apple Find My has no third-party API. RETURN only stores a manual AirTag association and links to Apple's own flows (Lost Mode; *Share Item Location*, iOS 18.2+, link expires after 7 days or when found ✅).
 - GDPR likely applies (public intake of third-party messages is not a purely household activity ⚠️). Hence: minimal fields, explicit consent for location, retention limits, privacy notice on finder pages, no analytics, no cookies except the strictly necessary conversation cookie (TDDDG §25(2)).
 - A QR/URL can be copied. Possession of a tag URL grants only: see the public card, start a conversation. Never: inventory, other conversations, documents.
+
+## Decisions taken during implementation (2026-10-13)
+- **Hosts:** finder pages on `return.lr0y.dev`, panel on `app.return.lr0y.dev` (the Custom Domain issues a certificate
+  for the second-level name ✅). `lr0y.dev` DNS moved from Hostinger to Cloudflare (records replicated DNS-only; log in
+  `docs/infra/`). Domain stays registered at Hostinger — **auto-renew must stay on** (expires 2027-05-14).
+- **CSRF on finder forms:** `Referrer-Policy: no-referrer` makes browsers send `Origin: null` on form POSTs, so the
+  finder routes accept `Origin: null` only together with `Sec-Fetch-Site: same-origin` (a forbidden header scripts
+  cannot set); any other Origin must equal the page origin.
+- **Finder cookie:** only `rc` (HttpOnly, Secure, SameSite=Lax, 30 days) to reopen your own conversation; `lang` is read
+  but never set — keeps the one strictly-necessary-cookie statement true.
+- **Rate limits:** writes `w:IP` (10/min), reads `r:IP` (60/min); blocked IP, rate limit and caps share one 429 page.
+  Missing binding/IP fails open (Cloudflare always sets `CF-Connecting-IP` in production).
+- **Notifications:** hourly cap is enforced per email (incl. trusted-contact fan-out), not per event.
+- **Cards:** CR80 85.6×54 mm, r 3.18, bleed 2, safe 3; Ø5 hole at 6 mm from the short edge in a 12 mm "stub" band;
+  QR 30 mm incl. quiet zone, ECC M, module ≥ 0.5 mm (layout grows the QR or fails `url_too_long`); PDF one page per
+  side with TrimBox/BleedBox, vector QR, Helvetica/Courier standard fonts (WinAnsi); exports are watermarked
+  "PROOF — NOT FOR PRINT" while the tag URL is not a public https host. The PDF renderer lives in `src/shared/card/`
+  (tested in workerd) but is only loaded by the browser via dynamic import.
+- **Restore:** import validates every row and reference against the document and the current owner (review finding);
+  file bytes are not part of the JSON export (R2 backup is separate, see operations).

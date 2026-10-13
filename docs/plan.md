@@ -7,9 +7,10 @@ Phases follow the brief (A–I). Each task lists owner and verify step. Tick box
 - [x] Cloudflare / Hostinger / QR-NFC-GDPR research → `docs/decisions.md`
 
 ## B · Infrastructure connections (read-only first)
-- [ ] Cloudflare: install official plugin (`/plugin marketplace add cloudflare/skills`, `/plugin install cloudflare@cloudflare`) or `wrangler login` — **needs the user** (OAuth)
-- [ ] Hostinger: authorize the installed `hostinger` plugin MCP (hosted OAuth) — **needs the user**
-- [ ] Read-only inventory: zones, registrar, nameservers, DNS records, existing Workers/D1/R2/Access apps
+- [x] Cloudflare official plugin + MCP (OAuth, custom permissions on the single account)
+- [x] Hostinger MCP (hosted OAuth)
+- [x] Read-only inventory (no conflicts with apuntao/numae/skapara resources)
+- [x] `lr0y.dev` DNS moved to Cloudflare, verified (`docs/infra/lr0y.dev-before-migration.md`)
 
 ## C · Foundations
 - [x] Scaffold, configs, gates (lint · typecheck · test) — verify: `pnpm lint && pnpm typecheck && pnpm test`
