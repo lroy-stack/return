@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { ItemDetail, ItemSummary } from "../../../shared/schemas";
 import { api, qs } from "../../lib/api";
 import { useDebounced, useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
-import { Button } from "../../ui/Button";
+import { Button, IconButton } from "../../ui/Button";
 import { Section } from "../../ui/Card";
 import { SearchField } from "../../ui/Field";
 import { List, ListRow } from "../../ui/List";
 import { Sheet, SheetBody } from "../../ui/Sheet";
-import { ErrorState, LoadingBlock } from "../../ui/States";
+import { ErrorState, errorMessage, LoadingBlock } from "../../ui/States";
 import { Thumb } from "../../ui/Thumb";
 import { useToast } from "../../ui/Toast";
 
@@ -22,7 +22,18 @@ export function ItemContents({
   className?: string;
 }) {
   const t = useT();
+  const toast = useToast();
   const [picking, setPicking] = useState(false);
+  // Takes the item out of this container only; the item itself is untouched.
+  const remove = async (child: ItemSummary) => {
+    try {
+      await api.patch(`/items/${child.id}`, { parentId: null });
+      toast(t("contents.removed", { name: child.name }));
+      onChanged();
+    } catch (e) {
+      toast(errorMessage(e, t), "error");
+    }
+  };
   const n = detail.children.length;
   return (
     <>
@@ -44,7 +55,19 @@ export function ItemContents({
         ) : (
           <List variant="plain" label={t("contents.title")}>
             {detail.children.map((c) => (
-              <ItemRow key={c.id} item={c} to={`/items/${c.id}`} />
+              <ItemRow
+                key={c.id}
+                item={c}
+                to={`/items/${c.id}`}
+                action={
+                  <IconButton
+                    icon="close"
+                    size="sm"
+                    label={t("contents.remove", { name: c.name })}
+                    onClick={() => void remove(c)}
+                  />
+                }
+              />
             ))}
           </List>
         )}
@@ -54,12 +77,23 @@ export function ItemContents({
   );
 }
 
-function ItemRow({ item, to, onClick }: { item: ItemSummary; to?: string; onClick?: () => void }) {
+function ItemRow({
+  item,
+  to,
+  onClick,
+  action,
+}: {
+  item: ItemSummary;
+  to?: string;
+  onClick?: () => void;
+  action?: ReactNode;
+}) {
   const t = useT();
   return (
     <ListRow
       to={to}
       onClick={onClick}
+      action={action}
       chevron={Boolean(to)}
       flush={Boolean(to)}
       leading={<Thumb src={item.coverPhotoUrl} category={item.category} size="sm" />}

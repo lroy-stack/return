@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import {
+  chooseOption,
   expect,
   finderHeaders,
   newFinderContext,
@@ -70,14 +71,14 @@ test("4a. the finder proposes a meeting point, the owner accepts it in the inbox
   await finder.goto(conversation.path);
   await finder.getByText("Propose a return plan").click();
   await finder.getByLabel("Place", { exact: true }).fill(place);
-  await finder.getByLabel(/^Date and time/).fill("2026-10-14T18:30");
+  await finder.getByLabel(/^Date and time/).fill(`${new Date().getFullYear() + 1}-10-14T18:30`);
   await finder.getByLabel(/^Instructions/).fill(instructions);
   await finder.getByRole("button", { name: "Send return plan" }).click();
 
   const suggestion = finder.getByRole("listitem").filter({ hasText: place });
   await expect(suggestion).toContainText("Waiting for an answer");
   await expect(suggestion).toContainText("Proposed by you");
-  await expect(suggestion).toContainText(/6:30\s*PM/);
+  await expect(suggestion).toContainText(/18:30/);
   await expect(suggestion).toContainText(instructions);
   // Directions only appear once both sides agreed; the finder cannot accept their own plan.
   await expect(suggestion.getByRole("link", { name: /Maps/ })).toHaveCount(0);
@@ -123,13 +124,13 @@ test("4b. the owner proposes exact coordinates, the finder accepts, directions p
   await ownerPage.goto(`/conversations/${conversation.id}`);
   await ownerPage.getByRole("button", { name: "Propose a return plan" }).click();
   const dialog = ownerPage.getByRole("dialog", { name: "Propose a return plan" });
-  await dialog.getByLabel("Type of place").selectOption("hotel_reception");
+  await chooseOption(dialog, "Type of place", "Hotel reception");
   await dialog.getByRole("textbox", { name: "Place", exact: true }).fill(place);
   // Coordinates by hand live in a collapsed disclosure.
   await dialog.getByText("Enter coordinates by hand").click();
   await dialog.getByLabel(/^Latitude/).fill("38.7223");
   await dialog.getByLabel(/^Longitude/).fill("-9.1393");
-  await dialog.getByLabel(/^Date and time/).fill("2026-10-15T09:00");
+  await dialog.getByLabel(/^Date and time/).fill(`${new Date().getFullYear() + 1}-06-15T09:00`);
   await dialog.getByRole("button", { name: "Send return plan" }).click();
   const thread = ownerPage.getByRole("log");
   await expect(thread).toContainText(place);

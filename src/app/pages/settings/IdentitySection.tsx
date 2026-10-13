@@ -1,14 +1,12 @@
 import { useMemo } from "react";
-import { LANGUAGES, type Language } from "../../../shared/settings";
+import type { Language } from "../../../shared/settings";
 import { AppearanceControl } from "../../components/QuickActions";
 import { useI18n, useT } from "../../lib/i18n";
-import { localeOptions, timeZoneOptions } from "../../lib/locale-options";
+import { LANGUAGE_OPTIONS, localeOptions, timeZoneOptions } from "../../lib/locale-options";
 import { Card, Section } from "../../ui/Card";
 import { TextInput } from "../../ui/Field";
 import { Combobox, Select } from "../../ui/Select";
-import { LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
-
-const LANGUAGE_OPTIONS = LANGUAGES.map((l) => ({ value: l, label: LANGUAGE_NAMES[l] }));
+import { SectionCard, type SectionProps } from "./shared";
 
 export function IdentitySection({ draft, update, errors }: SectionProps) {
   const t = useT();

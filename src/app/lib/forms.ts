@@ -28,3 +28,9 @@ export function useFormValues<T extends Record<string, string | boolean>>(initia
 }
 
 export const emptyToNull = (v: string): string | null => (v.trim() === "" ? null : v.trim());
+
+/** True once the form's values differ from what they were when the form opened (feeds `useSheetGuard`). */
+export function useDirty(values: unknown): boolean {
+  const [initial] = useState(() => JSON.stringify(values));
+  return JSON.stringify(values) !== initial;
+}

@@ -278,7 +278,7 @@ sheet (AirPrint, Files, Messages).
 **Entry points**: Create sheet › Quick card (`/?quick-card=1`); item hero "Quick card" (`/items/:id?quick-card=1`,
 item preselected). **Container**: `Sheet size="lg"` (bottom sheet on phones, side panel elsewhere). Gallery:
 `/gallery#quick-card` renders the real paper output (`PaperSpecimen.tsx`: `buildPaperSheet` → `renderPaperSvg`,
-sample data, no API) and opens the real flow.
+sample data, no API). The gallery never opens the real flow (exporting creates real tags); use Create › Quick card.
 
 **Steps on one sheet (progressive, no wizard)**
 1. *Item*: `SearchField` + `List` of recent items (`Thumb`, name, current tag); last row "New item…" expands name +

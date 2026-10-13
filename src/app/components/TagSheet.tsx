@@ -15,11 +15,13 @@ import { useFormat } from "../lib/settings-context";
 import { Badge } from "../ui/Badge";
 import { Button, ButtonLink } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { FormError, Select, TextInput } from "../ui/Field";
+import { FormError, TextInput } from "../ui/Field";
 import { Icon } from "../ui/Icon";
+import { Combobox, Select } from "../ui/Select";
 import { Sheet, SheetBody } from "../ui/Sheet";
 import { errorMessage } from "../ui/States";
 import { useToast } from "../ui/Toast";
+import { itemOptions } from "./item-options";
 
 export function TagStatusBadge({ tag }: { tag: Tag }) {
   const t = useT();
@@ -67,6 +69,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
   const [verification, setVerification] = useState<TagVerification | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [confirm, setConfirm] = useState<"revoke" | "replace" | null>(null);
+  const [openConvs, setOpenConvs] = useState(0);
   const [note, setNote] = useState(tag.note ?? "");
   const revoked = tag.status === "revoked";
   const items = useResource<ItemSummary[]>(
@@ -96,6 +99,18 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
       setVerifying(false);
     }
   };
+
+  // Both actions retire the printed card: ask how many conversations started from it are still open.
+  const askToRetire = (action: "revoke" | "replace") => {
+    setConfirm(action);
+    setOpenConvs(0);
+    api
+      .get<TagVerification>(`/tags/${tag.id}/verify`)
+      .then((v) => setOpenConvs(v.openConversations))
+      .catch(() => setOpenConvs(0));
+  };
+  const retireMessage = (base: string) =>
+    openConvs > 0 ? `${base} ${t("tag.openConvs", { n: openConvs })}` : base;
 
   const copy = async () => {
     const ok = await copyText(tag.url);
@@ -154,17 +169,23 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Select
+              <Combobox
                 label={t("tag.assignedTo")}
+                options={itemOptions(
+                  items.state.status === "ready" ? items.state.data : [],
+                  t,
+                  t("tag.unassigned"),
+                  tag.itemId ? { id: tag.itemId, name: tag.itemName ?? tag.itemId } : undefined,
+                )}
                 value={tag.itemId ?? ""}
                 disabled={revoked || items.state.status !== "ready"}
-                onChange={(e) => patch({ itemId: e.target.value || null })}
+                onChange={(id) => patch({ itemId: id || null })}
                 hint={
                   tag.itemId ? (
                     <Link
                       to={`/items/${tag.itemId}`}
                       onClick={onClose}
-                      className="font-medium text-primary-text underline"
+                      className="touch-target font-medium text-primary-text underline"
                     >
                       {t("tag.openItem")}
                     </Link>
@@ -172,21 +193,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
                     t("tag.unassignedHint")
                   )
                 }
-              >
-                <option value="">{t("tag.unassigned")}</option>
-                {tag.itemId &&
-                items.state.status === "ready" &&
-                !items.state.data.some((i) => i.id === tag.itemId) ? (
-                  <option value={tag.itemId}>{tag.itemName ?? tag.itemId}</option>
-                ) : null}
-                {items.state.status === "ready"
-                  ? items.state.data.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.name}
-                      </option>
-                    ))
-                  : null}
-              </Select>
+              />
             </div>
             <form
               className="flex items-end gap-2"
@@ -213,16 +220,11 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
           <legend className="px-1 text-subhead font-semibold">NFC</legend>
           <Select
             label={t("tag.nfcStatus")}
+            options={NFC_STATUSES.map((v) => ({ value: v, label: t(`nfc.${v}` as const) }))}
             value={tag.nfcStatus}
-            onChange={(e) => patch({ nfcStatus: e.target.value as NfcStatus })}
+            onChange={(v) => patch({ nfcStatus: v })}
             disabled={revoked}
-          >
-            {NFC_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {t(`nfc.${s}` as const)}
-              </option>
-            ))}
-          </Select>
+          />
           <p className="mt-2 flex gap-2 text-subhead text-muted">
             <Icon name="info" className="mt-0.5 size-4" />
             {t("nfc.help")}
@@ -258,10 +260,10 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
           </ButtonLink>
           {!revoked ? (
             <>
-              <Button icon="refresh" onClick={() => setConfirm("replace")}>
+              <Button icon="refresh" onClick={() => askToRetire("replace")}>
                 {t("tag.replace")}
               </Button>
-              <Button variant="danger" icon="close" onClick={() => setConfirm("revoke")}>
+              <Button variant="danger" icon="close" onClick={() => askToRetire("revoke")}>
                 {t("tag.revoke")}
               </Button>
             </>
@@ -272,7 +274,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
       <ConfirmDialog
         open={confirm === "revoke"}
         title={t("tag.revokeTitle")}
-        message={t("tag.revokeBody")}
+        message={retireMessage(t("tag.revokeBody"))}
         confirmLabel={t("tag.revoke")}
         onClose={() => setConfirm(null)}
         onConfirm={async () => {
@@ -284,7 +286,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
       <ConfirmDialog
         open={confirm === "replace"}
         title={t("tag.replaceTitle")}
-        message={t("tag.replaceBody")}
+        message={retireMessage(t("tag.replaceBody"))}
         confirmLabel={t("tag.replace")}
         tone="primary"
         onClose={() => setConfirm(null)}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ITEM_CATEGORIES, type ItemCategory, type ItemStatus, type ItemSummary } from "../../shared/schemas";
+import { ITEM_CATEGORIES, type ItemCategory, type ItemSummary } from "../../shared/schemas";
 import { ItemCard } from "../components/ItemCard";
 import { ItemFormSheet } from "../components/ItemFormSheet";
 import { api, qs } from "../lib/api";
@@ -10,10 +10,11 @@ import { useOverview } from "../lib/overview-context";
 import { navigate, useLocation } from "../lib/router";
 import { Button, ButtonLink } from "../ui/Button";
 import { Section } from "../ui/Card";
-import { SearchField, Select } from "../ui/Field";
+import { SearchField } from "../ui/Field";
 import { Icon } from "../ui/Icon";
 import { IconTile, List, ListRow } from "../ui/List";
 import { PageHeader } from "../ui/Page";
+import { Select, type SelectOption } from "../ui/Select";
 import { EmptyState, ErrorState, Skeleton } from "../ui/States";
 import { Chip } from "../ui/Tabs";
 
@@ -73,21 +74,33 @@ function AttentionStrip() {
 export function InventoryPage() {
   const t = useT();
   const [creating, setCreating] = useState(false);
-  const [q, setQ] = useState("");
   const { search } = useLocation();
-  const urlStatus = search.get("status") === "lost" ? "lost" : "";
-  const [status, setStatus] = useState<ItemStatus | "">(urlStatus);
-  useEffect(() => {
-    setStatus(urlStatus);
-  }, [urlStatus]);
+  // Filters live in the URL (?q=&status=lost&category=&archived=1) so reload, back and shared links keep them.
+  const status = search.get("status") === "lost" ? "lost" : "";
+  const category = ITEM_CATEGORIES.find((c) => c === search.get("category")) ?? "";
+  const archived = search.get("archived") === "1";
+  const [q, setQ] = useState(() => search.get("q") ?? "");
+  const setFilters = (patch: Record<string, string>) => {
+    const next = new URLSearchParams(window.location.search);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v) next.set(k, v);
+      else next.delete(k);
+    }
+    next.delete("new");
+    const text = next.toString();
+    navigate(text ? `/?${text}` : "/", { replace: true });
+  };
   // The Shell's Create sheet links here with ?new=item.
   const wantsNew = search.get("new") === "item";
   useEffect(() => {
     if (wantsNew) setCreating(true);
   }, [wantsNew]);
-  const [category, setCategory] = useState<ItemCategory | "">("");
-  const [archived, setArchived] = useState(false);
   const dq = useDebounced(q.trim(), 250);
+  const urlQ = search.get("q") ?? "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: write the debounced text to the URL only when it changes
+  useEffect(() => {
+    if (dq !== urlQ.trim()) setFilters({ q: dq });
+  }, [dq]);
   const filtered = Boolean(dq || status || category || archived);
 
   const query = qs({ q: dq, status, category, archived: archived ? "true" : "" });
@@ -95,6 +108,10 @@ export function InventoryPage() {
     const res = await api.get<{ items: ItemSummary[] }>(`/items${query}`, signal);
     return res.items;
   });
+  const categoryOptions: SelectOption<ItemCategory | "">[] = [
+    { value: "", label: t("inventory.allCategories") },
+    ...ITEM_CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}` as const) })),
+  ];
   const overview = useOverview();
   useDataChanged(() => {
     items.reload(true);
@@ -132,30 +149,28 @@ export function InventoryPage() {
           placeholder={t("inventory.searchPlaceholder")}
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Chip pressed={status === ""} onClick={() => setStatus("")}>
+          <Chip pressed={status === ""} onClick={() => setFilters({ status: "" })}>
             {t("inventory.all")}
           </Chip>
-          <Chip pressed={status === "lost"} onClick={() => setStatus(status === "lost" ? "" : "lost")}>
+          <Chip
+            pressed={status === "lost"}
+            onClick={() => setFilters({ status: status === "lost" ? "" : "lost" })}
+          >
             <Icon name="alert" className="size-4" />
             {t("item.lost")}
           </Chip>
-          <Chip pressed={archived} onClick={() => setArchived(!archived)}>
+          <Chip pressed={archived} onClick={() => setFilters({ archived: archived ? "" : "1" })}>
             {t("inventory.showArchived")}
           </Chip>
           <div className="w-full sm:ml-auto sm:w-56">
             <Select
+              variant="chip"
               label={t("itemForm.category")}
-              value={category}
-              onChange={(e) => setCategory(e.target.value as ItemCategory | "")}
               labelHidden
-            >
-              <option value="">{t("inventory.allCategories")}</option>
-              {ITEM_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {t(`category.${c}` as const)}
-                </option>
-              ))}
-            </Select>
+              options={categoryOptions}
+              value={category}
+              onChange={(c) => setFilters({ category: c })}
+            />
           </div>
         </div>
       </search>

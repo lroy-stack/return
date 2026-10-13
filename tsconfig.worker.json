@@ -8,5 +8,5 @@
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx"
   },
-  "include": ["src/worker", "src/shared", "test"]
+  "include": ["src/worker", "src/shared", "src/app/lib/format.ts", "src/app/ui/select-logic.ts", "test"]
 }

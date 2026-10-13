@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import { type TypeaheadBuffer, typeaheadMatch } from "./select-logic";
 
 /**
  * Anchored popovers (Select, Combobox, Menu). The surface uses the Popover API (`popover="manual"`), so it is
@@ -12,6 +13,8 @@ const GAP = 6;
 const EDGE = 8;
 /** Prefer opening below unless less than this much room is left there. */
 const MIN_BELOW = 180;
+/** Once open, keep the chosen side while at least this much room remains on it (no flip-flop while filtering). */
+const MIN_KEEP = 96;
 
 export const POPOVER_SURFACE =
   "popover-surface glass-strong fixed inset-auto z-[60] m-0 flex flex-col overflow-hidden rounded-card p-1.5 text-fg";
@@ -28,20 +31,39 @@ function isShown(el: HTMLElement): boolean {
   }
 }
 
-interface Viewport {
+interface Box {
   top: number;
   bottom: number;
-  width: number;
+  left: number;
+  right: number;
 }
 
-function viewport(): Viewport {
+/** The visual viewport (on-screen keyboard aware) in layout-viewport coordinates. */
+function viewport(): Box & { width: number } {
   const vv = window.visualViewport;
   const top = vv?.offsetTop ?? 0;
-  return {
-    top,
-    bottom: top + (vv?.height ?? window.innerHeight),
-    width: document.documentElement.clientWidth || window.innerWidth,
-  };
+  const width = document.documentElement.clientWidth || window.innerWidth;
+  return { top, bottom: top + (vv?.height ?? window.innerHeight), left: 0, right: width, width };
+}
+
+/**
+ * The part of the screen where the anchor can actually be seen: the viewport intersected with every clipping
+ * ancestor (a sheet's scrolling body, a scroll pane). An anchor scrolled under a sheet header is "hidden".
+ */
+function visibleArea(anchor: HTMLElement): Box {
+  const area: Box = viewport();
+  for (let el = anchor.parentElement; el && el !== document.body; el = el.parentElement) {
+    const cs = getComputedStyle(el);
+    if (cs.position === "fixed" && el.tagName !== "DIALOG") break;
+    if (/(auto|scroll|hidden|clip)/.test(`${cs.overflowX} ${cs.overflowY}`)) {
+      const r = el.getBoundingClientRect();
+      area.top = Math.max(area.top, r.top);
+      area.bottom = Math.min(area.bottom, r.bottom);
+      area.left = Math.max(area.left, r.left);
+      area.right = Math.min(area.right, r.right);
+    }
+  }
+  return area;
 }
 
 export interface AnchorOptions {
@@ -51,15 +73,21 @@ export interface AnchorOptions {
   align?: "start" | "end";
   /** Upper bound for the height in px (content scrolls inside). */
   maxHeight?: number;
-  /** Called when the anchor scrolls out of view (the caller closes). */
+  /** Called when the anchor scrolls out of view or under a clipping edge (the caller closes). */
   onAnchorHidden?: () => void;
 }
 
-/** Place `popover` next to `anchor`: below if there is room, else above; clamped to the visual viewport. */
+/**
+ * Place `popover` next to `anchor`: below if there is room, else above; clamped to the visual viewport. Above
+ * placement is anchored with `bottom`, so a list that shrinks or grows (Combobox filtering) stays attached to
+ * the field. Returns false when the anchor is no longer visible (less than half of it inside its clip area).
+ */
 function place(anchor: HTMLElement, el: HTMLElement, opts: AnchorOptions): boolean {
   const a = anchor.getBoundingClientRect();
+  const clip = visibleArea(anchor);
+  const visible = Math.min(a.bottom, clip.bottom) - Math.max(a.top, clip.top);
+  if (visible < a.height / 2) return false;
   const vp = viewport();
-  if (a.bottom < vp.top || a.top > vp.bottom) return false;
 
   el.style.minWidth = opts.matchWidth ? `${Math.round(a.width)}px` : "";
   el.style.maxWidth = `${Math.min(448, vp.width - 2 * EDGE)}px`;
@@ -76,19 +104,30 @@ function place(anchor: HTMLElement, el: HTMLElement, opts: AnchorOptions): boole
 
   const below = vp.bottom - a.bottom - GAP - EDGE;
   const above = a.top - vp.top - GAP - EDGE;
-  const placeBelow = below >= Math.min(natural, MIN_BELOW) || below >= above;
-  const maxH = Math.max(96, Math.min(cap, placeBelow ? below : above));
-  const height = Math.min(natural, maxH);
+  const previous = el.dataset.side;
+  const placeBelow =
+    previous === "bottom"
+      ? below >= Math.min(natural, MIN_KEEP) || below >= above
+      : previous === "top"
+        ? !(above >= Math.min(natural, MIN_KEEP) || above >= below)
+        : below >= Math.min(natural, MIN_BELOW) || below >= above;
+  const maxH = Math.max(MIN_KEEP, Math.min(cap, placeBelow ? below : above));
   el.style.maxHeight = `${maxH}px`;
 
   const width = el.offsetWidth;
   let left = opts.align === "end" ? a.right - width : a.left;
   left = Math.max(EDGE, Math.min(left, vp.width - EDGE - width));
-  const top = placeBelow ? a.bottom + GAP : a.top - GAP - height;
-
   el.style.left = `${Math.round(left)}px`;
-  el.style.top = `${Math.round(top)}px`;
   el.dataset.side = placeBelow ? "bottom" : "top";
+  // Fixed elements resolve `bottom` against the layout viewport.
+  const layoutHeight = document.documentElement.clientHeight || window.innerHeight;
+  if (placeBelow) {
+    el.style.top = `${Math.round(a.bottom + GAP)}px`;
+    el.style.bottom = "auto";
+  } else {
+    el.style.top = "auto";
+    el.style.bottom = `${Math.round(layoutHeight - (a.top - GAP))}px`;
+  }
 
   // Fallback path only (not in the top layer): a transformed / filtered ancestor can become the containing block
   // of a fixed element. Correct by the measured offset so the surface still lands next to the anchor. (In the top
@@ -96,15 +135,20 @@ function place(anchor: HTMLElement, el: HTMLElement, opts: AnchorOptions): boole
   if (isShown(el)) return true;
   const r = el.getBoundingClientRect();
   const dx = r.left - left;
-  const dy = r.top - top;
   if (Math.abs(dx) > 0.5) el.style.left = `${Math.round(left - dx)}px`;
-  if (Math.abs(dy) > 0.5) el.style.top = `${Math.round(top - dy)}px`;
+  if (placeBelow) {
+    const dy = r.top - (a.bottom + GAP);
+    if (Math.abs(dy) > 0.5) el.style.top = `${Math.round(a.bottom + GAP - dy)}px`;
+  } else {
+    const dy = r.bottom - (a.top - GAP);
+    if (Math.abs(dy) > 0.5) el.style.bottom = `${Math.round(layoutHeight - (a.top - GAP) + dy)}px`;
+  }
   return true;
 }
 
 /**
  * Shows the popover element (rendered only while `open`) in the top layer and keeps it attached to the anchor
- * on scroll, resize and on-screen keyboard changes.
+ * on scroll, resize, on-screen keyboard changes and whenever its own content changes size (filtering).
  */
 export function useAnchoredPopover(
   open: boolean,
@@ -156,7 +200,15 @@ export function useAnchoredPopover(
     window.addEventListener("resize", schedule, { passive: true });
     window.visualViewport?.addEventListener("resize", schedule);
     window.visualViewport?.addEventListener("scroll", schedule);
+    // Content changes (Combobox filtering, async rows): the popover and its children change size.
+    const resize = typeof ResizeObserver === "function" ? new ResizeObserver(() => schedule()) : null;
+    const el = popover.current;
+    if (resize && el) {
+      resize.observe(el);
+      for (const child of Array.from(el.children)) resize.observe(child);
+    }
     return () => {
+      resize?.disconnect();
       window.removeEventListener("scroll", schedule, { capture: true });
       window.removeEventListener("resize", schedule);
       window.visualViewport?.removeEventListener("resize", schedule);
@@ -168,7 +220,33 @@ export function useAnchoredPopover(
   return { reposition };
 }
 
-/** Close when a pointer goes down outside the anchor and the popover (light dismiss). */
+/**
+ * Swallow the click that completes a dismissing pointer press, once. Without this, the press that closes a
+ * listbox over a sheet's scrim would also reach the scrim and close the sheet (losing the form); natively, a
+ * click outside an open select popup only closes the popup. Disarmed by the next pointer press (a press that
+ * produced no click, e.g. a touch scroll) or after a short timeout.
+ */
+function swallowNextClick(): void {
+  const swallow = (e: MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    disarm();
+  };
+  const disarm = () => {
+    window.removeEventListener("click", swallow, true);
+    window.removeEventListener("pointerdown", disarm, true);
+    window.clearTimeout(timer);
+  };
+  window.addEventListener("click", swallow, true);
+  // Registered after the current pointerdown has finished dispatching, so it cannot disarm itself.
+  window.setTimeout(() => window.addEventListener("pointerdown", disarm, true), 0);
+  const timer = window.setTimeout(disarm, 1500);
+}
+
+/**
+ * Light dismiss: a pointer press outside the anchor and the popover closes it, and the click that completes the
+ * press is swallowed (it never activates what lies underneath, such as a sheet's scrim).
+ */
 export function useDismissOnOutsidePointer(
   open: boolean,
   inside: ReadonlyArray<RefObject<HTMLElement | null>>,
@@ -181,6 +259,7 @@ export function useDismissOnOutsidePointer(
     const onDown = (e: PointerEvent) => {
       const target = e.target as Node | null;
       if (target && ref.current.inside.some((r) => r.current?.contains(target))) return;
+      swallowNextClick();
       ref.current.onDismiss();
     };
     document.addEventListener("pointerdown", onDown, true);
@@ -216,40 +295,15 @@ export function scrollIntoContainer(container: HTMLElement | null, item: HTMLEle
     container.scrollTop = top + height - container.clientHeight + 4;
 }
 
-/** Case- and accent-insensitive text for matching ("Zürich" ~ "zurich"). */
-export function fold(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase();
-}
-
-/**
- * Type-ahead for listboxes and menus: printable keys within 600 ms form a prefix; a single repeated letter
- * cycles through the matches. Returns the next index or -1.
- */
+/** Type-ahead for listboxes and menus (logic in `typeaheadMatch`). Returns `(key, from) => index | -1`. */
 export function useTypeahead<T>(
   items: ReadonlyArray<T>,
   text: (item: T) => string,
   enabled: (item: T) => boolean,
 ) {
-  const buffer = useRef({ value: "", at: 0 });
-  return (key: string, from: number): number => {
-    const now = Date.now();
-    const b = buffer.current;
-    b.value = now - b.at > 600 ? key : b.value + key;
-    b.at = now;
-    const needle = fold(b.value);
-    const cycling = needle.length > 1 && [...needle].every((ch) => ch === needle[0]);
-    const prefix = cycling ? (needle[0] ?? "") : needle;
-    const start = prefix.length === 1 ? from + 1 : from;
-    for (let k = 0; k < items.length; k++) {
-      const i = (start + k + items.length) % items.length;
-      const item = items[i];
-      if (item !== undefined && enabled(item) && fold(text(item)).startsWith(prefix)) return i;
-    }
-    return -1;
-  };
+  const buffer = useRef<TypeaheadBuffer>({ value: "", at: 0 });
+  return (key: string, from: number): number =>
+    typeaheadMatch(items, text, enabled, buffer.current, key, from, Date.now());
 }
 
 export const isPrintableKey = (e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean }) =>

@@ -1,11 +1,4 @@
-import {
-  type InputHTMLAttributes,
-  type ReactNode,
-  type SelectHTMLAttributes,
-  type TextareaHTMLAttributes,
-  useId,
-  useRef,
-} from "react";
+import { type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes, useId, useRef } from "react";
 import { cx } from "./cx";
 import { Icon, type IconName } from "./Icon";
 
@@ -199,44 +192,6 @@ export function TextArea({
         aria-describedby={describedBy(ids, hint, error, Boolean(counter))}
         className={cx(CONTROL, "max-h-80 resize-y py-2.5 leading-relaxed")}
       />
-    </FieldShell>
-  );
-}
-
-/**
- * @deprecated Use `Select` (or `Combobox` for long lists) from `ui/Select.tsx`: options-array API, glass listbox
- * on fine pointers, native picker on coarse pointers. Kept, in the same pill shape, only until the remaining call
- * sites migrate (see docs/design/system.md § Selection); delete it then.
- */
-export function Select({
-  label,
-  labelHidden,
-  hint,
-  error,
-  required,
-  className,
-  children,
-  ...rest
-}: FieldProps & Omit<SelectHTMLAttributes<HTMLSelectElement>, "className">) {
-  const ids = useFieldIds(rest.id);
-  return (
-    <FieldShell ids={ids} {...{ label, labelHidden, hint, error, required, className }}>
-      <div className="relative">
-        <select
-          {...rest}
-          id={ids.id}
-          required={required}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy(ids, hint, error, false)}
-          className={cx(CONTROL, "peer appearance-none truncate rounded-full pr-10 pl-4")}
-        >
-          {children}
-        </select>
-        <Icon
-          name="chevron_down"
-          className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted peer-disabled:opacity-55"
-        />
-      </div>
     </FieldShell>
   );
 }

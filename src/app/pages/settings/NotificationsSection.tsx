@@ -1,5 +1,8 @@
 import { useState } from "react";
+import type { TestEmailResult } from "../../../shared/schemas";
 import { api } from "../../lib/api";
+import { notifyDataChanged } from "../../lib/data-events";
+import { emailFailureText } from "../../lib/email-failure";
 import { isoToLocalInput, localInputToIso } from "../../lib/format";
 import { useT } from "../../lib/i18n";
 import { useFormat, useSettings } from "../../lib/settings-context";
@@ -23,17 +26,19 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
     setTesting(true);
     setResult(null);
     try {
-      const res = await api.post<{ ok: boolean; error?: string }>("/settings/test-email");
+      const res = await api.post<TestEmailResult>("/settings/test-email");
       setResult(
-        res.ok
+        res.code === "sent"
           ? {
               ok: true,
               text: t("notif.testOk", {
                 email: settings.notifications.emailAddress ?? settings.contact.email ?? "",
               }),
             }
-          : { ok: false, text: res.error ?? t("error.generic") },
+          : { ok: false, text: emailFailureText(res.code, t) },
       );
+      // The delivery outcome changes the shell's alert banner.
+      notifyDataChanged();
     } catch (e) {
       setResult({ ok: false, text: errorMessage(e, t) });
     } finally {

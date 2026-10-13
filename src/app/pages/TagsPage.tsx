@@ -1,20 +1,22 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { type ItemSummary, type Tag, tagCreateSchema } from "../../shared/schemas";
+import { itemOptions } from "../components/item-options";
 import { NfcBadge, TagSheet, TagStatusBadge } from "../components/TagSheet";
 import { ApiRequestError, api, qs } from "../lib/api";
 import { useDataChanged } from "../lib/data-events";
-import { emptyToNull, type FieldErrors, validate } from "../lib/forms";
+import { emptyToNull, type FieldErrors, useDirty, validate } from "../lib/forms";
 import { useResource } from "../lib/hooks";
 import { useT } from "../lib/i18n";
 import { navigate, useLocation } from "../lib/router";
 import { useFormat } from "../lib/settings-context";
 import { Button, ButtonLink } from "../ui/Button";
 import { Section } from "../ui/Card";
-import { Checkbox, FormError, SegmentedControl, Select, TextInput } from "../ui/Field";
+import { Checkbox, FormError, SegmentedControl, TextInput } from "../ui/Field";
 import { Icon } from "../ui/Icon";
 import { IconTile, List, ListRow } from "../ui/List";
 import { PageHeader, Toolbar } from "../ui/Page";
-import { Sheet, SheetBody, SheetFooter } from "../ui/Sheet";
+import { Combobox } from "../ui/Select";
+import { Sheet, SheetBody, SheetFooter, useSheetGuard } from "../ui/Sheet";
 import { EmptyState, ErrorState, LoadingBlock } from "../ui/States";
 import { useToast } from "../ui/Toast";
 
@@ -222,6 +224,7 @@ function NewTagsForm({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const cancel = useSheetGuard(useDirty({ count, itemId, note }));
   const items = useResource<ItemSummary[]>(
     "newtag-items",
     async (signal) => (await api.get<{ items: ItemSummary[] }>("/items", signal)).items,
@@ -269,22 +272,18 @@ function NewTagsForm({
           hint={t("tags.countHint")}
           autoFocus
         />
-        <Select
+        <Combobox
           label={t("tags.forItem")}
+          options={itemOptions(
+            items.state.status === "ready" ? items.state.data : [],
+            t,
+            t("tag.unassigned"),
+          )}
           value={itemId}
-          onChange={(e) => setItemId(e.target.value)}
+          onChange={setItemId}
           hint={t("tags.forItemHint")}
           disabled={items.state.status === "loading"}
-        >
-          <option value="">{t("tag.unassigned")}</option>
-          {items.state.status === "ready"
-            ? items.state.data.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
-              ))
-            : null}
-        </Select>
+        />
         <TextInput
           label={t("tag.note")}
           value={note}
@@ -295,7 +294,7 @@ function NewTagsForm({
         <FormError message={formError} />
       </SheetBody>
       <SheetFooter>
-        <Button onClick={onClose}>{t("common.cancel")}</Button>
+        <Button onClick={cancel}>{t("common.cancel")}</Button>
         <Button type="submit" variant="primary" loading={pending}>
           {t("tags.create")}
         </Button>

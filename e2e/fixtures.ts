@@ -384,3 +384,22 @@ export async function decodeQr(page: Page, src: string, size?: number): Promise<
 export function svgDataUri(svg: string): string {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
+
+/**
+ * Choose an option in a panel `Select`: the glass listbox on fine pointers, the native `<select>` on touch
+ * (the mobile project). `scope` is the page or dialog that holds the field.
+ */
+export async function chooseOption(
+  scope: Page | Locator,
+  label: string | RegExp,
+  option: string,
+): Promise<void> {
+  const field = scope.getByLabel(label);
+  if ((await field.evaluate((el) => el.tagName)) === "SELECT") {
+    await field.selectOption({ label: option });
+    return;
+  }
+  await field.click();
+  const page = "page" in scope && typeof scope.page === "function" ? scope.page() : (scope as Page);
+  await page.getByRole("option", { name: option, exact: true }).click();
+}

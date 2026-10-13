@@ -12,15 +12,16 @@ import { useT } from "../../lib/i18n";
 import { didNavigate, Link, navigate } from "../../lib/router";
 import { useFormat } from "../../lib/settings-context";
 import { StatusPill } from "../../ui/Badge";
-import { Button, IconButton } from "../../ui/Button";
+import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { TextArea } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
+import { Menu, type MenuEntry } from "../../ui/Menu";
 import { MapLinks, PlaceLabel } from "../../ui/Place";
-import { Sheet, SheetBody } from "../../ui/Sheet";
 import { ErrorState, errorMessage, LoadingBlock } from "../../ui/States";
 import { useToast } from "../../ui/Toast";
+import { BlockSheet } from "./BlockSheet";
 import { ProposalSheet } from "./ProposalSheet";
 
 type Entry =
@@ -50,8 +51,10 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
   const log = useRef<HTMLDivElement>(null);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  // Set synchronously: a second Ctrl/Cmd+Enter in the same frame must not start another request.
+  const sendingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"manage" | "block" | "delete" | "proposal" | null>(null);
+  const [dialog, setDialog] = useState<"block" | "delete" | "proposal" | null>(null);
   const [responding, setResponding] = useState<string | null>(null);
   const data = res.state.status === "ready" ? res.state.data : null;
   const loaded = data !== null;
@@ -106,11 +109,48 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
 
   const { conversation: conv } = res.state.data;
   const canReply = conv.status === "open";
+  const manage: MenuEntry[] = [
+    conv.status === "open"
+      ? { key: "close", label: t("thread.close"), icon: "check", onSelect: () => void status("close") }
+      : conv.status === "blocked"
+        ? {
+            key: "unblock",
+            label: t("thread.unblock"),
+            icon: "refresh",
+            onSelect: () => void status("unblock"),
+          }
+        : {
+            key: "reopen",
+            label: t("thread.reopen"),
+            icon: "refresh",
+            onSelect: () => void status("reopen"),
+          },
+    ...(conv.status !== "blocked"
+      ? [
+          {
+            key: "block",
+            label: t("thread.block"),
+            icon: "close",
+            tone: "danger",
+            onSelect: () => setDialog("block"),
+          } as const,
+        ]
+      : []),
+    { key: "sep", separator: true },
+    {
+      key: "delete",
+      label: t("thread.delete"),
+      icon: "trash",
+      tone: "danger",
+      onSelect: () => setDialog("delete"),
+    },
+  ];
 
   const send = async (e: FormEvent) => {
     e.preventDefault();
     const text = body.trim();
-    if (!text) return;
+    if (!text || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     setError(null);
     try {
@@ -121,16 +161,16 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
     } catch (err) {
       setError(errorMessage(err, t));
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
 
-  const status = async (action: "close" | "reopen") => {
+  const status = async (action: "close" | "reopen" | "unblock") => {
     setError(null);
     try {
       await api.post(`/conversations/${id}/${action}`);
       toast(action === "close" ? t("thread.closedToast") : t("thread.reopenedToast"));
-      setDialog(null);
       res.reload(true);
       onChanged();
     } catch (err) {
@@ -163,7 +203,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 ref={heading} tabIndex={-1} className="text-title2 font-bold outline-none">
+            <h2 ref={heading} tabIndex={-1} dir="auto" className="text-title2 font-bold outline-none">
               {conv.subject}
             </h2>
             <p className="text-subhead text-muted">
@@ -171,7 +211,10 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
               {conv.itemId ? (
                 <>
                   {" · "}
-                  <Link to={`/items/${conv.itemId}`} className="font-medium text-primary-text underline">
+                  <Link
+                    to={`/items/${conv.itemId}`}
+                    className="touch-target font-medium text-primary-text underline"
+                  >
                     {conv.itemName ?? t("thread.item")}
                   </Link>
                 </>
@@ -183,13 +226,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
             <StatusPill tone={conv.status === "open" ? "success" : "neutral"}>
               {t(`conv.status.${conv.status}` as const)}
             </StatusPill>
-            <IconButton
-              icon="more"
-              size="sm"
-              variant="secondary"
-              label={t("thread.more")}
-              onClick={() => setDialog("manage")}
-            />
+            <Menu label={t("thread.more")} items={manage} size="sm" />
           </div>
         </div>
       </header>
@@ -208,6 +245,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
               return (
                 <p
                   key={entry.id}
+                  dir="auto"
                   className="self-center rounded-full bg-sunken px-3 py-1 text-center text-footnote text-muted"
                 >
                   {m.body}
@@ -220,6 +258,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
                 className={`flex max-w-[85%] flex-col gap-1 ${mine ? "items-end self-end" : "items-start self-start"}`}
               >
                 <div
+                  dir="auto"
                   className={`rounded-[1.25rem] px-4 py-2.5 whitespace-pre-wrap ${mine ? "rounded-br-md bg-primary text-primary-fg" : "rounded-bl-md bg-sunken text-fg"}`}
                 >
                   <span className="sr-only">{mine ? t("thread.you") : t("thread.finder")}: </span>
@@ -272,11 +311,13 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
               {p.meetAt ? (
                 <p className="flex items-center gap-2 text-subhead">
                   <Icon name="clock" className="size-4 text-muted" />
-                  {format.wallClock(p.meetAt)}
+                  {format.meeting(p.meetAt, p.meetTz)}
                 </p>
               ) : null}
               {p.instructions ? (
-                <p className="text-subhead whitespace-pre-wrap text-muted">{p.instructions}</p>
+                <p dir="auto" className="text-subhead whitespace-pre-wrap text-muted">
+                  {p.instructions}
+                </p>
               ) : null}
               <p className="text-footnote text-muted">
                 {p.proposedBy === "owner" ? t("thread.byYou") : t("thread.byFinder")} ·{" "}
@@ -323,13 +364,16 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
         {canReply ? (
           <form onSubmit={send} className="flex flex-col gap-2">
             <TextArea
+              dir="auto"
               label={t("thread.reply")}
               labelHidden
               rows={2}
               value={body}
               onChange={(e) => setBody(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
+                // Held-down keys repeat and IME confirmation also fires Enter: only a fresh press sends.
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.repeat && !e.nativeEvent.isComposing)
+                  e.currentTarget.form?.requestSubmit();
               }}
               maxLength={4000}
               placeholder={t("thread.replyPlaceholder")}
@@ -349,42 +393,18 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
             <p className="text-subhead text-muted">
               {conv.status === "blocked" ? t("thread.blockedNote") : t("thread.closedNote")}
             </p>
-            <Button onClick={() => status("reopen")}>
+            <Button onClick={() => status(conv.status === "blocked" ? "unblock" : "reopen")}>
               {conv.status === "blocked" ? t("thread.unblock") : t("thread.reopen")}
             </Button>
           </div>
         )}
       </div>
 
-      <Sheet open={dialog === "manage"} onClose={() => setDialog(null)} title={t("thread.manage")}>
-        <SheetBody>
-          {conv.status === "open" ? (
-            <Button icon="check" onClick={() => status("close")}>
-              {t("thread.close")}
-            </Button>
-          ) : (
-            <Button icon="refresh" onClick={() => status("reopen")}>
-              {conv.status === "blocked" ? t("thread.unblock") : t("thread.reopen")}
-            </Button>
-          )}
-          {conv.status !== "blocked" ? (
-            <Button variant="danger" icon="close" onClick={() => setDialog("block")}>
-              {t("thread.block")}
-            </Button>
-          ) : null}
-          <Button variant="danger" icon="trash" onClick={() => setDialog("delete")}>
-            {t("thread.delete")}
-          </Button>
-        </SheetBody>
-      </Sheet>
-      <ConfirmDialog
+      <BlockSheet
         open={dialog === "block"}
-        title={t("thread.blockTitle")}
-        message={t("thread.blockBody")}
-        confirmLabel={t("thread.block")}
+        conversationId={id}
         onClose={() => setDialog(null)}
-        onConfirm={async () => {
-          await api.post(`/conversations/${id}/block`);
+        onBlocked={() => {
           toast(t("thread.blockedToast"));
           res.reload(true);
           onChanged();

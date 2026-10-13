@@ -55,11 +55,22 @@ function RowBody({ leading, title, subtitle, description, trailing, strong, tone
     <>
       {leading ? <span className="flex shrink-0 items-center">{leading}</span> : null}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className={cx("truncate text-body", strong ? "font-semibold" : "font-medium", TONE[tone])}>
+        <span
+          dir="auto"
+          className={cx("truncate text-body", strong ? "font-semibold" : "font-medium", TONE[tone])}
+        >
           {title}
         </span>
-        {subtitle ? <span className="truncate text-subhead text-muted">{subtitle}</span> : null}
-        {description ? <span className="line-clamp-2 text-subhead">{description}</span> : null}
+        {subtitle ? (
+          <span dir="auto" className="truncate text-subhead text-muted">
+            {subtitle}
+          </span>
+        ) : null}
+        {description ? (
+          <span dir="auto" className="line-clamp-2 text-subhead">
+            {description}
+          </span>
+        ) : null}
       </span>
       {trailing ? (
         <span className="flex shrink-0 flex-col items-end gap-1 text-footnote text-muted">{trailing}</span>
@@ -94,6 +105,7 @@ export function ListRow({
   chevron,
   flush,
   select,
+  action,
   className,
   ...content
 }: RowContent & {
@@ -107,17 +119,19 @@ export function ListRow({
   flush?: boolean;
   /** Checkbox before the row (`"spacer"` keeps alignment for rows that cannot be selected). */
   select?: RowSelect | "spacer";
+  /** A button beside the row (not inside the link), e.g. "Remove". */
+  action?: ReactNode;
   className?: string;
 }) {
   const row = flush ? ROW_FLUSH : ROW;
   const showChevron = chevron ?? Boolean(to);
   const tail = showChevron ? <Icon name="chevron" className="size-4 shrink-0 text-muted" /> : null;
   const selected = current ? "bg-primary-tint/70 hover:bg-primary-tint" : "";
-  const grow = select ? "min-w-0 flex-1 pl-1" : "";
+  const grow = select ? "min-w-0 flex-1 pl-1" : action ? "min-w-0 flex-1" : "";
   const wrap = (main: ReactNode) =>
-    select ? (
+    select || action ? (
       <li className={cx("flex items-center", className)}>
-        {select === "spacer" ? (
+        {!select ? null : select === "spacer" ? (
           <span aria-hidden="true" className="size-12 shrink-0 pl-1" />
         ) : (
           <label className="flex size-12 shrink-0 cursor-pointer items-center justify-center pl-1">
@@ -131,6 +145,7 @@ export function ListRow({
           </label>
         )}
         {main}
+        {action}
       </li>
     ) : (
       <li className={className}>{main}</li>

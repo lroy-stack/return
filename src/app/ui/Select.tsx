@@ -3,9 +3,10 @@ import {
   type FocusEvent,
   Fragment,
   type KeyboardEvent,
-  type MouseEvent,
+  memo,
   type ReactNode,
   type RefObject,
+  useCallback,
   useId,
   useLayoutEffect,
   useMemo,
@@ -18,7 +19,6 @@ import { cx } from "./cx";
 import { CONTROL, describedBy, type FieldProps, FieldShell, useFieldIds } from "./Field";
 import { Icon } from "./Icon";
 import {
-  fold,
   isPrintableKey,
   POPOVER_SURFACE,
   scrollIntoContainer,
@@ -26,6 +26,9 @@ import {
   useDismissOnOutsidePointer,
   useTypeahead,
 } from "./popover";
+import { filterOptions, firstEnabled, fold, step } from "./select-logic";
+
+export { filterOptions };
 
 /**
  * Selection family (docs/design/system.md § Selection).
@@ -63,23 +66,78 @@ const CHEVRON = "pointer-events-none absolute top-1/2 right-3.5 size-4 -translat
 
 const optionId = (listId: string, index: number) => `${listId}-o${index}`;
 
-function firstEnabled<V extends string>(options: ReadonlyArray<SelectOption<V>>, from = 0, dir: 1 | -1 = 1) {
-  for (let i = from; i >= 0 && i < options.length; i += dir) if (!options[i]?.disabled) return i;
-  return -1;
+interface RowProps {
+  option: Pick<SelectOption<string>, "value" | "label" | "description" | "leading" | "disabled">;
+  index: number;
+  id: string;
+  active: boolean;
+  selected: boolean;
+  onActive: (index: number) => void;
+  onPick: (index: number) => void;
 }
 
-/** Move `by` steps (sign = direction) without wrapping, skipping disabled options. */
-function step<V extends string>(options: ReadonlyArray<SelectOption<V>>, from: number, by: number) {
-  const dir: 1 | -1 = by < 0 ? -1 : 1;
-  let i = from < 0 ? (dir === 1 ? -1 : options.length) : from;
-  let moved = from;
-  for (let n = 0; n < Math.abs(by); n++) {
-    const next = firstEnabled(options, i + dir, dir);
-    if (next < 0) break;
-    i = next;
-    moved = next;
-  }
-  return moved < 0 ? firstEnabled(options) : moved;
+/**
+ * One option. Memoised: moving the active row re-renders two rows, not the whole list (≈420 time zones).
+ * Options use aria-activedescendant (APG): DOM focus and every key stay on the owning combobox, which implements
+ * the keyboard equivalent of this click. tabIndex -1 only makes the option focusable by script.
+ */
+const OptionRow = memo(function OptionRow({
+  option,
+  index,
+  id,
+  active,
+  selected,
+  onActive,
+  onPick,
+}: RowProps) {
+  return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled by the combobox (aria-activedescendant)
+    <div
+      id={id}
+      role="option"
+      tabIndex={-1}
+      aria-selected={selected}
+      aria-disabled={option.disabled || undefined}
+      data-active={active ? "" : undefined}
+      onPointerMove={() => {
+        if (!option.disabled && !active) onActive(index);
+      }}
+      onClick={() => {
+        if (!option.disabled) onPick(index);
+      }}
+      className={cx(
+        "flex min-h-10 cursor-default items-center gap-3 rounded-control px-3 py-1.5 select-none pointer-coarse:min-h-11",
+        active && "bg-primary-tint text-on-glass-primary ring-1 ring-primary/35 ring-inset",
+        option.disabled && "opacity-50",
+      )}
+    >
+      {option.leading ? (
+        <span aria-hidden="true" className="flex shrink-0 items-center">
+          {option.leading}
+        </span>
+      ) : null}
+      <span className="min-w-0 flex-1">
+        <span className={cx("block truncate text-body", selected ? "font-semibold" : "font-medium")}>
+          {option.label}
+        </span>
+        {option.description ? (
+          <span className="block truncate text-footnote text-on-glass-muted">{option.description}</span>
+        ) : null}
+      </span>
+      <Icon
+        name="check"
+        strokeWidth={2.25}
+        className={cx("size-4.5 shrink-0", selected ? "text-on-glass-primary" : "invisible")}
+      />
+    </div>
+  );
+});
+
+/** A callback whose identity never changes but always calls the latest `fn` (keeps memoised rows stable). */
+function useStableCallback<A extends unknown[]>(fn: (...args: A) => void): (...args: A) => void {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback((...args: A) => ref.current(...args), []);
 }
 
 /** Shared listbox: grouped options, active row (visual focus via aria-activedescendant), selected check. */
@@ -102,6 +160,8 @@ function Listbox<V extends string>({
   onPick: (index: number) => void;
   listRef: RefObject<HTMLDivElement | null>;
 }) {
+  const activate = useStableCallback(onActive);
+  const pickRow = useStableCallback(onPick);
   const groups: { name: string | undefined; items: { option: SelectOption<V>; index: number }[] }[] = [];
   options.forEach((option, index) => {
     const last = groups[groups.length - 1];
@@ -109,54 +169,18 @@ function Listbox<V extends string>({
     else groups.push({ name: option.group, items: [{ option, index }] });
   });
 
-  const row = ({ option, index }: { option: SelectOption<V>; index: number }) => {
-    const isActive = index === active;
-    const isSelected = option.value === value;
-    return (
-      // Options use aria-activedescendant (APG): DOM focus and every key stay on the owning combobox, which
-      // implements the keyboard equivalent of this click. tabIndex -1 only makes the option focusable by script.
-      // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled by the combobox (aria-activedescendant)
-      <div
-        key={`${option.value}-${index}`}
-        id={optionId(id, index)}
-        role="option"
-        tabIndex={-1}
-        aria-selected={isSelected}
-        aria-disabled={option.disabled || undefined}
-        data-active={isActive ? "" : undefined}
-        onPointerMove={() => {
-          if (!option.disabled && !isActive) onActive(index);
-        }}
-        onClick={() => {
-          if (!option.disabled) onPick(index);
-        }}
-        className={cx(
-          "flex min-h-10 cursor-default items-center gap-3 rounded-control px-3 py-1.5 select-none pointer-coarse:min-h-11",
-          isActive && "bg-primary-tint text-on-glass-primary ring-1 ring-primary/35 ring-inset",
-          option.disabled && "opacity-50",
-        )}
-      >
-        {option.leading ? (
-          <span aria-hidden="true" className="flex shrink-0 items-center">
-            {option.leading}
-          </span>
-        ) : null}
-        <span className="min-w-0 flex-1">
-          <span className={cx("block truncate text-body", isSelected ? "font-semibold" : "font-medium")}>
-            {option.label}
-          </span>
-          {option.description ? (
-            <span className="block truncate text-footnote text-on-glass-muted">{option.description}</span>
-          ) : null}
-        </span>
-        <Icon
-          name="check"
-          strokeWidth={2.25}
-          className={cx("size-4.5 shrink-0", isSelected ? "text-on-glass-primary" : "invisible")}
-        />
-      </div>
-    );
-  };
+  const row = ({ option, index }: { option: SelectOption<V>; index: number }) => (
+    <OptionRow
+      key={`${option.value}-${index}`}
+      option={option}
+      index={index}
+      id={optionId(id, index)}
+      active={index === active}
+      selected={option.value === value}
+      onActive={activate}
+      onPick={pickRow}
+    />
+  );
 
   return (
     <div
@@ -164,8 +188,6 @@ function Listbox<V extends string>({
       id={id}
       role="listbox"
       aria-labelledby={labelId}
-      // Keep focus on the trigger / input while the pointer is used inside the list.
-      onPointerDown={(e) => e.preventDefault()}
       className="min-h-0 flex-1 scroll-py-1 overflow-y-auto overscroll-contain"
     >
       {groups.map((g, gi) =>
@@ -188,6 +210,10 @@ function Listbox<V extends string>({
     </div>
   );
 }
+
+/** Keep focus on the trigger / input while the pointer is used anywhere inside the popover (rows, padding,
+ * "No matches"), so it never blurs and closes under the pointer. */
+const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault();
 
 /** Keeps the active option visible; centres the selected one when the list opens. */
 function useActiveIntoView(
@@ -388,8 +414,13 @@ function ListboxSelect<V extends string>({
     close();
   };
   const current = selectedIndex >= 0 ? selectedIndex : firstEnabled(options);
+  // True from an Enter/Space keydown we handled until its keyup has finished: the click the browser may still
+  // derive from that key must not toggle the list again. Any other click (pointer, VoiceOver VO+Space, Voice
+  // Control, NVDA browse mode, element.click()) toggles it.
+  const handledByKey = useRef(false);
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "Enter" || e.key === " ") handledByKey.current = true;
     if (!open) {
       if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) {
         e.preventDefault();
@@ -453,14 +484,19 @@ function ListboxSelect<V extends string>({
     }
   };
 
-  const onClick = (e: MouseEvent<HTMLButtonElement>) => {
-    // Keyboard activation (detail 0) is handled in onKeyDown; this is the pointer path.
-    if (e.detail === 0) return;
+  const onKeyUp = () => {
+    // Let the keyup's default action (Space → click) run first, then accept clicks again.
+    if (handledByKey.current) window.setTimeout(() => (handledByKey.current = false), 0);
+  };
+
+  const onClick = () => {
+    if (handledByKey.current) return;
     if (open) close();
     else show(current);
   };
 
   const onBlur = (e: FocusEvent<HTMLButtonElement>) => {
+    handledByKey.current = false;
     if (!pop.current?.contains(e.relatedTarget as Node | null)) close();
   };
 
@@ -481,6 +517,7 @@ function ListboxSelect<V extends string>({
         disabled={disabled}
         title={selected?.label}
         onKeyDown={onKeyDown}
+        onKeyUp={onKeyUp}
         onClick={onClick}
         onBlur={onBlur}
         className={TRIGGER[variant]}
@@ -507,7 +544,7 @@ function ListboxSelect<V extends string>({
       </button>
       {name ? <input type="hidden" name={name} value={value} /> : null}
       {open ? (
-        <div ref={pop} popover="manual" className={POPOVER_SURFACE}>
+        <div ref={pop} popover="manual" onPointerDown={keepFocus} className={POPOVER_SURFACE}>
           <Listbox
             id={listId}
             labelId={ids.labelId}
@@ -556,19 +593,6 @@ export function ListboxPreview<V extends string>({
   );
 }
 
-/** All whitespace-separated terms must occur in the label, description or keywords (accent-insensitive). */
-export function filterOptions<V extends string>(
-  options: ReadonlyArray<SelectOption<V>>,
-  query: string,
-): SelectOption<V>[] {
-  const terms = fold(query).split(/\s+/).filter(Boolean);
-  if (terms.length === 0) return [...options];
-  return options.filter((o) => {
-    const hay = fold(`${o.label} ${o.description ?? ""} ${o.keywords ?? ""}`);
-    return terms.every((term) => hay.includes(term));
-  });
-}
-
 export interface ComboboxProps<V extends string> extends FieldProps {
   options: ReadonlyArray<SelectOption<V>>;
   /** `null` = nothing chosen yet (the placeholder shows). */
@@ -615,6 +639,9 @@ export function Combobox<V extends string>({
   const selected = options.find((o) => o.value === value);
   const editing = useRef(false);
   editing.current = query !== null;
+  // Latest typed text, readable from handlers that run before the next render (dismiss, then blur).
+  const queryRef = useRef<string | null>(null);
+  queryRef.current = query;
   // Select the whole label (so typing replaces it) once the field shows it again; skipped if typing resumed.
   const selectLabelSoon = () =>
     window.requestAnimationFrame(() => {
@@ -627,10 +654,24 @@ export function Combobox<V extends string>({
   );
 
   const close = () => setOpen(false);
+  /**
+   * End an edit: an exact label match (accent- and case-insensitive) is chosen, anything else reverts to the
+   * current value. Runs once per edit, whether the pointer dismissed the list or the field lost focus.
+   */
+  const commit = () => {
+    const typed = queryRef.current;
+    queryRef.current = null;
+    if (typed !== null) {
+      const exact = options.find((o) => !o.disabled && fold(o.label) === fold(typed.trim()));
+      if (exact && exact.value !== value) onChange(exact.value);
+    }
+    setQuery(null);
+  };
   useAnchoredPopover(open, anchor, pop, { matchWidth: true, onAnchorHidden: close });
+  // Outside press: close and commit/revert like a blur (touch browsers do not always blur the field).
   useDismissOnOutsidePointer(open, [anchor, pop], () => {
     close();
-    setQuery(null);
+    commit();
   });
   useActiveIntoView(open, active, listId, list);
 
@@ -645,6 +686,7 @@ export function Combobox<V extends string>({
     const o = shown[index];
     if (!o || o.disabled) return;
     if (o.value !== value) onChange(o.value);
+    queryRef.current = null;
     setQuery(null);
     close();
     // Typing again replaces the chosen label instead of appending to it.
@@ -653,6 +695,7 @@ export function Combobox<V extends string>({
 
   const onInput = (e: ChangeEvent<HTMLInputElement>) => {
     const text = e.target.value;
+    queryRef.current = text;
     setQuery(text);
     setActive(firstEnabled(filterOptions(options, text)));
     setOpen(true);
@@ -688,6 +731,7 @@ export function Combobox<V extends string>({
         e.preventDefault();
         e.stopPropagation();
         close();
+        queryRef.current = null;
         setQuery(null);
         selectLabelSoon();
         return;
@@ -700,11 +744,7 @@ export function Combobox<V extends string>({
 
   const onBlur = (e: FocusEvent<HTMLInputElement>) => {
     if (pop.current?.contains(e.relatedTarget as Node | null)) return;
-    if (query !== null) {
-      const exact = options.find((o) => !o.disabled && fold(o.label) === fold(query.trim()));
-      if (exact && exact.value !== value) onChange(exact.value);
-    }
-    setQuery(null);
+    commit();
     close();
   };
 
@@ -775,7 +815,7 @@ export function Combobox<V extends string>({
         </span>
         {name ? <input type="hidden" name={name} value={value ?? ""} /> : null}
         {open ? (
-          <div ref={pop} popover="manual" className={POPOVER_SURFACE}>
+          <div ref={pop} popover="manual" onPointerDown={keepFocus} className={POPOVER_SURFACE}>
             <Listbox
               id={listId}
               labelId={ids.labelId}

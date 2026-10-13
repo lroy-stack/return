@@ -14,21 +14,22 @@ import {
   urlByteLength,
 } from "../../../shared/card";
 import type { Tag } from "../../../shared/schemas";
-import { CARD_THEMES, LANGUAGES, type Language, type Settings } from "../../../shared/settings";
+import { CARD_THEMES, type Language, type Settings } from "../../../shared/settings";
 import { copyText } from "../../lib/clipboard";
 import { useI18n, useT } from "../../lib/i18n";
+import { LANGUAGE_OPTIONS } from "../../lib/locale-options";
 import { Badge } from "../../ui/Badge";
 import { Button, IconButton } from "../../ui/Button";
 import { Card, SectionHeading } from "../../ui/Card";
-import { Select, Toggle } from "../../ui/Field";
+import { Toggle } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
 import { IconTile, List, ListRow } from "../../ui/List";
 import { PageHeader, Toolbar } from "../../ui/Page";
+import { Select } from "../../ui/Select";
 import { useToast } from "../../ui/Toast";
 import { downloadBlob, fileStem, svgDataUrl, svgToPng } from "./export";
 import { type PrintKey, type PrintT, printTranslator } from "./strings";
 
-const LANGUAGE_NAMES: Record<Language, string> = { en: "English", de: "Deutsch", es: "Español" };
 /** NTAG213 has 144 bytes of user memory; leave room for NDEF/TLV overhead and future query strings. */
 const NFC_WARN_BYTES = 120;
 
@@ -171,15 +172,10 @@ export function PrintStudio({ tags, settings }: { tags: Tag[]; settings: Setting
               <Select
                 label={p("language")}
                 hint={p("languageHint")}
+                options={LANGUAGE_OPTIONS}
                 value={language}
-                onChange={(e) => setLanguage(e.target.value as Language)}
-              >
-                {LANGUAGES.map((code) => (
-                  <option key={code} value={code}>
-                    {LANGUAGE_NAMES[code]}
-                  </option>
-                ))}
-              </Select>
+                onChange={setLanguage}
+              />
               <Toggle
                 label={p("reward")}
                 description={p("rewardHint")}

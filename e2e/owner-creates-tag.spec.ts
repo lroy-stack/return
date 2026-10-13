@@ -71,17 +71,14 @@ test("1. owner creates an item and a tag in the panel; the tag page exposes only
 });
 
 /** The item header no longer has an Edit button: editing lives in the section actions and in "More". */
-test("1b. owner edits an item from the More sheet", async ({ page, owner }) => {
-  // Regression: the More sheet used to cancel the dialog it opened (late native close event).
+test("1b. owner edits an item from the Item actions menu", async ({ page, owner }) => {
+  // Regression: the actions sheet used to cancel the dialog it opened (late native close event).
   const item = await owner.createItem({ name: unique("Before edit") });
   const renamed = unique("After edit");
 
   await page.goto(`/items/${item.id}`);
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page
-    .getByRole("dialog", { name: "Item actions" })
-    .getByRole("button", { name: /^Edit item/ })
-    .click();
+  await page.getByRole("button", { name: "Item actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^Edit item/ }).click();
   const dialog = page.getByRole("dialog", { name: "Edit item" });
   await expect(dialog).toBeVisible({ timeout: 5_000 });
   await dialog.getByLabel(/^Name\b/).fill(renamed);

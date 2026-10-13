@@ -3,7 +3,7 @@ import type { ItemSummary } from "../../../shared/schemas";
 import { ItemCard } from "../../components/ItemCard";
 import { ApiRequestError } from "../../lib/api";
 import { Badge, type BadgeTone, CountBadge, StatusPill } from "../../ui/Badge";
-import { Button, ButtonLink, type ButtonVariant, IconButton, Spinner } from "../../ui/Button";
+import { Button, type ButtonVariant, IconButton, Spinner } from "../../ui/Button";
 import { Card, Section, SectionHeading } from "../../ui/Card";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import {
@@ -19,6 +19,7 @@ import {
 import { Icon } from "../../ui/Icon";
 import { KeyValue } from "../../ui/KeyValue";
 import { IconTile, List, ListRow } from "../../ui/List";
+import { Menu } from "../../ui/Menu";
 import { Toolbar } from "../../ui/Page";
 import { MapLinks, PlaceLabel } from "../../ui/Place";
 import { Select } from "../../ui/Select";
@@ -639,8 +640,15 @@ export function FeedbackSpecimens() {
         title="Sheets, dialogs, toasts"
         usage="Sheet: bottom sheet with grabber on phones (drag down to close), floating side panel from 640 px. ConfirmDialog: centred alert; typed confirmation for irreversible actions. Toasts: glass capsule above the tab bar, one optional action (Undo)."
       >
-        <Row label="Sheet · ConfirmDialog">
+        <Row label="Sheet · ConfirmDialog · Menu action opening a sheet">
           <Button onClick={() => setSheet("md")}>Open sheet</Button>
+          <Menu
+            label="Sheet actions"
+            items={[
+              { key: "md", label: "Open sheet", icon: "edit", onSelect: () => setSheet("md") },
+              { key: "lg", label: "Open large sheet", icon: "sidebar", onSelect: () => setSheet("lg") },
+            ]}
+          />
           <Button onClick={() => setSheet("lg")}>Open large sheet</Button>
           <Button variant="danger-soft" onClick={() => setSheet("confirm")}>
             Confirm
@@ -675,14 +683,9 @@ export function FeedbackSpecimens() {
       <Specimen
         id="quick-card"
         title="Flow: Quick card"
-        usage="From the floating + (Create › Quick card) or an item's hero: pick the item, reuse or create its tag, choose paper, then Share (iOS share sheet: print, Files) or download PNG/PDF. The preview below is the real paper renderer (src/shared/card) with sample data; the button opens the real flow (a tag is only created on export)."
+        usage="From the floating + (Create › Quick card) or an item's hero: pick the item, reuse or create its tag, choose paper, then Share (iOS share sheet: print, Files) or download PNG/PDF. The preview below is the real paper renderer (src/shared/card) with sample data and no API calls. The real flow is not linked from here because exporting creates a real tag; use Create › Quick card."
       >
         <PaperSpecimen />
-        <Row label="The real sheet">
-          <ButtonLink variant="primary" icon="card" to="/gallery?quick-card=1">
-            Open Quick card
-          </ButtonLink>
-        </Row>
       </Specimen>
 
       <Specimen

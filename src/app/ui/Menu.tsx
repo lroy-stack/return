@@ -87,8 +87,24 @@ export function Menu({
     if (focusButton) button.current?.focus();
   };
 
-  useAnchoredPopover(open, button, pop, { align, onAnchorHidden: () => setOpen(false) });
-  useDismissOnOutsidePointer(open, [button, pop], () => setOpen(false));
+  /**
+   * Close without an explicit choice. Focus inside the menu would be lost with it, so it returns to the button.
+   * An outside press on another focusable control still moves focus there; a press on plain text makes the
+   * browser blur to <body> after this handler, so focus is restored once more when that happened.
+   */
+  const dismiss = () => {
+    const hadFocus = pop.current?.contains(document.activeElement) ?? false;
+    setOpen(false);
+    if (!hadFocus) return;
+    button.current?.focus({ preventScroll: true });
+    window.setTimeout(() => {
+      if (!document.activeElement || document.activeElement === document.body)
+        button.current?.focus({ preventScroll: true });
+    }, 0);
+  };
+
+  useAnchoredPopover(open, button, pop, { align, onAnchorHidden: dismiss });
+  useDismissOnOutsidePointer(open, [button, pop], dismiss);
 
   useLayoutEffect(() => {
     if (open) refs.current[active]?.focus({ preventScroll: true });

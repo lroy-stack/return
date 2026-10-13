@@ -1,9 +1,11 @@
 import { type ChangeEvent, useState } from "react";
-import type { SystemStatus } from "../../../shared/schemas";
+import type { ImportResult, SystemStatus } from "../../../shared/schemas";
 import { api } from "../../lib/api";
 import type { MessageKey } from "../../lib/dict";
+import { emailFailureText } from "../../lib/email-failure";
 import { useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
+import { Link } from "../../lib/router";
 import { useFormat } from "../../lib/settings-context";
 import { Badge } from "../../ui/Badge";
 import { Button, ButtonLink } from "../../ui/Button";
@@ -34,6 +36,7 @@ export function SystemSection() {
   const [restoreName, setRestoreName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [restored, setRestored] = useState<ImportResult | null>(null);
 
   const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -55,6 +58,14 @@ export function SystemSection() {
     return <ErrorState error={res.state.error} onRetry={() => res.reload()} />;
   const s = res.state.data;
   const empty = s.counts.items === 0;
+  const delivery = s.email.lastOwnerDelivery;
+  // "Configured" only says the variables exist; these say whether the service was seen working.
+  const evidence: Partial<Record<(typeof CHECKS)[number], string>> = {
+    accessConfigured: s.verified.access ? t("system.verified.access") : t("system.unverified.access"),
+    turnstileConfigured: s.verified.turnstile
+      ? t("system.verified.turnstile", { when: format.dateTime(s.verified.turnstileLastSuccessAt) })
+      : t("system.unverified.turnstile"),
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -90,13 +101,32 @@ export function SystemSection() {
             {
               key: "backup",
               label: t("system.lastBackup"),
-              value: s.lastBackupAt ? format.dateTime(s.lastBackupAt) : t("system.noBackup"),
+              value: s.maintenance.lastBackupAt
+                ? format.dateTime(s.maintenance.lastBackupAt)
+                : t("system.noBackup"),
+              tone: s.maintenance.lastBackupAt ? "default" : "warning",
+            },
+            {
+              key: "maintenance",
+              label: t("system.lastMaintenance"),
+              value: s.maintenance.lastRunAt
+                ? format.dateTime(s.maintenance.lastRunAt)
+                : t("system.noMaintenance"),
+              tone: s.maintenance.lastRunAt ? "default" : "warning",
+            },
+            {
+              key: "lastEmail",
+              label: t("system.lastEmail"),
+              value: delivery
+                ? `${delivery.status === "sent" ? t("system.emailSent") : delivery.code ? emailFailureText(delivery.code, t) : t("system.emailFailed")} (${format.dateTime(delivery.at)})`
+                : t("system.noEmail"),
+              tone: delivery && delivery.status !== "sent" ? "warning" : "default",
             },
             {
               key: "failures",
               label: t("system.notifFailures"),
-              value: String(s.recentNotificationFailures),
-              tone: s.recentNotificationFailures > 0 ? "warning" : "default",
+              value: String(s.email.recentFailures),
+              tone: s.email.recentFailures > 0 ? "warning" : "default",
             },
           ]}
         />
@@ -115,7 +145,7 @@ export function SystemSection() {
               <ListRow
                 key={c}
                 title={t(`system.check.${c}` as const)}
-                description={ok ? undefined : t(`system.fix.${c}` as MessageKey)}
+                description={ok ? evidence[c] : t(`system.fix.${c}` as MessageKey)}
                 trailing={
                   ok ? (
                     <Badge tone="success" icon="check">
@@ -139,6 +169,32 @@ export function SystemSection() {
             {t("system.export")}
           </ButtonLink>
         </div>
+        {restored ? (
+          <div
+            role="status"
+            className={`rounded-control px-3 py-2 text-subhead ${restored.missingFiles.length > 0 ? "bg-warning-tint text-warning" : "bg-accent-tint text-accent-text"}`}
+          >
+            <p className="font-semibold">
+              {restored.missingFiles.length > 0
+                ? t("system.missingFiles", { n: restored.missingFiles.length })
+                : t("system.filesOk", { n: restored.filesChecked })}
+            </p>
+            {restored.missingFiles.length > 0 ? (
+              <>
+                <p>{t("system.missingFilesHint")}</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {restored.missingFiles.map((f) => (
+                    <li key={f.id}>
+                      <Link to={`/items/${f.itemId}`} className="touch-target underline" dir="auto">
+                        {f.filename}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </div>
+        ) : null}
         <div className="border-t border-line pt-4">
           <h3 className="font-semibold">{t("system.restore")}</h3>
           {empty ? (
@@ -186,7 +242,9 @@ export function SystemSection() {
         typed="RESTORE"
         onClose={() => setConfirming(false)}
         onConfirm={async () => {
-          await api.post("/data/import", { confirm: "RESTORE", data: restoreData });
+          setRestored(
+            await api.post<ImportResult>("/data/import", { confirm: "RESTORE", data: restoreData }),
+          );
           toast(t("system.restored"));
           setRestoreData(null);
           setRestoreName(null);

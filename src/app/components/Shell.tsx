@@ -5,6 +5,7 @@ import { Link, useLocation } from "../lib/router";
 import { CountBadge } from "../ui/Badge";
 import { cx } from "../ui/cx";
 import { Icon, type IconName } from "../ui/Icon";
+import { AlertsBanner } from "./AlertsBanner";
 import { AppearanceControl, AppearanceSheet, QuickActionsSheet } from "./QuickActions";
 import { QuickCardHost } from "./QuickCardHost";
 
@@ -312,6 +313,7 @@ export function Shell({ children }: { children: ReactNode }) {
           tabIndex={-1}
           className="mx-auto w-full max-w-page flex-1 px-page-x pt-3 pb-[calc(var(--shell-bottom)+2rem)] outline-none sm:pt-10 sm:pb-16 lg:pt-12"
         >
+          <AlertsBanner />
           {children}
         </main>
       </div>

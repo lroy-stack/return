@@ -1,4 +1,5 @@
 import { zoneLabel } from "../../shared/datetime";
+import { LANGUAGES, type Language } from "../../shared/settings";
 
 /**
  * Option data for the time zone and locale pickers (Settings › Identity; reusable wherever a zone is chosen).
@@ -58,11 +59,25 @@ function zoneName(zone: string, locale: string, style: "longOffset" | "shortOffs
   }
 }
 
+/** Built lists by locale, saved zone and UTC day (offsets only change at DST transitions). */
+const zoneCache = new Map<string, ZoneOption[]>();
+
 /**
  * Every IANA zone the browser knows (plus UTC and `current`), with today's offset, grouped by region and sorted
- * by city. About 420 entries; build once per locale (memoise in the caller).
+ * by city. About 420 entries and ~1,200 Intl formatters (70–100 ms), so the result is cached per
+ * (locale, current, day): remounting Settings › Identity costs nothing. Treat the array as read-only.
  */
 export function timeZoneOptions(locale: string, current?: string, at: Date = new Date()): ZoneOption[] {
+  const key = `${locale}|${current ?? ""}|${at.toISOString().slice(0, 10)}`;
+  const hit = zoneCache.get(key);
+  if (hit) return hit;
+  const built = buildZoneOptions(locale, current, at);
+  if (zoneCache.size > 8) zoneCache.clear();
+  zoneCache.set(key, built);
+  return built;
+}
+
+function buildZoneOptions(locale: string, current: string | undefined, at: Date): ZoneOption[] {
   let zones: string[];
   try {
     zones = Intl.supportedValuesOf("timeZone");
@@ -171,3 +186,11 @@ export function localeOptions(displayLocale: string, current?: string): LocaleOp
     })
     .sort((a, b) => a.label.localeCompare(b.label, displayLocale));
 }
+
+export const LANGUAGE_NAMES: Record<Language, string> = { en: "English", de: "Deutsch", es: "Español" };
+
+/** Finder-page / printed-card languages, each named in its own language. */
+export const LANGUAGE_OPTIONS: { value: Language; label: string }[] = LANGUAGES.map((value) => ({
+  value,
+  label: LANGUAGE_NAMES[value],
+}));

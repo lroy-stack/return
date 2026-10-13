@@ -1,6 +1,7 @@
 import { BRAND } from "../../../shared/brand";
 import { CARD_THEMES, LANGUAGES, type Language } from "../../../shared/settings";
 import { useT } from "../../lib/i18n";
+import { LANGUAGE_OPTIONS } from "../../lib/locale-options";
 import { TextInput, Toggle } from "../../ui/Field";
 import { Select } from "../../ui/Select";
 import { FieldGroup, LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
@@ -72,7 +73,7 @@ export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
         />
         <Select<Language>
           label={t("tagsCfg.cardLanguage")}
-          options={LANGUAGES.map((l) => ({ value: l, label: LANGUAGE_NAMES[l] }))}
+          options={LANGUAGE_OPTIONS}
           value={tg.cardLanguage}
           onChange={(v) =>
             update((d) => {

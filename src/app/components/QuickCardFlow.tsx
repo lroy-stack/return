@@ -9,20 +9,22 @@ import {
   renderPaperSvg,
 } from "../../shared/card";
 import type { Item, ItemDetail, ItemSummary, Tag } from "../../shared/schemas";
-import { CARD_THEMES, LANGUAGES, type Language, type Settings } from "../../shared/settings";
+import { CARD_THEMES, type Language, type Settings } from "../../shared/settings";
 import { api, qs } from "../lib/api";
 import { notifyDataChanged } from "../lib/data-events";
 import { useDebounced, useMediaQuery, useResource } from "../lib/hooks";
 import { useT } from "../lib/i18n";
+import { LANGUAGE_OPTIONS } from "../lib/locale-options";
 import { useSettings } from "../lib/settings-context";
 import { downloadBlob, fileStem, paperToPng, svgDataUrl } from "../pages/print/export";
 import { StatusPill } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Section } from "../ui/Card";
 import { cx } from "../ui/cx";
-import { FormError, RadioGroup, SearchField, SegmentedControl, Select, TextInput } from "../ui/Field";
+import { FormError, RadioGroup, SearchField, SegmentedControl, TextInput } from "../ui/Field";
 import { Icon } from "../ui/Icon";
 import { IconTile, List, ListRow } from "../ui/List";
+import { Select } from "../ui/Select";
 import { SheetBody, SheetFooter } from "../ui/Sheet";
 import { ErrorState, errorMessage, LoadingBlock } from "../ui/States";
 import { Thumb } from "../ui/Thumb";
@@ -30,7 +32,6 @@ import { useToast } from "../ui/Toast";
 
 const LETTER_REGIONS = new Set(["US", "CA", "MX"]);
 const VISIBLE_ITEMS = 8;
-const LANGUAGE_NAMES: Record<Language, string> = { en: "English", de: "Deutsch", es: "Español" };
 
 /** Letter where people print on US Letter (en-US, en-CA, es-MX), A4 everywhere else. */
 export function defaultPaper(locale: string): PaperSize {
@@ -301,15 +302,10 @@ export function QuickCardFlow({ initialItemId }: { initialItemId: string | null 
                 <Select
                   className="max-sm:col-span-2"
                   label={t("qc.language")}
+                  options={LANGUAGE_OPTIONS}
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value as Language)}
-                >
-                  {LANGUAGES.map((l) => (
-                    <option key={l} value={l}>
-                      {LANGUAGE_NAMES[l]}
-                    </option>
-                  ))}
-                </Select>
+                  onChange={setLanguage}
+                />
                 <div className="flex flex-col gap-1.5 max-sm:col-span-2">
                   <p aria-hidden="true" className="text-subhead font-medium">
                     {t("qc.colour")}

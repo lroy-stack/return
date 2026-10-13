@@ -1,4 +1,5 @@
 import { type FormEvent, useState } from "react";
+import { isPastMeeting, nowInZone, zoneLabel } from "../../../shared/datetime";
 import {
   type GeocodeResult,
   PROPOSAL_KINDS,
@@ -7,13 +8,15 @@ import {
 } from "../../../shared/schemas";
 import { PlaceSearch } from "../../components/PlaceSearch";
 import { ApiRequestError, api } from "../../lib/api";
-import { emptyToNull, type FieldErrors, validate } from "../../lib/forms";
+import { emptyToNull, type FieldErrors, useDirty, validate } from "../../lib/forms";
 import { useT } from "../../lib/i18n";
+import { useSettings } from "../../lib/settings-context";
 import { Button } from "../../ui/Button";
-import { FormError, Select, TextArea, TextInput } from "../../ui/Field";
+import { FormError, TextArea, TextInput } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
 import { PlaceLabel } from "../../ui/Place";
-import { Sheet, SheetBody, SheetFooter } from "../../ui/Sheet";
+import { Select } from "../../ui/Select";
+import { Sheet, SheetBody, SheetFooter, useSheetGuard } from "../../ui/Sheet";
 import { useToast } from "../../ui/Toast";
 
 export function ProposalSheet({
@@ -46,6 +49,8 @@ function ProposalForm({
 }) {
   const t = useT();
   const toast = useToast();
+  // A meeting time is a wall clock in one named zone: the owner's Settings zone, sent with the request.
+  const meetTz = useSettings().settings.identity.timezone;
   const [kind, setKind] = useState<ProposalKind>("meeting_point");
   const [place, setPlace] = useState("");
   const [lat, setLat] = useState("");
@@ -56,6 +61,7 @@ function ProposalForm({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const cancel = useSheetGuard(useDirty({ kind, place, lat, lng, meetAt, instructions }));
 
   const pick = (r: GeocodeResult) => {
     setPicked(r);
@@ -85,12 +91,18 @@ function ProposalForm({
       lat: latN,
       lng: lngN,
       meetAt: meetAt || null,
+      meetTz: meetAt ? meetTz : null,
       instructions: emptyToNull(instructions),
     };
     const v = validate(proposalInputSchema, body);
     if (!v.ok) {
-      setErrors(v.errors);
+      setErrors(meetAt && v.errors.meetAt ? { ...v.errors, meetAt: t("proposal.meetAtInvalid") } : v.errors);
       if (v.errors[""]) setFormError(t("proposal.coordsPair"));
+      return;
+    }
+    // Same rule as the API: not in the past on the clock of the zone it was typed in.
+    if (meetAt && isPastMeeting(meetAt, meetTz)) {
+      setErrors({ meetAt: t("proposal.meetAtPast", { zone: zoneLabel(meetTz) }) });
       return;
     }
     setErrors({});
@@ -101,7 +113,9 @@ function ProposalForm({
       onSaved();
       onClose();
     } catch (err) {
-      if (err instanceof ApiRequestError) {
+      if (err instanceof ApiRequestError && err.code === "meeting_in_past") {
+        setErrors({ meetAt: t("proposal.meetAtPast", { zone: zoneLabel(meetTz) }) });
+      } else if (err instanceof ApiRequestError) {
         setErrors(err.fieldErrors);
         setFormError(err.message);
       } else setFormError(t("error.generic"));
@@ -115,15 +129,10 @@ function ProposalForm({
       <SheetBody>
         <Select
           label={t("proposal.kind")}
+          options={PROPOSAL_KINDS.map((k) => ({ value: k, label: t(`proposal.kind.${k}` as const) }))}
           value={kind}
-          onChange={(e) => setKind(e.target.value as ProposalKind)}
-        >
-          {PROPOSAL_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {t(`proposal.kind.${k}` as const)}
-            </option>
-          ))}
-        </Select>
+          onChange={setKind}
+        />
         <PlaceSearch onPick={pick} />
         <TextInput
           label={t("proposal.place")}
@@ -181,8 +190,9 @@ function ProposalForm({
           type="datetime-local"
           value={meetAt}
           onChange={(e) => setMeetAt(e.target.value)}
+          min={nowInZone(meetTz)}
           error={errors.meetAt}
-          hint={t("proposal.meetAtHint")}
+          hint={t("proposal.meetAtHintZone", { zone: zoneLabel(meetTz) })}
         />
         <TextArea
           label={t("proposal.instructions")}
@@ -194,7 +204,7 @@ function ProposalForm({
         <FormError message={formError} />
       </SheetBody>
       <SheetFooter>
-        <Button onClick={onClose}>{t("common.cancel")}</Button>
+        <Button onClick={cancel}>{t("common.cancel")}</Button>
         <Button type="submit" variant="primary" icon="send" loading={pending}>
           {t("proposal.send")}
         </Button>

@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useContext } from "react";
-import type { Language, Settings } from "../../../shared/settings";
+import type { Settings } from "../../../shared/settings";
 import type { FieldErrors } from "../../lib/forms";
 import { Card, Section } from "../../ui/Card";
 
@@ -9,7 +9,7 @@ export interface SectionProps {
   errors: FieldErrors;
 }
 
-export const LANGUAGE_NAMES: Record<Language, string> = { en: "English", de: "Deutsch", es: "Español" };
+export { LANGUAGE_NAMES } from "../../lib/locale-options";
 
 /**
  * The page's h1 when it already names the open section (phone: pushed view titled "Identity"). A SectionCard with

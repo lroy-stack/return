@@ -1,23 +1,32 @@
 import { type FormEvent, useState } from "react";
-import { type Item, type ItemDetail, itemPatchSchema, type Recovery } from "../../../shared/schemas";
+import {
+  type ConversationSummary,
+  type Item,
+  type ItemDetail,
+  itemPatchSchema,
+  type Recovery,
+  type RecoveryEvent,
+} from "../../../shared/schemas";
 import { ItemFormSheet } from "../../components/ItemFormSheet";
 import { ApiRequestError, api } from "../../lib/api";
 import { useDataChanged } from "../../lib/data-events";
+import { useDirty } from "../../lib/forms";
 import { useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
 import { useOverview } from "../../lib/overview-context";
 import { Link, navigate } from "../../lib/router";
 import { useFormat } from "../../lib/settings-context";
 import { Badge, StatusPill } from "../../ui/Badge";
-import { Button, ButtonLink, IconButton } from "../../ui/Button";
+import { Button, ButtonLink } from "../../ui/Button";
 import { Card, Section } from "../../ui/Card";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { FormError, TextInput } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
 import { KeyValue } from "../../ui/KeyValue";
 import { IconTile, List, ListRow } from "../../ui/List";
+import { Menu, type MenuEntry } from "../../ui/Menu";
 import { PageHeader } from "../../ui/Page";
-import { Sheet, SheetBody, SheetFooter } from "../../ui/Sheet";
+import { Sheet, SheetBody, SheetFooter, useSheetGuard } from "../../ui/Sheet";
 import { ErrorState, errorMessage, LoadingBlock } from "../../ui/States";
 import { Timeline, type TimelineEntry } from "../../ui/Timeline";
 import { useToast } from "../../ui/Toast";
@@ -28,6 +37,7 @@ import { ItemTrackers } from "./ItemTrackers";
 import { MarkLostSheet, MarkRecoveredSheet, RecoverySheet } from "./LostSheets";
 import { PrivateSection } from "./PrivateSection";
 import { PublicPageSheet } from "./PublicPageSheet";
+import { ThankAndClose } from "./ThankAndClose";
 
 function ParentLink({ parentId }: { parentId: string }) {
   const t = useT();
@@ -86,10 +96,54 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
   const lost = item.status === "lost";
   const archived = item.archivedAt !== null;
   const [dialog, setDialog] = useState<
-    "edit" | "lost" | "recovered" | "public" | "archive" | "delete" | "location" | "actions" | null
+    "edit" | "lost" | "recovered" | "public" | "archive" | "delete" | "location" | null
   >(null);
   const [recovery, setRecovery] = useState<Recovery | null>(null);
+  // Conversations still open after the item was recovered: offered for a thank-you and closing.
+  const [thanks, setThanks] = useState<ConversationSummary[]>([]);
+  const afterRecovered = (open: ConversationSummary[]) => {
+    onChanged();
+    setThanks(open);
+  };
   const close = () => setDialog(null);
+  const actions: MenuEntry[] = [
+    { key: "edit", label: t("item.editItem"), icon: "edit", onSelect: () => setDialog("edit") },
+    archived
+      ? {
+          key: "unarchive",
+          label: t("item.unarchive"),
+          icon: "refresh",
+          description: t("item.archivedHint"),
+          onSelect: async () => {
+            try {
+              await api.post(`/items/${item.id}/unarchive`);
+              toast(t("item.unarchived"));
+              onChanged();
+            } catch (e) {
+              toast(errorMessage(e, t), "error");
+            }
+          },
+        }
+      : {
+          key: "archive",
+          label: t("item.archive"),
+          icon: "box",
+          description: t("item.archiveHint"),
+          onSelect: () => setDialog("archive"),
+        },
+    ...(archived
+      ? [
+          { key: "sep", separator: true } as const,
+          {
+            key: "delete",
+            label: t("item.deleteForever"),
+            icon: "trash",
+            tone: "danger",
+            onSelect: () => setDialog("delete"),
+          } as const,
+        ]
+      : []),
+  ];
   const sub = [item.brand, item.model].filter(Boolean).join(" · ");
   const openRecovery = detail.recoveries.find((r) => r.status !== "recovered" && r.status !== "closed");
 
@@ -142,13 +196,7 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
                 <span className="max-sm:sr-only">{t("quick.card")}</span>
               </ButtonLink>
             ) : null}
-            <IconButton
-              icon="more"
-              variant="secondary"
-              label={t("common.more")}
-              aria-haspopup="dialog"
-              onClick={() => setDialog("actions")}
-            />
+            <Menu label={t("item.actions")} items={actions} variant="secondary" />
           </>
         }
       />
@@ -223,7 +271,12 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
         <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
           <ItemTags detail={detail} onChanged={onChanged} className="order-2" />
           <ItemConversations detail={detail} className="order-4" />
-          <RecoveriesTimeline recoveries={detail.recoveries} onEdit={setRecovery} className="order-5" />
+          <RecoveriesTimeline
+            recoveries={detail.recoveries}
+            events={detail.recoveryEvents}
+            onEdit={setRecovery}
+            className="order-5"
+          />
           <ItemTrackers detail={detail} onChanged={onChanged} className="order-6" />
           <Section
             id="sec-public"
@@ -274,75 +327,6 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
         </div>
       </div>
 
-      <Sheet
-        open={dialog === "actions"}
-        onClose={close}
-        title={t("item.actions")}
-        description={t("item.actionsDesc")}
-        placement="compact"
-      >
-        <SheetBody>
-          <List>
-            <ListRow
-              onClick={() => setDialog("edit")}
-              chevron={false}
-              leading={
-                <IconTile>
-                  <Icon name="edit" className="size-5" />
-                </IconTile>
-              }
-              title={t("item.editItem")}
-            />
-            {archived ? (
-              <>
-                <ListRow
-                  onClick={async () => {
-                    try {
-                      await api.post(`/items/${item.id}/unarchive`);
-                      toast(t("item.unarchived"));
-                      close();
-                      onChanged();
-                    } catch (e) {
-                      toast(errorMessage(e, t), "error");
-                    }
-                  }}
-                  chevron={false}
-                  leading={
-                    <IconTile tone="neutral">
-                      <Icon name="refresh" className="size-5" />
-                    </IconTile>
-                  }
-                  title={t("item.unarchive")}
-                  subtitle={t("item.archivedHint")}
-                />
-                <ListRow
-                  onClick={() => setDialog("delete")}
-                  chevron={false}
-                  tone="danger"
-                  leading={
-                    <IconTile tone="neutral">
-                      <Icon name="trash" className="size-5" />
-                    </IconTile>
-                  }
-                  title={t("item.deleteForever")}
-                />
-              </>
-            ) : (
-              <ListRow
-                onClick={() => setDialog("archive")}
-                chevron={false}
-                leading={
-                  <IconTile tone="neutral">
-                    <Icon name="box" className="size-5" />
-                  </IconTile>
-                }
-                title={t("item.archive")}
-                subtitle={t("item.archiveHint")}
-              />
-            )}
-          </List>
-        </SheetBody>
-      </Sheet>
       <ItemFormSheet
         open={dialog === "edit"}
         item={item}
@@ -359,10 +343,16 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
         onClose={close}
         onDone={onChanged}
       />
-      <MarkRecoveredSheet open={dialog === "recovered"} itemId={item.id} onClose={close} onDone={onChanged} />
+      <MarkRecoveredSheet
+        open={dialog === "recovered"}
+        itemId={item.id}
+        onClose={close}
+        onDone={afterRecovered}
+      />
       <PublicPageSheet open={dialog === "public"} item={item} onClose={close} onSaved={onChanged} />
       <LocationSheet open={dialog === "location"} item={item} onClose={close} onSaved={onChanged} />
-      <RecoverySheet recovery={recovery} onClose={() => setRecovery(null)} onDone={onChanged} />
+      <RecoverySheet recovery={recovery} onClose={() => setRecovery(null)} onDone={afterRecovered} />
+      <ThankAndClose conversations={thanks} onClose={() => setThanks([])} onClosed={onChanged} />
       <ConfirmDialog
         open={dialog === "archive"}
         title={t("item.archiveTitle")}
@@ -419,6 +409,7 @@ function LocationForm({ item, onClose, onSaved }: { item: Item; onClose: () => v
   const [value, setValue] = useState(item.lastKnownLocation ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const cancel = useSheetGuard(useDirty({ value }));
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const body = { lastKnownLocation: value.trim() || null };
@@ -450,7 +441,7 @@ function LocationForm({ item, onClose, onSaved }: { item: Item; onClose: () => v
         <FormError message={error} />
       </SheetBody>
       <SheetFooter>
-        <Button onClick={onClose}>{t("common.cancel")}</Button>
+        <Button onClick={cancel}>{t("common.cancel")}</Button>
         <Button type="submit" variant="primary" loading={pending}>
           {t("common.save")}
         </Button>
@@ -497,10 +488,12 @@ function ItemConversations({ detail, className }: { detail: ItemDetail; classNam
 
 function RecoveriesTimeline({
   recoveries,
+  events,
   onEdit,
   className,
 }: {
   recoveries: Recovery[];
+  events: RecoveryEvent[];
   onEdit: (r: Recovery) => void;
   className?: string;
 }) {
@@ -521,42 +514,63 @@ function RecoveriesTimeline({
   }
   return (
     <Section id="sec-rec" className={className} title={t("recovery.title")}>
-      <Card padding="sm">
-        <Timeline
-          label={t("recovery.title")}
-          entries={recoveries.map((r) => {
-            const done = r.status === "recovered" || r.status === "closed";
-            return {
-              key: r.id,
-              tone: done ? "success" : "lost",
-              title: (
-                <StatusPill tone={done ? "success" : "lost"}>
-                  {t(`recovery.s.${r.status}` as const)}
-                </StatusPill>
-              ),
-              time: format.dateTime(r.lostAt ?? r.createdAt),
-              datetime: r.lostAt ?? r.createdAt,
-              body:
-                r.lostPlace || r.notes || r.recoveredAt ? (
-                  <>
-                    {r.lostPlace ? <p className="text-fg">{r.lostPlace}</p> : null}
-                    {r.notes ? <p className="whitespace-pre-wrap">{r.notes}</p> : null}
-                    {r.recoveredAt ? (
-                      <p className="text-accent-text">
-                        {t("recovery.recoveredOn", { when: format.dateTime(r.recoveredAt) })}
-                      </p>
-                    ) : null}
-                  </>
-                ) : undefined,
-              actions: !done ? (
-                <Button size="sm" onClick={() => onEdit(r)}>
-                  {t("recovery.update")}
-                </Button>
-              ) : undefined,
-            } satisfies TimelineEntry;
-          })}
-        />
-      </Card>
+      <div className="flex flex-col gap-3">
+        {recoveries.map((r) => {
+          const done = r.status === "recovered" || r.status === "closed";
+          // Newest first, like every timeline in the panel (the API returns oldest first).
+          const history = events.filter((e) => e.recoveryId === r.id).reverse();
+          // Recoveries older than the history log only have their notes field.
+          const legacyNotes = history.every((e) => !e.note) ? r.notes : null;
+          return (
+            <Card key={r.id} padding="sm" className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <StatusPill tone={done ? "success" : "lost"}>
+                    {t(`recovery.s.${r.status}` as const)}
+                  </StatusPill>
+                  <p className="mt-1 text-subhead text-muted">
+                    {[r.lostPlace, format.dateTime(r.lostAt ?? r.createdAt)].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                {r.allowedTransitions.length > 0 ? (
+                  <Button size="sm" onClick={() => onEdit(r)}>
+                    {t("recovery.update")}
+                  </Button>
+                ) : null}
+              </div>
+              <Timeline
+                label={t("recovery.history")}
+                entries={history.map(
+                  (e) =>
+                    ({
+                      key: e.id,
+                      tone: e.status === "recovered" || e.status === "closed" ? "success" : "lost",
+                      title: (
+                        <StatusPill
+                          tone={e.status === "recovered" || e.status === "closed" ? "success" : "lost"}
+                        >
+                          {t(`recovery.s.${e.status}` as const)}
+                        </StatusPill>
+                      ),
+                      time: format.dateTime(e.createdAt),
+                      datetime: e.createdAt,
+                      body: e.note ? (
+                        <p className="whitespace-pre-wrap" dir="auto">
+                          {e.note}
+                        </p>
+                      ) : undefined,
+                    }) satisfies TimelineEntry,
+                )}
+              />
+              {legacyNotes ? (
+                <p className="text-subhead whitespace-pre-wrap text-muted" dir="auto">
+                  {legacyNotes}
+                </p>
+              ) : null}
+            </Card>
+          );
+        })}
+      </div>
     </Section>
   );
 }

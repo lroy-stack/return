@@ -2,12 +2,17 @@ import { type FormEvent, useState } from "react";
 import { ITEM_CATEGORIES, type Item, type ItemCategory, itemInputSchema } from "../../shared/schemas";
 import { ApiRequestError, api } from "../lib/api";
 import { centsToInput, parseMoneyToCents } from "../lib/format";
-import { emptyToNull, type FieldErrors, validate } from "../lib/forms";
-import { useT } from "../lib/i18n";
+import { emptyToNull, type FieldErrors, useDirty, validate } from "../lib/forms";
+import { type T, useT } from "../lib/i18n";
+import { useSettings } from "../lib/settings-context";
 import { Button } from "../ui/Button";
-import { FormError, Select, TextArea, TextInput } from "../ui/Field";
+import { FormError, TextArea, TextInput } from "../ui/Field";
 import { Icon } from "../ui/Icon";
-import { Sheet, SheetBody, SheetFooter } from "../ui/Sheet";
+import { Select, type SelectOption } from "../ui/Select";
+import { Sheet, SheetBody, SheetFooter, useSheetGuard } from "../ui/Sheet";
+
+const CATEGORY_OPTIONS = (t: T): SelectOption<ItemCategory>[] =>
+  ITEM_CATEGORIES.map((c) => ({ value: c, label: t(`category.${c}` as const) }));
 
 /** Create (no `item`) or edit an item, including its private details. */
 export function ItemFormSheet({
@@ -39,24 +44,39 @@ function ItemForm({
   onSaved: (item: Item) => void;
 }) {
   const t = useT();
+  const locale = useSettings().settings.identity.locale;
   const [name, setName] = useState(item?.name ?? "");
   const [brand, setBrand] = useState(item?.brand ?? "");
   const [model, setModel] = useState(item?.model ?? "");
   const [category, setCategory] = useState<ItemCategory>(item?.category ?? "backpack");
   const [description, setDescription] = useState(item?.description ?? "");
   const [serial, setSerial] = useState(item?.serialNumber ?? "");
-  const [value, setValue] = useState(centsToInput(item?.estimatedValueCents));
+  const [value, setValue] = useState(centsToInput(item?.estimatedValueCents, locale));
   const [currency, setCurrency] = useState(item?.currency ?? "EUR");
   const [acquiredOn, setAcquiredOn] = useState(item?.acquiredOn ?? "");
   const [privateNotes, setPrivateNotes] = useState(item?.privateNotes ?? "");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const cancel = useSheetGuard(
+    useDirty({
+      name,
+      brand,
+      model,
+      category,
+      description,
+      serial,
+      value,
+      currency,
+      acquiredOn,
+      privateNotes,
+    }),
+  );
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    const cents = parseMoneyToCents(value);
+    const cents = parseMoneyToCents(value, locale);
     if (cents === null) {
       setErrors({ estimatedValueCents: t("itemForm.valueInvalid") });
       return;
@@ -110,15 +130,10 @@ function ItemForm({
         />
         <Select
           label={t("itemForm.category")}
+          options={CATEGORY_OPTIONS(t)}
           value={category}
-          onChange={(e) => setCategory(e.target.value as ItemCategory)}
-        >
-          {ITEM_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {t(`category.${c}` as const)}
-            </option>
-          ))}
-        </Select>
+          onChange={setCategory}
+        />
         <div className="grid gap-4 sm:grid-cols-2">
           <TextInput
             label={t("itemForm.brand")}
@@ -196,7 +211,7 @@ function ItemForm({
         <FormError message={formError} />
       </SheetBody>
       <SheetFooter>
-        <Button onClick={onClose}>{t("common.cancel")}</Button>
+        <Button onClick={cancel}>{t("common.cancel")}</Button>
         <Button type="submit" variant="primary" loading={pending}>
           {item ? t("common.save") : t("itemForm.create")}
         </Button>

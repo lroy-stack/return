@@ -1,10 +1,42 @@
-import { type PointerEvent, type ReactNode, useEffect, useId, useRef } from "react";
+import {
+  createContext,
+  type PointerEvent,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useT } from "../lib/i18n";
-import { IconButton } from "./Button";
+import { Button, IconButton } from "./Button";
 import { cx } from "./cx";
 
 const PHONE = "(max-width: 39.999rem)";
 const DISMISS_PX = 96;
+
+interface SheetGuard {
+  setDirty: (dirty: boolean) => void;
+  /** Close the sheet the way Escape does: asks first when there are unsaved edits. */
+  requestClose: () => void;
+}
+const NO_GUARD: SheetGuard = { setDirty: () => {}, requestClose: () => {} };
+const SheetGuardContext = createContext<SheetGuard>(NO_GUARD);
+
+/**
+ * Forms inside a Sheet call this with "has unsaved edits". While true, Escape, the scrim, the close button and a
+ * drag-down ask before discarding. Returns the guarded close for the Cancel button; a successful save should close
+ * through the parent's own `onClose`, which never asks.
+ */
+export function useSheetGuard(dirty: boolean): () => void {
+  const guard = useContext(SheetGuardContext);
+  useEffect(() => {
+    guard.setDirty(dirty);
+    return () => guard.setDirty(false);
+  }, [guard, dirty]);
+  return guard.requestClose;
+}
 
 /**
  * Native <dialog> shown modally. Phone: glass bottom sheet with a grabber (drag down or tap the scrim to close).
@@ -36,32 +68,50 @@ export function Sheet({
   // otherwise that late event cancels whatever the parent just opened.
   const openRef = useRef(open);
   openRef.current = open;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const drag = useRef<{ y: number; dy: number; id: number } | null>(null);
   const titleId = useId();
   const descId = useId();
   const t = useT();
+  const dirtyRef = useRef(false);
+  const [asking, setAsking] = useState(false);
+  const guard = useMemo<SheetGuard>(
+    () => ({
+      setDirty: (dirty) => {
+        dirtyRef.current = dirty;
+      },
+      requestClose: () => {
+        if (dirtyRef.current) setAsking(true);
+        else onCloseRef.current();
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
+    if (!open) {
+      setAsking(false);
+      dirtyRef.current = false;
+    }
   }, [open]);
 
   // Tap / click on the scrim. The ::backdrop pseudo-element cannot hold a child, so its clicks target the
   // <dialog> itself; the listener is attached here rather than as JSX onClick because the keyboard equivalent is
   // the native `cancel` (Escape) handled below, not a key handler on the dialog.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
     const onBackdrop = (e: MouseEvent) => {
-      if (e.target === d) onCloseRef.current();
+      if (e.target === d) guard.requestClose();
     };
     d.addEventListener("click", onBackdrop);
     return () => d.removeEventListener("click", onBackdrop);
-  }, []);
+  }, [guard]);
 
   const canDrag = () => placement !== "center" && window.matchMedia(PHONE).matches;
 
@@ -86,7 +136,7 @@ export function Sheet({
     el.removeAttribute("data-dragging");
     if (d.dy > DISMISS_PX) {
       el.style.transform = "";
-      onClose();
+      guard.requestClose();
       return;
     }
     el.style.transition = "transform var(--dur-slow) var(--ease-spring)";
@@ -104,17 +154,29 @@ export function Sheet({
       data-placement={placement === "auto" ? undefined : placement}
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
-      // Escape / Android back fire the native `cancel` event. Keep the dialog open and let the parent close it
-      // through `open`, so a parent that ignores onClose (e.g. while saving) keeps the sheet. Controls that use
-      // Escape themselves (Select, Combobox, Menu) cancel the keydown, so no close request reaches the dialog.
+      // Escape / Android back fire the native `cancel` event. It is prevented and routed through the guard; the
+      // parent closes the sheet through `open`. Controls that use Escape themselves (Select, Combobox, Menu)
+      // cancel the keydown, so no close request reaches the dialog. Note: Chrome makes a repeated cancel without
+      // user activation non-cancelable and closes the dialog anyway; `onClose` below handles that case.
       onCancel={(e) => {
+        // React bubbles `cancel`/`close` from a nested dialog (discard question, confirmations) to this one.
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
-        onClose();
+        guard.requestClose();
       }}
-      // Fires for every close, including ours. Only a close the parent did not ask for (open is still true, e.g.
-      // the browser skipped a repeated cancel) is reported; a late event after a programmatic close never is.
-      onClose={() => {
-        if (openRef.current) onClose();
+      // Fires for every close, including ours. A late event after a programmatic close (open already false) is
+      // ignored, so it cannot cancel a sheet the parent just opened. A close the parent did not ask for (open is
+      // still true: the browser forced a repeated cancel) is reported; with unsaved edits the dialog is shown
+      // again (children stay mounted, so nothing is lost) and the discard question is asked instead.
+      onClose={(e) => {
+        if (e.target !== e.currentTarget || !openRef.current) return;
+        const d = ref.current;
+        if (dirtyRef.current && d && !d.open) {
+          d.showModal();
+          setAsking(true);
+          return;
+        }
+        onClose();
       }}
     >
       {open ? (
@@ -147,11 +209,36 @@ export function Sheet({
                 label={t("common.close")}
                 variant="secondary"
                 size="sm"
-                onClick={onClose}
+                onClick={guard.requestClose}
               />
             </div>
           </header>
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>
+          <SheetGuardContext.Provider value={guard}>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>
+          </SheetGuardContext.Provider>
+          <Sheet
+            open={asking}
+            onClose={() => setAsking(false)}
+            title={t("sheet.discardTitle")}
+            placement="center"
+          >
+            <SheetBody>
+              <p className="text-body">{t("sheet.discardBody")}</p>
+            </SheetBody>
+            <SheetFooter>
+              <Button onClick={() => setAsking(false)}>{t("sheet.keepEditing")}</Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  setAsking(false);
+                  dirtyRef.current = false;
+                  onClose();
+                }}
+              >
+                {t("sheet.discard")}
+              </Button>
+            </SheetFooter>
+          </Sheet>
         </>
       ) : null}
     </dialog>

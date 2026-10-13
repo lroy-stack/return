@@ -2,16 +2,17 @@ import { type FormEvent, useState } from "react";
 import { type ItemDetail, TRACKER_KINDS, type Tracker, trackerInputSchema } from "../../../shared/schemas";
 import { ApiRequestError, api } from "../../lib/api";
 import { isoToLocalInput, localInputToIso } from "../../lib/format";
-import { emptyToNull, type FieldErrors, validate } from "../../lib/forms";
+import { emptyToNull, type FieldErrors, useDirty, validate } from "../../lib/forms";
 import { useT } from "../../lib/i18n";
 import { useFormat } from "../../lib/settings-context";
 import { Button, IconButton } from "../../ui/Button";
 import { Section } from "../../ui/Card";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
-import { FormError, Select, TextArea, TextInput } from "../../ui/Field";
+import { FormError, TextArea, TextInput } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
 import { IconTile, List, ListRow } from "../../ui/List";
-import { Sheet, SheetBody, SheetFooter } from "../../ui/Sheet";
+import { Select } from "../../ui/Select";
+import { Sheet, SheetBody, SheetFooter, useSheetGuard } from "../../ui/Sheet";
 import { useToast } from "../../ui/Toast";
 
 const APPLE_LOST_MODE = "https://support.apple.com/en-us/104978";
@@ -51,7 +52,7 @@ export function ItemTrackers({
             <span>
               {t("trackers.help")}{" "}
               <a
-                className="font-medium text-primary-text underline"
+                className="touch-target font-medium text-primary-text underline"
                 href={APPLE_LOST_MODE}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -60,7 +61,7 @@ export function ItemTrackers({
               </a>
               {" · "}
               <a
-                className="font-medium text-primary-text underline"
+                className="touch-target font-medium text-primary-text underline"
                 href={APPLE_SHARE_LOCATION}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -185,6 +186,7 @@ function TrackerForm({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const cancel = useSheetGuard(useDirty({ kind, name, notes, location, at }));
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -221,15 +223,10 @@ function TrackerForm({
       <SheetBody>
         <Select
           label={t("trackers.kind")}
+          options={TRACKER_KINDS.map((k) => ({ value: k, label: t(`tracker.${k}` as const) }))}
           value={kind}
-          onChange={(e) => setKind(e.target.value as Tracker["kind"])}
-        >
-          {TRACKER_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {t(`tracker.${k}` as const)}
-            </option>
-          ))}
-        </Select>
+          onChange={setKind}
+        />
         <TextInput
           label={t("trackers.name")}
           required
@@ -264,7 +261,7 @@ function TrackerForm({
         <FormError message={formError} />
       </SheetBody>
       <SheetFooter>
-        <Button onClick={onClose}>{t("common.cancel")}</Button>
+        <Button onClick={cancel}>{t("common.cancel")}</Button>
         <Button type="submit" variant="primary" loading={pending}>
           {t("common.save")}
         </Button>
