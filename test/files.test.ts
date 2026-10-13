@@ -5,6 +5,7 @@ import { api, apiJson } from "./helpers/api";
 import {
   GPS_MARKER,
   JPEG_BYTES,
+  JPEG_STRIPPED,
   jpegWithMetadata,
   PDF_BYTES,
   PNG_BYTES,
@@ -12,6 +13,11 @@ import {
   seedForeignOwner,
   upload,
   WEBP_BYTES,
+  WEBP_STRIPPED,
+  webpChunk,
+  webpFile,
+  webpVp8x,
+  webpWithMetadata,
 } from "./helpers/files";
 
 const newItem = (name = "Backpack") => apiJson<Item>("POST", "/items", { name });
@@ -124,24 +130,17 @@ describe("files", () => {
       new Uint8Array(await (await api("GET", `/files/${id}`)).arrayBuffer());
     const text = (bytes: Uint8Array) => new TextDecoder("latin1").decode(bytes);
 
-    it("drops EXIF/GPS, XMP, IPTC and comments from JPEG photos but keeps other segments", async () => {
+    it("keeps only image-defining JPEG segments: EXIF/GPS, XMP, MPF, vendor APPn, IPTC, comments and appended images go", async () => {
       const item = await newItem();
       const original = jpegWithMetadata();
       expect(text(original)).toContain(GPS_MARKER);
       const meta = await uploadOk(item.id, "photo", original, "gps.jpg");
       const bytes = await stored(meta.id);
-      const body = text(bytes);
-      for (const secret of [GPS_MARKER, "Exif", "owner@example.test", "IPTC-CITY-PARIS", "shot by Alice"]) {
-        expect(body, secret).not.toContain(secret);
-      }
-      expect(body).toContain("ICC_PROFILE");
-      expect(bytes.slice(0, 3)).toEqual(new Uint8Array([0xff, 0xd8, 0xff]));
-      expect(bytes.slice(-2)).toEqual(new Uint8Array([0xff, 0xd9]));
+      expect(bytes).toEqual(JPEG_STRIPPED);
       expect(meta.sizeBytes).toBe(bytes.byteLength);
-      expect(bytes.byteLength).toBeLessThan(original.byteLength);
     });
 
-    it("drops text and eXIf chunks and trailing data from PNG photos", async () => {
+    it("keeps only image-defining PNG chunks: text, eXIf, tIME, private chunks and trailing data go", async () => {
       const item = await newItem();
       const meta = await uploadOk(item.id, "photo", pngWithMetadata(), "gps.png");
       const body = text(await stored(meta.id));
@@ -151,27 +150,42 @@ describe("files", () => {
         "iTXt",
         "zTXt",
         "eXIf",
+        "tIME",
         "owner@example.test",
+        "PRIVATE-CHUNK-SECRET",
         "TRAILING-SECRET",
       ]) {
         expect(body, secret).not.toContain(secret);
       }
-      for (const kept of ["IHDR", "gAMA", "IDAT", "IEND"]) expect(body, kept).toContain(kept);
+      for (const kept of ["IHDR", "gAMA", "pHYs", "IDAT", "IEND"]) expect(body, kept).toContain(kept);
+    });
+
+    it("keeps only image-defining WebP chunks, clears the EXIF/XMP flags and fixes the RIFF size", async () => {
+      const item = await newItem();
+      const meta = await uploadOk(item.id, "photo", webpWithMetadata(), "gps.webp");
+      expect(meta.contentType).toBe("image/webp");
+      const bytes = await stored(meta.id);
+      expect(bytes).toEqual(WEBP_STRIPPED);
+      expect(meta.sizeBytes).toBe(bytes.byteLength);
     });
 
     it("leaves clean files byte-identical and does not rewrite documents", async () => {
       const item = await newItem();
       expect(await stored((await uploadOk(item.id, "photo", JPEG_BYTES)).id)).toEqual(JPEG_BYTES);
+      expect(await stored((await uploadOk(item.id, "photo", WEBP_BYTES)).id)).toEqual(WEBP_BYTES);
       const withExif = jpegWithMetadata();
       const doc = await uploadOk(item.id, "document", withExif, "scan.jpg");
       expect(await stored(doc.id)).toEqual(withExif);
     });
 
-    it("refuses truncated or malformed JPEG/PNG photos instead of storing unverified bytes", async () => {
+    it("refuses truncated or malformed photos instead of storing unverified bytes", async () => {
       const item = await newItem();
       const truncatedJpeg = jpegWithMetadata().slice(0, 40);
+      const jpegWithoutEoi = JPEG_BYTES.slice(0, -2);
       const truncatedPng = pngWithMetadata().slice(0, 30);
-      for (const bytes of [truncatedJpeg, truncatedPng]) {
+      const truncatedWebp = webpWithMetadata().slice(0, 40);
+      const webpChunkPastRiff = webpFile(webpVp8x(0), webpChunk("VP8L", new Uint8Array(4))).slice(0, -2);
+      for (const bytes of [truncatedJpeg, jpegWithoutEoi, truncatedPng, truncatedWebp, webpChunkPastRiff]) {
         const res = await upload({ itemId: item.id, kind: "photo", bytes });
         expect(res.status).toBe(422);
         expect(((await res.json()) as { error: { code: string } }).error.code).toBe("invalid_image");

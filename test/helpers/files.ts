@@ -35,22 +35,45 @@ export const JPEG_BYTES = join(
   JPEG_SCAN,
 );
 
-/** A camera-style JPEG: EXIF with GPS (APP1), XMP (APP1), IPTC (APP13) and a comment, around a kept ICC profile. */
+/**
+ * A camera-style JPEG: EXIF with GPS (APP1), XMP (APP1), an MPF index (APP2), vendor APP3/APP15 segments,
+ * IPTC (APP13) and a comment, around a kept ICC profile and Adobe segment; a two-scan (progressive) image
+ * with byte stuffing and restart markers; then a second, GPS-tagged image appended after EOI, as MPF does.
+ */
 export const GPS_MARKER = "GPS-LAT-48.8584N-LON-2.2945E";
+const JPEG_JFIF = jpegSegment(0xe0, ascii("JFIF\0\x01\x01\0\0\x01\0\x01\0\0"));
+const JPEG_ICC = jpegSegment(0xe2, ascii("ICC_PROFILE\0\x01\x01keep-me"));
+const JPEG_ADOBE = jpegSegment(0xee, ascii("Adobe\0\x64\0\0\0\0\x01"));
+const JPEG_PROGRESSIVE_SCANS = join(
+  new Uint8Array([0xff, 0xda, 0, 8, 1, 1, 0, 0, 0x3f, 0]),
+  new Uint8Array([0x12, 0xff, 0x00, 0x34, 0xff, 0xd0, 0x56]), // stuffed 0xFF and a restart marker
+  jpegSegment(0xc4, new Uint8Array([0x10, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x07])),
+  new Uint8Array([0xff, 0xda, 0, 8, 1, 1, 0, 0, 0x3f, 0, 0x78, 0x9a]),
+  new Uint8Array([0xff, 0xd9]),
+);
+/** What `jpegWithMetadata()` must become: only the image-defining segments survive. */
+export const JPEG_STRIPPED = join(JPEG_SOI, JPEG_JFIF, JPEG_ICC, JPEG_ADOBE, JPEG_PROGRESSIVE_SCANS);
 export function jpegWithMetadata(): Uint8Array {
   return join(
     JPEG_SOI,
-    jpegSegment(0xe0, ascii("JFIF\0\x01\x01\0\0\x01\0\x01\0\0")),
+    JPEG_JFIF,
     jpegSegment(0xe1, ascii(`Exif\0\0MM\0*${GPS_MARKER}`)),
     jpegSegment(0xe1, ascii("http://ns.adobe.com/xap/1.0/\0<x:xmpmeta>owner@example.test</x:xmpmeta>")),
-    jpegSegment(0xe2, ascii("ICC_PROFILE\0\x01\x01keep-me")),
+    JPEG_ICC,
+    jpegSegment(0xe2, ascii("MPF\0MM\0*MPF-INDEX-SECRET")),
+    jpegSegment(0xe3, ascii("APP3-VENDOR-SECRET")),
+    JPEG_ADOBE,
     jpegSegment(0xed, ascii("Photoshop 3.0\0IPTC-CITY-PARIS")),
+    jpegSegment(0xef, ascii("APP15-VENDOR-SECRET")),
     jpegSegment(0xfe, ascii("shot by Alice")),
+    JPEG_PROGRESSIVE_SCANS,
+    JPEG_SOI,
+    jpegSegment(0xe1, ascii(`Exif\0\0MM\0*APPENDED-${GPS_MARKER}`)),
     JPEG_SCAN,
   );
 }
 
-/** A PNG with text chunks and an eXIf chunk carrying GPS, around a kept gAMA chunk. */
+/** A PNG with text, eXIf (GPS), tIME and unknown private chunks, around kept gAMA and pHYs chunks. */
 export function pngWithMetadata(): Uint8Array {
   return join(
     PNG_SIGNATURE,
@@ -60,6 +83,9 @@ export function pngWithMetadata(): Uint8Array {
     pngChunk("gAMA", u32(45455)),
     pngChunk("iTXt", ascii("XML:com.adobe.xmp\0\0\0\0\0owner@example.test")),
     pngChunk("zTXt", ascii("Comment\0\0x")),
+    pngChunk("tIME", new Uint8Array([0x07, 0xea, 10, 13, 9, 30, 0])),
+    pngChunk("pHYs", join(u32(2835), u32(2835), new Uint8Array([1]))),
+    pngChunk("prVt", ascii("PRIVATE-CHUNK-SECRET")),
     PNG_IDAT,
     PNG_IEND,
     ascii("TRAILING-SECRET"),
@@ -68,6 +94,41 @@ export function pngWithMetadata(): Uint8Array {
 
 export const PDF_BYTES = new TextEncoder().encode("%PDF-1.4\n%test\n");
 export const WEBP_BYTES = new Uint8Array([0x52, 0x49, 0x46, 0x46, 4, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+
+const u32le = (n: number) =>
+  new Uint8Array([n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, (n >>> 24) & 0xff]);
+/** RIFF chunk: FourCC + little-endian size + payload + a pad byte when the size is odd. */
+export const webpChunk = (fourcc: string, data: Uint8Array) =>
+  join(ascii(fourcc), u32le(data.length), data, new Uint8Array(data.length % 2));
+export const webpFile = (...chunks: Uint8Array[]) => {
+  const body = join(ascii("WEBP"), ...chunks);
+  return join(ascii("RIFF"), u32le(body.length), body);
+};
+/** VP8X flags: ICC 0x20, alpha 0x10, EXIF 0x08, XMP 0x04, animation 0x02. Canvas 1x1. */
+export const webpVp8x = (flags: number) =>
+  webpChunk("VP8X", new Uint8Array([flags, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+const WEBP_ICCP = webpChunk("ICCP", ascii("keep-icc"));
+const WEBP_VP8L = webpChunk(
+  "VP8L",
+  new Uint8Array([0x2f, 0, 0, 0, 0x10, 0x07, 0x10, 0x11, 0x11, 0x88, 0x88]),
+);
+
+/** An extended WebP with EXIF (GPS), XMP and an unknown chunk, an ICC profile to keep, and bytes after the RIFF. */
+export function webpWithMetadata(): Uint8Array {
+  return join(
+    webpFile(
+      webpVp8x(0x2c),
+      WEBP_ICCP,
+      WEBP_VP8L,
+      webpChunk("EXIF", ascii(`MM\0*${GPS_MARKER}!`)),
+      webpChunk("XMP ", ascii("<x:xmpmeta>owner@example.test</x:xmpmeta>")),
+      webpChunk("ZZZZ", ascii("UNKNOWN-CHUNK-SECRET")),
+    ),
+    ascii("TRAILING-SECRET"),
+  );
+}
+/** What `webpWithMetadata()` must become: the EXIF/XMP flags cleared and only image chunks kept. */
+export const WEBP_STRIPPED = webpFile(webpVp8x(0x20), WEBP_ICCP, WEBP_VP8L);
 
 /** Multipart upload as the browser would send it (Origin + Access JWT). */
 export async function upload(fields: {

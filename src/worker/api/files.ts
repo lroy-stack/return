@@ -6,7 +6,12 @@ import { getOwnedItemRow } from "../db/items";
 import type { AppContext, AppEnv } from "../env";
 import { AppError, notFound, parseWith } from "../lib/http";
 import { newId } from "../lib/ids";
-import { InvalidImageError, stripJpegMetadata, stripPngMetadata } from "../lib/strip-metadata";
+import {
+  InvalidImageError,
+  stripJpegMetadata,
+  stripPngMetadata,
+  stripWebpMetadata,
+} from "../lib/strip-metadata";
 import { nowIso } from "../lib/time";
 
 export const filesApi = new Hono<AppEnv>();
@@ -66,10 +71,15 @@ function stripPhotoMetadata(bytes: Uint8Array, type: DetectedType): Uint8Array {
   try {
     if (type === "image/jpeg") return stripJpegMetadata(bytes);
     if (type === "image/png") return stripPngMetadata(bytes);
+    if (type === "image/webp") return stripWebpMetadata(bytes);
     return bytes;
   } catch (err) {
     if (err instanceof InvalidImageError) {
-      throw new AppError(422, "invalid_image", "The image is damaged or not a complete JPEG/PNG file");
+      throw new AppError(
+        422,
+        "invalid_image",
+        "The image is damaged or not a complete JPEG, PNG or WebP file",
+      );
     }
     throw err;
   }
