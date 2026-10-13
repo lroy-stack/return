@@ -1,6 +1,11 @@
 # RETURN — operations runbook
 
 Everything below that touches a Cloudflare or Hostinger account is **done only with the owner's explicit approval**.
+
+**Current production (2026-10-13):** finder pages `https://return.lr0y.dev`, panel `https://app.return.lr0y.dev`
+(Access app "RETURN panel", team `myteam`), Worker `return-app`, D1 `return-db` (EU), R2 `return-files` (EU),
+Turnstile widget "RETURN finder pages", zone `lr0y.dev` on Cloudflare (registrar: Hostinger, renew before 2027-05-14).
+Deploy updates with `pnpm run release` after the gates are green.
 Commands use the project-local Wrangler (`pnpm exec wrangler …`).
 
 ## 0. Choose the domain (one-time, irreversible in practice)

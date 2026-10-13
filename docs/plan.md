@@ -35,8 +35,15 @@ agents request changes instead of editing them.
 - [x] Zone lr0y.dev active; Custom Domains `return.lr0y.dev` + `app.return.lr0y.dev`; Access app "RETURN panel" (owner only, OTP); Turnstile widget
 - [ ] Email Sending onboarding of `return.lr0y.dev` (dashboard)
 - [x] Secrets `TURNSTILE_SECRET_KEY`, `IP_HMAC_SECRET` set (never printed); vars in `wrangler.jsonc`
-- [x] Deployed version 3e102cb8; public host verified (routes, 404s, headers, no /api)
-- [ ] Panel host verified behind Access (certificate pending) · finder flow on a real phone
+- [x] Deployed (current version 10aec1fe); public host verified (routes, 404s, headers, no /api); panel host 302 → Access login
+- [ ] Owner: first login, settings, a real tag scanned on a phone over mobile data
 
 ## I · Final audit
-- [ ] E2E (Playwright, mobile + desktop), security review, accessibility pass, backup/restore drill
+- [x] Unit/integration: 299 tests in workerd (lint · typecheck · test green)
+- [x] E2E Playwright: 52 passed on mobile + desktop, stable on two consecutive runs (axe scenario skipped: axe-core not installed)
+- [x] Independent security reviews (owner API, finder surface) → all findings fixed with tests
+- [x] Browser QA (375/768/1440, light/dark, keyboard, axe) → findings fixed
+- [x] D1 Time Travel active on production; export→restore roundtrip covered by tests
+- [ ] Owner: onboard Email Sending for `return.lr0y.dev`, then Settings → send test email
+- [ ] Owner: monthly off-account backup (docs/operations.md §4) and one restore drill on a scratch DB
+- [ ] Physical cards: order samples after real-phone scan test (docs/printing.md)
