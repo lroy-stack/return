@@ -88,10 +88,11 @@ export function InboxPage({ activeId }: { activeId?: string }) {
 
   return (
     <>
-      <div className={activeId ? "max-md:sr-only" : undefined}>
+      <div className={activeId ? "max-xl:sr-only" : undefined}>
         <PageHeader title={t("nav.inbox")} />
       </div>
       <SplitView
+        splitFrom="xl"
         listLabel={t("inbox.list")}
         detailLabel={t("inbox.thread")}
         showDetail={Boolean(activeId)}

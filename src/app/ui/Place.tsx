@@ -73,9 +73,9 @@ export function MapLinks({ maps, className }: { maps: MapLinkSet | null; classNa
   const t = useT();
   if (!maps) return null;
   const link =
-    "pressable inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-fill px-3.5 text-subhead font-semibold text-fg hover:bg-fill-hover pointer-coarse:min-h-11";
+    "pressable inline-flex min-h-9 flex-1 whitespace-nowrap items-center justify-center gap-1.5 rounded-full bg-fill px-3.5 text-subhead font-semibold text-fg hover:bg-fill-hover pointer-coarse:min-h-11";
   return (
-    <div className={cx("flex max-w-sm gap-2", className)}>
+    <div className={cx("flex max-w-sm flex-wrap gap-2", className)}>
       <a
         href={maps.google}
         target="_blank"

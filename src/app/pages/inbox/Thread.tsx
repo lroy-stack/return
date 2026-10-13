@@ -95,7 +95,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
       <div className="flex flex-col gap-3">
         <Link
           to="/conversations"
-          className="inline-flex min-h-11 items-center gap-1 font-medium text-primary-text md:hidden"
+          className="inline-flex min-h-11 items-center gap-1 font-medium text-primary-text xl:hidden"
         >
           <Icon name="back" className="size-4" />
           {t("nav.inbox")}
@@ -152,11 +152,11 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col md:h-[calc(100dvh-12rem)] md:min-h-[30rem] md:rounded-card md:bg-raised md:shadow-card md:ring-1 md:ring-line/70">
-      <header className="flex flex-col gap-2 border-b border-line pb-3 md:px-5 md:pt-4">
+    <div className="flex min-h-0 flex-1 flex-col xl:h-[calc(100dvh-12rem)] xl:min-h-[30rem] xl:rounded-card xl:bg-raised xl:shadow-card xl:ring-1 xl:ring-line/70">
+      <header className="flex flex-col gap-2 border-b border-line pb-3 xl:px-5 xl:pt-4">
         <Link
           to="/conversations"
-          className="-ml-2 inline-flex min-h-11 w-fit items-center gap-0.5 rounded-full pr-3 pl-1.5 text-body font-medium text-primary-text hover:bg-fill md:hidden"
+          className="-ml-2 inline-flex min-h-11 w-fit items-center gap-0.5 rounded-full pr-3 pl-1.5 text-body font-medium text-primary-text hover:bg-fill xl:hidden"
         >
           <Icon name="back" className="size-5" />
           {t("nav.inbox")}
@@ -199,7 +199,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
         role="log"
         aria-live="polite"
         aria-label={t("inbox.thread")}
-        className="flex min-h-0 flex-1 flex-col gap-3 py-4 md:overflow-y-auto md:px-5"
+        className="flex min-h-0 flex-1 flex-col gap-3 py-4 xl:overflow-y-auto xl:px-5"
       >
         {entries.map((entry) => {
           if (entry.kind === "message") {
@@ -316,7 +316,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
         })}
       </div>
 
-      <div className="z-20 border-t border-line bg-surface pt-3 pb-2 max-md:sticky max-md:bottom-[var(--shell-bottom)] md:bg-raised md:px-5 md:pb-4">
+      <div className="z-20 border-t border-line bg-surface pt-3 pb-2 max-xl:sticky max-xl:bottom-[var(--shell-bottom)] xl:bg-raised xl:px-5 xl:pb-4">
         <p role="alert" className="mb-2 text-subhead font-medium text-danger empty:hidden">
           {error}
         </p>

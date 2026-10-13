@@ -114,17 +114,32 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
         actions={
           <>
             {lost ? (
-              <Button variant="primary" icon="check" onClick={() => setDialog("recovered")}>
-                {t("item.markRecovered")}
+              <Button
+                variant="primary"
+                icon="check"
+                className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-3"
+                onClick={() => setDialog("recovered")}
+              >
+                <span className="truncate">{t("item.markRecovered")}</span>
               </Button>
             ) : !archived ? (
-              <Button variant="danger-soft" icon="alert" onClick={() => setDialog("lost")}>
-                {t("item.markLost")}
+              <Button
+                variant="danger-soft"
+                icon="alert"
+                className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-3"
+                onClick={() => setDialog("lost")}
+              >
+                <span className="truncate">{t("item.markLost")}</span>
               </Button>
             ) : null}
             {!archived ? (
-              <ButtonLink variant="tinted" icon="card" to={`/items/${item.id}?quick-card=1`}>
-                {t("quick.card")}
+              <ButtonLink
+                variant="tinted"
+                icon="card"
+                className="max-sm:size-11 max-sm:shrink-0 max-sm:gap-0 max-sm:px-0"
+                to={`/items/${item.id}?quick-card=1`}
+              >
+                <span className="max-sm:sr-only">{t("quick.card")}</span>
               </ButtonLink>
             ) : null}
             <IconButton

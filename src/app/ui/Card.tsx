@@ -147,7 +147,7 @@ export function Section({
       className={cx("flex flex-col gap-2", className)}
     >
       {title || actions ? (
-        <div className="flex min-h-9 items-end justify-between gap-3 px-1">
+        <div className="flex min-h-9 flex-wrap items-end justify-between gap-x-3 gap-y-1 px-1">
           <div className="min-w-0">
             {title ? (
               <h2 id={headingId} className="text-headline font-semibold">

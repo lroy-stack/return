@@ -64,7 +64,12 @@ export function PageHeader({
           {subtitle ? <p className="mt-1 max-w-prose text-body text-muted">{subtitle}</p> : null}
         </div>
         {actions ? (
-          <div className={cx("flex flex-wrap items-center gap-2", hideActionsOnPhone && "max-sm:hidden")}>
+          <div
+            className={cx(
+              "flex flex-wrap items-center gap-2 max-sm:w-full",
+              hideActionsOnPhone && "max-sm:hidden",
+            )}
+          >
             {actions}
           </div>
         ) : null}
