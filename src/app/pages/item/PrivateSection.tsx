@@ -118,6 +118,7 @@ export function PrivateSection({ detail, onChanged }: { detail: ItemDetail; onCh
         <input
           ref={input}
           type="file"
+          aria-label={t("private.addDoc")}
           multiple
           className="sr-only"
           tabIndex={-1}

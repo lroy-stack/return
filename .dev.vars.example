@@ -4,3 +4,6 @@ ENVIRONMENT=development
 DEV_OWNER_EMAIL=owner@example.test
 TURNSTILE_SITE_KEY=1x00000000000000000000AA
 FALLBACK_CONTACT_EMAIL=backup@example.test
+# Local dev serves both surfaces on localhost: never use the production hosts here.
+PUBLIC_HOST=
+APP_HOST=

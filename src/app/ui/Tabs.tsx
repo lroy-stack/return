@@ -91,7 +91,7 @@ export function Chip({
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
-      className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors ${
+      className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors ${
         pressed
           ? "border-primary bg-primary-tint text-primary-text"
           : "border-line-strong bg-raised text-fg hover:bg-sunken"

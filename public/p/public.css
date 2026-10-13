@@ -505,10 +505,11 @@ time {
   background: var(--sage-tint);
 }
 
+/* Answered proposals are marked by their chip and a dashed border, never by fading text (contrast). */
 .proposal.status-declined,
 .proposal.status-cancelled,
 .proposal.status-superseded {
-  opacity: 0.75;
+  border-style: dashed;
 }
 
 .proposal-head {

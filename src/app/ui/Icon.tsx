@@ -53,7 +53,7 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
-export function Icon({ name, className = "size-5", ...rest }: { name: IconName } & SVGProps<SVGSVGElement>) {
+export function Icon({ name, className = "", ...rest }: { name: IconName } & SVGProps<SVGSVGElement>) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -64,7 +64,7 @@ export function Icon({ name, className = "size-5", ...rest }: { name: IconName }
       strokeLinejoin="round"
       aria-hidden="true"
       focusable="false"
-      className={`shrink-0 ${className}`}
+      className={`shrink-0 ${/(^|\s)size-/.test(className) ? "" : "size-5"} ${className}`}
       {...rest}
     >
       <path d={PATHS[name]} />

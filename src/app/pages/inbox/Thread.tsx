@@ -231,7 +231,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
             return (
               <div
                 key={entry.id}
-                className={`max-w-[90%] rounded-2xl border border-line bg-raised p-3.5 ${l.sharedBy === "owner" ? "self-end" : "self-start"}`}
+                className={`w-full max-w-sm rounded-2xl border border-line bg-raised p-3.5 ${l.sharedBy === "owner" ? "self-end" : "self-start"}`}
               >
                 <p className="flex items-center gap-2 font-semibold">
                   <Icon name="pin" className="size-4 text-primary-text" />
@@ -255,7 +255,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
           return (
             <div
               key={entry.id}
-              className={`max-w-[92%] rounded-2xl border-2 bg-raised p-3.5 ${open ? "border-primary" : "border-line"} ${p.proposedBy === "owner" ? "self-end" : "self-start"}`}
+              className={`w-full max-w-sm rounded-2xl border-2 bg-raised p-3.5 ${open ? "border-primary" : "border-line"} ${p.proposedBy === "owner" ? "self-end" : "self-start"}`}
             >
               <div className="flex flex-wrap items-center gap-2">
                 <p className="flex items-center gap-2 font-semibold">
@@ -269,7 +269,7 @@ export function Thread({ id, onChanged }: { id: string; onChanged: () => void })
                 </Badge>
               </div>
               <p className="mt-1 font-medium">{p.place}</p>
-              {p.meetAt ? <p className="text-sm">{p.meetAt.replace("T", " ")}</p> : null}
+              {p.meetAt ? <p className="text-sm">{format.wallClock(p.meetAt)}</p> : null}
               {p.instructions ? (
                 <p className="text-sm whitespace-pre-wrap text-muted">{p.instructions}</p>
               ) : null}

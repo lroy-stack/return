@@ -107,6 +107,7 @@ export function Gallery({ detail, onChanged }: { detail: ItemDetail; onChanged: 
         <input
           ref={input}
           id="photo-input"
+          aria-label={t("gallery.add")}
           type="file"
           accept="image/*"
           multiple

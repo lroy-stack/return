@@ -115,7 +115,10 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-col">
         <header className="no-print sticky top-0 z-30 flex items-center justify-between border-b border-line bg-surface/95 px-4 py-1.5 backdrop-blur lg:hidden">
-          <Link to="/" className="flex items-center gap-2 text-lg font-bold tracking-wide text-primary-text">
+          <Link
+            to="/"
+            className="flex min-h-11 items-center gap-2 text-lg font-bold tracking-wide text-primary-text"
+          >
             <Logo />
             RETURN
           </Link>

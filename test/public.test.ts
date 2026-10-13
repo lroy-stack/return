@@ -162,6 +162,12 @@ describe("tag page", () => {
     );
     expect(await (await finderGet(path, { lang: "fr" })).text()).toContain("Escribe al propietario");
     expect(await (await finderGet(path, { lang: "en-US" })).text()).toContain("Write to the owner");
+    // Labels around the owner's single-language note are localized; the note itself is left as written.
+    const noted = await seedTag({ item: { publicMessage: "Ask at the desk" } });
+    const de = await (await finderGet(`/t/${noted.token}?lang=de`)).text();
+    expect(de).toContain("Hinweis des Eigentümers");
+    expect(de).toContain("Ask at the desk");
+    expect(await (await finderGet(`/t/${noted.token}?lang=es`)).text()).toContain("Nota del propietario");
   });
 
   it("shows the lost banner, localized message and reward", async () => {

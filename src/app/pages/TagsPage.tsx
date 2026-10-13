@@ -141,11 +141,11 @@ export function TagsPage() {
                 type="button"
                 onClick={() => setOpenId(tag.id)}
                 className="grid min-h-16 min-w-0 flex-1 items-center gap-x-4 gap-y-1 rounded-lg px-2 py-2 text-left hover:bg-sunken md:grid-cols-[9rem_1fr_auto_8rem]"
-                aria-label={t("itemTags.manage", { label: tag.label })}
               >
                 <span className="font-semibold">{tag.label}</span>
                 <span className="min-w-0 truncate text-sm text-muted">
                   {tag.itemName ?? t("tag.unassigned")}
+                  {tag.note ? ` · ${tag.note}` : ""}
                 </span>
                 <span className="flex flex-wrap gap-1.5">
                   <TagStatusBadge tag={tag} />

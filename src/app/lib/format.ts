@@ -3,6 +3,8 @@ export interface Formatter {
   dateTime: (iso: string | null | undefined) => string;
   money: (cents: number | null | undefined, currency: string | null | undefined) => string;
   relative: (iso: string | null | undefined) => string;
+  /** "2026-10-14T18:30" typed at the place: shown as written, never converted. */
+  wallClock: (local: string | null | undefined) => string;
 }
 
 function safeIntl<T>(make: () => T, fallback: () => T): T {
@@ -32,7 +34,16 @@ export function createFormatter(locale: string, timeZone: string): Formatter {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? null : d;
   };
+  const wallFmt = safeIntl(
+    () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }),
+    () => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }),
+  );
   return {
+    wallClock: (local) => {
+      if (!local) return "";
+      const d = new Date(`${local.length === 16 ? `${local}:00` : local}Z`);
+      return Number.isNaN(d.getTime()) ? local : wallFmt.format(d);
+    },
     date: (iso) => {
       const d = parse(iso);
       return d ? dateFmt.format(d) : "";

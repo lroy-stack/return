@@ -62,7 +62,6 @@ export function ItemTags({ detail, onChanged }: { detail: ItemDetail; onChanged:
                 type="button"
                 onClick={() => setOpenId(tag.id)}
                 className={`flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left hover:bg-sunken ${tag.status === "revoked" ? "opacity-70" : ""}`}
-                aria-label={t("itemTags.manage", { label: tag.label })}
               >
                 <Icon name="qr" className="text-muted" />
                 <span className="min-w-0 flex-1">
