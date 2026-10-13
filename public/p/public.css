@@ -574,3 +574,11 @@ details.card[open] summary {
 [hidden] {
   display: none;
 }
+
+/* Owner-written text (notes, rewards, messages) may contain long URLs without spaces. */
+.notice p,
+.message p,
+.bubble,
+p {
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,310 @@
+/**
+ * Shared fixtures and helpers for the end-to-end suite.
+ *
+ * Local D1 is shared between runs and with other agents, so every test creates its own data through
+ * the owner API (dev auth bypass on loopback) and uses unique names. Nothing here relies on test order.
+ */
+import { randomBytes, randomUUID } from "node:crypto";
+import {
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+  test as base,
+  expect,
+  type Page,
+  type PlaywrightWorkerArgs,
+} from "@playwright/test";
+import type {
+  ConversationDetail,
+  ConversationSummary,
+  Item,
+  ItemInput,
+  Proposal,
+  ProposalInput,
+  Tag,
+} from "../src/shared/schemas";
+
+export const ORIGIN = "http://localhost:5199";
+const TURNSTILE_SCRIPT = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+/** Any non-empty value passes against Cloudflare's always-pass test secret used in `.dev.vars`. */
+const TURNSTILE_DUMMY_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
+const CROCKFORD = "0123456789abcdefghjkmnpqrstvwxyz";
+
+export { expect };
+
+/** Unique, readable marker so assertions can never match another test's data. */
+export function unique(label: string): string {
+  return `${label}-${randomUUID().slice(0, 8)}`;
+}
+
+/** A well-formed tag token (26 Crockford chars) that no tag owns. */
+export function randomTagToken(): string {
+  return Array.from(randomBytes(26), (b) => CROCKFORD[b % 32]).join("");
+}
+
+/** A well-formed finder secret (43 base64url chars) that no conversation owns. */
+export function randomSecretToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+export interface OwnerApi {
+  createItem(overrides?: Partial<ItemInput>): Promise<Item>;
+  createTag(itemId: string | null): Promise<Tag>;
+  markLost(itemId: string): Promise<void>;
+  markRecovered(itemId: string): Promise<void>;
+  revokeTag(tagId: string): Promise<void>;
+  listConversations(): Promise<ConversationSummary[]>;
+  conversation(id: string): Promise<ConversationDetail>;
+  propose(conversationId: string, input: ProposalInput): Promise<Proposal>;
+  qrSvg(tagId: string): Promise<string>;
+}
+
+function ownerApi(request: APIRequestContext): OwnerApi {
+  async function call<T>(method: string, path: string, data?: unknown): Promise<T> {
+    const res = await request.fetch(`/api${path}`, { method, data, headers: { Origin: ORIGIN } });
+    if (!res.ok()) throw new Error(`${method} /api${path} failed with ${res.status()}: ${await res.text()}`);
+    return (res.status() === 204 ? undefined : await res.json()) as T;
+  }
+  return {
+    createItem: (overrides = {}) =>
+      call<Item>("POST", "/items", { name: unique("Item"), category: "backpack", ...overrides }),
+    createTag: async (itemId) =>
+      (await call<{ tags: Tag[] }>("POST", "/tags", { itemId, count: 1 })).tags[0] as Tag,
+    markLost: async (itemId) => void (await call("POST", `/items/${itemId}/lost`, {})),
+    markRecovered: async (itemId) => void (await call("POST", `/items/${itemId}/recovered`, {})),
+    revokeTag: async (tagId) => void (await call("POST", `/tags/${tagId}/revoke`)),
+    listConversations: async () =>
+      (await call<{ conversations: ConversationSummary[] }>("GET", "/conversations")).conversations,
+    conversation: (id) => call<ConversationDetail>("GET", `/conversations/${id}`),
+    propose: (conversationId, input) =>
+      call<Proposal>("POST", `/conversations/${conversationId}/proposals`, input),
+    qrSvg: async (tagId) => {
+      const res = await request.get(`/api/tags/${tagId}/qr.svg`);
+      expect(res.status(), "QR download status").toBe(200);
+      expect(res.headers()["content-type"]).toContain("image/svg+xml");
+      return res.text();
+    },
+  };
+}
+
+/** Everything a finder test needs: an item with distinctive private fields, one active tag. */
+export interface Tagged {
+  item: Item;
+  tag: Tag;
+  /** Last path segment of the tag URL. */
+  token: string;
+  /** Distinctive private values that must never reach the finder pages. */
+  secrets: { name: string; brand: string; model: string; serial: string; notes: string };
+  publicTitle: string;
+}
+
+export interface FinderConversation {
+  /** Absolute path of the finder's private page, e.g. `/c/<secret>`. */
+  path: string;
+  secret: string;
+  /** Conversation id as the owner API knows it. */
+  id: string;
+}
+
+interface Fixtures {
+  owner: OwnerApi;
+  /** An item (private fields filled in, public title set) with one active tag. */
+  tagged: Tagged;
+  /** Starts a conversation for a tag the way a finder's browser would, without driving the UI. */
+  startConversation: (tagged: Tagged, message?: string) => Promise<FinderConversation>;
+}
+
+/**
+ * A fresh simulated client address per finder (IPv6 documentation range, random /64), so the
+ * production abuse caps (3 conversations per source per day) apply per simulated person even
+ * though every request really comes from localhost. Cloudflare sets this header in production.
+ */
+export function finderHeaders(): Record<string, string> {
+  const hex = () => Math.floor(Math.random() * 0x10000).toString(16);
+  return { "CF-Connecting-IP": `2001:db8:${hex()}:${hex()}::1` };
+}
+
+/**
+ * Adds the simulated client address to requests for this app only. Third-party requests
+ * (the Turnstile widget on challenges.cloudflare.com) must not carry CF-Connecting-IP:
+ * Cloudflare rejects that header from clients.
+ */
+export async function asFinder(context: BrowserContext): Promise<BrowserContext> {
+  const headers = finderHeaders();
+  await context.route(`${ORIGIN}/**`, (route) =>
+    route.continue({ headers: { ...route.request().headers(), ...headers } }),
+  );
+  return context;
+}
+
+export async function newFinderContext(browser: Browser): Promise<BrowserContext> {
+  return asFinder(await browser.newContext());
+}
+
+export const test = base.extend<Fixtures>({
+  context: async ({ context }, use) => {
+    await use(await asFinder(context));
+  },
+
+  owner: async ({ request }, use) => {
+    await use(ownerApi(request));
+  },
+
+  tagged: async ({ owner }, use) => {
+    const mark = unique("T");
+    const secrets = {
+      name: `Private name ${mark}`,
+      brand: `Brandx${mark}`,
+      model: `Modelx${mark}`,
+      serial: `SERIAL-${mark}`,
+      notes: `Private note ${mark}: passport is in the lining`,
+    };
+    const publicTitle = `Blue backpack ${mark}`;
+    const item = await owner.createItem({
+      name: secrets.name,
+      brand: secrets.brand,
+      model: secrets.model,
+      serialNumber: secrets.serial,
+      privateNotes: secrets.notes,
+      publicTitle,
+    });
+    const tag = await owner.createTag(item.id);
+    await use({ item, tag, token: new URL(tag.url).pathname.split("/")[2] as string, secrets, publicTitle });
+  },
+
+  startConversation: async ({ playwright, owner }, use) => {
+    await use((tagged, message) => startConversation(playwright, owner, tagged, message));
+  },
+});
+
+async function startConversation(
+  playwright: PlaywrightWorkerArgs["playwright"],
+  owner: OwnerApi,
+  tagged: Tagged,
+  message = unique("Found it near the station"),
+): Promise<FinderConversation> {
+  // Fresh cookie jar per finder: the `rc` cookie must not leak between simulated people.
+  const finder = await playwright.request.newContext({ baseURL: ORIGIN, extraHTTPHeaders: finderHeaders() });
+  try {
+    const res = await finder.post(`/t/${tagged.token}/contact`, {
+      form: { message, lang: "en", "cf-turnstile-response": TURNSTILE_DUMMY_TOKEN },
+      headers: { Origin: ORIGIN },
+      maxRedirects: 0,
+    });
+    if (res.status() === 403) throw new Error(SITEVERIFY_HINT);
+    expect(res.status(), `contact form: ${await res.text()}`).toBe(303);
+    const path = res.headers().location as string;
+    const secret = path.split("/")[2] as string;
+    const cookies = (await finder.storageState()).cookies;
+    expect(cookies.find((c) => c.name === "__Host-rc")?.value, "rc cookie is set on the redirect").toBe(
+      secret,
+    );
+    const summary = (await owner.listConversations()).find(
+      (c) => c.lastMessagePreview === message.slice(0, 160),
+    );
+    if (!summary) throw new Error("The new conversation is not visible to the owner");
+    return { path, secret, id: summary.id };
+  } finally {
+    await finder.dispose();
+  }
+}
+
+const SITEVERIFY_HINT =
+  "The Worker rejected the Turnstile token (HTTP 403). With the always-pass test keys that only happens when the " +
+  "local Worker (workerd) cannot reach https://challenges.cloudflare.com/turnstile/v0/siteverify within 5 s " +
+  "(offline, firewalled or sandboxed network). Server logs show `turnstile failed ... TimeoutError`. " +
+  "Run the e2e suite on a machine where the dev Worker has outbound internet access.";
+
+let turnstileReachable: Promise<void> | undefined;
+
+/**
+ * The Turnstile widget script and siteverify are real network calls (always-pass test keys).
+ * Fail fast with an explanation instead of hanging when the machine is offline.
+ */
+export function requireTurnstileNetwork(): Promise<void> {
+  turnstileReachable ??= probeTurnstile();
+  return turnstileReachable;
+}
+
+async function probeTurnstile(): Promise<void> {
+  let lastError: unknown;
+  // A few quick attempts: a single dropped connection is not "offline".
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(TURNSTILE_SCRIPT, { signal: AbortSignal.timeout(8_000) });
+      if (res.ok) return;
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw new Error(
+    `Cannot reach ${TURNSTILE_SCRIPT} (${String(lastError)}). The finder contact form needs Cloudflare's Turnstile ` +
+      "test widget and siteverify endpoint; run these e2e tests with internet access.",
+  );
+}
+
+/** Waits until the (always-pass) Turnstile widget has put a token into the form. */
+export async function waitForTurnstile(page: Page): Promise<void> {
+  const token = page.locator('input[name="cf-turnstile-response"]');
+  try {
+    await expect(token).toHaveValue(/.+/, { timeout: 30_000 });
+  } catch (err) {
+    throw new Error(
+      `The Turnstile widget never produced a token. Its script loads from ${TURNSTILE_SCRIPT}; ` +
+        `check the network connection. Original error: ${String(err)}`,
+    );
+  }
+}
+
+/**
+ * Clicks the submit button of the first-contact form and returns the HTTP status of the POST
+ * (303 on success). A 403 is reported with an explanation of the usual cause (no outbound network).
+ */
+export async function submitContactForm(page: Page, button: string | RegExp): Promise<number> {
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith("/contact")),
+    page.getByRole("button", { name: button }).click(),
+  ]);
+  if (response.status() === 403) throw new Error(SITEVERIFY_HINT);
+  return response.status();
+}
+
+/** Opens a tag page in the given page and waits for the form to be ready to submit. */
+export async function openTagPage(page: Page, url: string): Promise<void> {
+  await page.goto(url);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+}
+
+/** Counts every call the page makes to the Geolocation API, from the very first script. */
+export async function countGeolocationCalls(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    const w = window as unknown as { __geoCalls: number };
+    w.__geoCalls = 0;
+    for (const name of ["getCurrentPosition", "watchPosition"] as const) {
+      const original = Geolocation.prototype[name];
+      Geolocation.prototype[name] = function (this: Geolocation, ...args: never[]) {
+        w.__geoCalls += 1;
+        return (original as (...a: never[]) => unknown).apply(this, args) as never;
+      };
+    }
+  });
+}
+
+export function geolocationCalls(page: Page): Promise<number> {
+  return page.evaluate(() => (window as unknown as { __geoCalls: number }).__geoCalls);
+}
+
+/**
+ * Horizontal overflow of the current page. Mobile browsers widen `window.innerWidth` to fit overflowing
+ * content, so the configured viewport width is the reliable reference; `innerWidth` is returned as well.
+ */
+export async function horizontalOverflow(
+  page: Page,
+): Promise<{ scrollWidth: number; innerWidth: number; viewportWidth: number }> {
+  const metrics = await page.evaluate(() => ({
+    scrollWidth: document.scrollingElement?.scrollWidth ?? 0,
+    innerWidth: window.innerWidth,
+  }));
+  return { ...metrics, viewportWidth: page.viewportSize()?.width ?? metrics.innerWidth };
+}

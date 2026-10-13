@@ -55,7 +55,10 @@ async function parse<T>(res: Response): Promise<T> {
     }
     throw new ApiRequestError(res.status, "http_error", `Request failed (${res.status})`);
   }
-  if (!isJson) throw new ApiRequestError(res.status, "bad_response", "Unexpected response from the server");
+  // A truncated or unparsable body must surface as a recoverable error, never as `null` data.
+  if (!isJson || body === null) {
+    throw new ApiRequestError(res.status, "bad_response", "Unexpected response from the server");
+  }
   return body as T;
 }
 
