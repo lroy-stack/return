@@ -21,6 +21,7 @@ import { MessagesSection } from "./MessagesSection";
 import { NotificationsSection } from "./NotificationsSection";
 import { PrivacySection } from "./PrivacySection";
 import { PublicPageSection } from "./PublicPageSection";
+import { SessionSection } from "./SessionSection";
 import { SystemSection } from "./SystemSection";
 import { SettingsPageTitle } from "./shared";
 import { TagsSettingsSection } from "./TagsSettingsSection";
@@ -35,6 +36,7 @@ const SECTIONS: { key: string; label: MessageKey; icon: IconName; editable: bool
   { key: "public", label: "settings.public", icon: "external", editable: true },
   { key: "activity", label: "settings.activity", icon: "refresh", editable: false },
   { key: "system", label: "settings.system", icon: "settings", editable: false },
+  { key: "session", label: "settings.session", icon: "external", editable: false },
 ];
 
 export function SettingsPage({ section }: { section?: string }) {
@@ -151,7 +153,11 @@ export function SettingsPage({ section }: { section?: string }) {
             to={`/settings/${s.key}`}
             current={split && active?.key === s.key}
             leading={
-              <IconTile tone={s.key === "system" || s.key === "activity" ? "neutral" : "primary"}>
+              <IconTile
+                tone={
+                  s.key === "system" || s.key === "activity" || s.key === "session" ? "neutral" : "primary"
+                }
+              >
                 <Icon name={s.icon} className="size-5" />
               </IconTile>
             }
@@ -186,6 +192,7 @@ export function SettingsPage({ section }: { section?: string }) {
                 {active.key === "public" ? <PublicPageSection {...props} /> : null}
                 {active.key === "activity" ? <ActivitySection /> : null}
                 {active.key === "system" ? <SystemSection /> : null}
+                {active.key === "session" ? <SessionSection /> : null}
               </div>
               {unsavedBar}
             </SettingsPageTitle.Provider>

@@ -7,6 +7,8 @@ export type ToastTone = "success" | "error" | "info";
 export interface ToastOptions {
   /** One short action, e.g. Undo. Runs once and dismisses the toast. */
   action?: { label: string; onClick: () => void };
+  /** Stays until dismissed (e.g. "Update ready"); the user can still close it. */
+  sticky?: boolean;
 }
 interface ToastItem {
   id: number;
@@ -39,7 +41,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (message, tone = "success", options = {}) => {
       const id = nextId.current++;
       setItems((xs) => [...xs.slice(-2), { id, message, tone, action: options.action }]);
-      window.setTimeout(() => dismiss(id), tone === "error" || options.action ? 8000 : 4500);
+      if (!options.sticky)
+        window.setTimeout(() => dismiss(id), tone === "error" || options.action ? 8000 : 4500);
     },
     [dismiss],
   );

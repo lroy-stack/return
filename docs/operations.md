@@ -170,3 +170,82 @@ the first nightly JSON backup (cron `17 3 * * *`, first run 2026-10-14 03:17Z: c
 `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (same commands as the local gates; no
 secrets). A nightly / manual job runs `pnpm test:e2e` with Chromium, creating `.dev.vars` from `.dev.vars.example`
 (test values only). Third-party actions are pinned by commit SHA with a version comment; update them deliberately.
+The e2e run includes the `pwa` project, which builds the production bundle and serves it with `vite preview` on port 5198
+(own database in `.wrangler/e2e-pwa`).
+
+## 9. Owner PWA and service worker (`app.return.lr0y.dev`, ADR 0002)
+**What ships.** `vite build` emits `dist/client/sw.js` (source `src/sw/sw.ts`, routing in `src/shared/sw-routing.ts`) with
+a build id and the precache list (every `/assets/*` file, `/icons/*`, `/manifest.webmanifest`, plus the shell `/`).
+The build id is a hash of the emitted file names and the manifest/icon bytes, so any change to the panel changes the
+worker file; `SW_BUILD_ID=<x>` overrides it. The service worker never handles `/api/*`, `/cdn-cgi/*`, non-GET or
+cross-origin requests, so nothing private is stored in Cache Storage (unit test + Playwright check).
+`sw.js` and `manifest.webmanifest` are served `Cache-Control: no-cache` (`public/_headers`); registration uses
+`updateViaCache: "none"`.
+
+**How an update rolls out.** `pnpm run release` deploys the new assets. Each open or reopened panel checks `/sw.js`
+(on load, when the tab becomes visible, hourly), installs the new worker next to the old one and shows the toast
+"Update ready - Reload". The old worker and its cache (`return-app-<old id>`) keep serving until the owner taps Reload;
+then the new worker activates, deletes every older `return-app-*` cache and the page reloads into the new build. If the
+install cannot fetch the shell (offline, or an expired Access session answering with a login redirect) it fails and
+retries on the next check; the old version keeps working.
+
+**Kill switch (roll back or disable all installed workers).** Use when a worker bug serves stale or broken pages and
+a normal release is not enough:
+1. `SW_KILL=1 pnpm build` (emits a worker that only cleans up) and deploy it: `SW_KILL=1 pnpm exec vite build && pnpm exec wrangler deploy`
+   (or `SW_KILL=1 pnpm run release`; the variable is inherited by the build step).
+2. Every browser that checks `/sw.js` (next visit, at most a day later; Chromium also checks on navigation) installs it:
+   it activates immediately, deletes all caches, unregisters itself and reloads the open tabs onto network-only pages.
+3. The panel keeps trying to register `/sw.js` on every load, so after the kill build is out and the devices have
+   cleaned up, ship a fixed normal build (or leave the kill build in place until the fix is ready; the panel works
+   without a service worker, only offline use and the update toast are lost).
+`wrangler rollback` alone is not a kill switch: it restores the previous worker, which devices would then re-install.
+The kill worker is covered by the `pwa` e2e spec.
+
+**Access.** Session duration for the panel application should be **30 days** (owner action in Zero Trust > Access >
+Applications > RETURN panel), so an installed app is not logged out on the day an item is found. The manifest link
+uses `crossorigin="use-credentials"` so the manifest request carries the Access cookie. If a device still receives the
+Access login page instead of `/manifest.webmanifest`, `/sw.js` or `/icons/*` (symptom: no install prompt, "Update ready"
+never shows), add path-specific Access applications with a Bypass policy for exactly those paths (spike S1, ADR 0002).
+Sign out (Settings > Session) clears Cache Storage, then goes to `/cdn-cgi/access/logout`.
+
+## 10. Owner Web Push (VAPID, ADR 0003)
+Push is off until a VAPID key pair exists: `GET /api/push/config` answers `vapidPublicKey: null` and System status shows
+`push.configured: false`. Setup is a one-time owner action (the repository never holds the private key):
+```bash
+# 1. Generate the pair. stdout is the private key only (PKCS#8, base64url) and goes straight into the secret;
+#    the public key is printed on stderr as VAPID_PUBLIC_KEY=...
+node scripts/vapid-keys.mjs | pnpm exec wrangler secret put VAPID_PRIVATE_KEY
+# 2. Put the printed public key into wrangler.jsonc ("vars": { "VAPID_PUBLIC_KEY": "<value>" }) and run
+pnpm cf-typegen
+# 3. Release as usual (migrate first: migration 0005_push creates push_subscriptions)
+pnpm run release --migrate
+```
+Alternative without a pipe: `node scripts/vapid-keys.mjs --out vapid-private.key`, then
+`pnpm exec wrangler secret put VAPID_PRIVATE_KEY < vapid-private.key`, then delete the file (it is git-ignored, mode 0600,
+never overwritten). The script refuses to print the private key to a terminal unless `--print-private` is given.
+Local dev: put both values in `.dev.vars` (see `.dev.vars.example`).
+
+The Worker checks that the public key belongs to the private key; a mismatch is logged
+(`VAPID_PUBLIC_KEY does not match VAPID_PRIVATE_KEY`) and push stays disabled instead of every push service answering 403.
+The VAPID `sub` claim is `mailto:` + `NOTIFY_FROM`.
+
+**Rotation (only on compromise).** A subscription is bound to the public key it was created with, so rotating the pair
+invalidates every subscription: generate a new pair as above, replace the secret and the var, release, then every device
+must subscribe again (Settings > Notifications). Old subscriptions then fail with 401/403 (a key mismatch), which is
+deliberately neither counted nor auto-deleted: they stay in the list and in System status `push.recentFailures` until
+each device is re-enabled from Settings > Notifications (or the stale row is deleted in the panel). Do not rotate for routine hygiene.
+
+**Delivery rules.** Sent from `waitUntil` next to the email, each request with a 5 s timeout. Owner caps count events (each
+goes to every device, test pushes excluded): follow-ups 40/hour, first contact and lost-item scans 60/hour, one follow-up
+per conversation per 2 minutes (first contact and scans bypass the cooldown), mute and per-event toggles apply, at most
+10 devices. A 404/410 from the push service deletes the subscription at once. Transient failures (timeout, network,
+429, 5xx) increment `failures`; a subscription is deleted after 5 consecutive ones spanning at least 24 hours.
+Rejections (400/401/403/413, redirects, encryption errors) are logged with their code, count as failed pushes in System
+status and never delete or count against the device. Redirects from a push service are never followed.
+Every attempt is a `notifications` row (`channel = 'push'`, `recipient` = subscription id). System status
+(`push`) shows configured, device count, failures in 7 days and the last success. "Send test push" in the panel API
+(`POST /api/push/test`) reports the outcome per device.
+
+**Debugging.** Logs are structured (`msg: "push delivery"`, subscription id, status, error code such as `http_413` or
+`timeout`; never the endpoint or payload). Non-transient failures are logged at `error` level because they mean a bug in
+our request or a key mismatch.

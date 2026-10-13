@@ -11,6 +11,7 @@ Researched 2026-10-13. ✅ = verified in official docs that day; ⚠️ = not ve
 | Files | R2 private bucket via binding; served only through authenticated `/api/files/:id` (public photo through tag page) | No public bucket for invoices ✅ | Free 10 GB-month ✅ | R2 object versioning not found ⚠️ → own backups | Public R2 bucket / signed URLs |
 | Anti-abuse | Workers Rate Limiting binding (per IP) + D1 caps per tag/conversation + Turnstile on first contact | Binding config `ratelimits` ✅ (period 10/60 s); Turnstile free ✅ | Free | Rate-limit binding is per-location, approximate ⚠️ | CAPTCHA on every page (hurts legit finders) |
 | Notifications | `send_email` binding → owner's verified address (any plan ✅); finder emails opt-in (Email Service on Workers Paid ✅, 3,000/mo incl.) | No third-party mail account | Free for owner-only | Sender domain must be onboarded on Cloudflare ✅; Email Service GA status ⚠️ | Resend/Postmark (extra account + API key) ; Telegram (v2) |
+| Push | Owner Web Push from the Worker: in-house RFC 8291/8292 on WebCrypto (`services/push/webpush.ts`), declarative content-free payload, VAPID key pair (`VAPID_PUBLIC_KEY` var + `VAPID_PRIVATE_KEY` secret, `scripts/vapid-keys.mjs`), table `push_subscriptions` (migration `0005_push`, already shaped for finder/Expo rows) | ADR 0003: no dependency on a low-adoption library, RFC test vectors give the assurance; email stays as backstop | Free (push services are free); one extra D1 write batch per event | Safari/iOS behaviour needs device tests; rotation invalidates subscriptions | PushForge, OneSignal/Firebase (ADR 0003) |
 | Finder access | Capability URL `/c/:token` (256-bit), only SHA-256 stored; optional HttpOnly cookie | No accounts; token theft limited to one conversation | Free | URL can be shared/copied — accepted, documented | Finder accounts / magic links (friction) |
 | Tag tokens | 128-bit random, Crockford base32 lowercase (26 chars), case-insensitive lookup | Non-enumerable; short enough for NTAG213 (144 B user memory ✅) | — | QR can be photographed (cannot prove physical scan) | Sequential ids / short codes |
 | QR | `uqr` (MIT, zero deps) → SVG path; ECC M; quiet zone 4 | Pure ESM, runs in Worker + browser | — | — | `qrcode` (Node deps), server PNG rendering |
@@ -47,7 +48,8 @@ Researched 2026-10-13. ✅ = verified in official docs that day; ⚠️ = not ve
   proposal moves the recovery to `returning`.
 - **Notifications:** caps are enforced per email: 30/h for follow-ups, 45/h reserved ceiling for first contact and
   lost-item alerts; one follow-up email per conversation per 10 min. Trusted contacts are told *that* contact happened,
-  never the finder's text.
+  never the finder's text. Push (ADR 0003) has its own counters (60/h, 2 min follow-up cooldown per conversation) and
+  the email counters only count `channel = 'email'` rows, so neither channel starves the other.
 - **Cards:** CR80 85.6×54 mm, r 3.18, bleed 2, safe 3; Ø5 hole at 6 mm from the short edge in a 12 mm "stub" band;
   QR 30 mm incl. quiet zone, ECC M, module ≥ 0.5 mm (layout grows the QR or fails `url_too_long`); PDF one page per
   side with TrimBox/BleedBox, vector QR, Helvetica/Courier standard fonts (WinAnsi); exports are watermarked

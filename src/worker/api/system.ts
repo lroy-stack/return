@@ -3,6 +3,7 @@ import type { SystemStatus } from "../../shared/schemas";
 import { type AppEnv, isDevelopment } from "../env";
 import { daysAgoIso } from "../lib/time";
 import { emailConfigured, lastOwnerDelivery } from "../services/notify";
+import { loadVapid } from "../services/push/webpush";
 import { TURNSTILE_STATE_KEY } from "../services/turnstile";
 import { APP_VERSION } from "../version";
 
@@ -34,7 +35,10 @@ systemApi.get("/", async (c) => {
             (SELECT MAX(created_at) FROM activity_events WHERE owner_id = ?1 AND type = 'backup.created') AS last_backup,
             (SELECT MAX(created_at) FROM activity_events WHERE owner_id = ?1 AND type = 'maintenance.ran') AS last_run,
             (SELECT updated_at FROM system_state WHERE key = ?3) AS turnstile_ok,
-            (SELECT COUNT(*) FROM notifications WHERE owner_id = ?1 AND status = 'failed' AND created_at > ?2) AS failures`,
+            (SELECT COUNT(*) FROM notifications WHERE owner_id = ?1 AND channel = 'email' AND status = 'failed' AND created_at > ?2) AS failures,
+            (SELECT COUNT(*) FROM notifications WHERE owner_id = ?1 AND channel = 'push' AND status = 'failed' AND created_at > ?2) AS push_failures,
+            (SELECT MAX(last_success_at) FROM push_subscriptions WHERE owner_id = ?1 AND audience = 'owner') AS push_last_success,
+            (SELECT COUNT(*) FROM push_subscriptions WHERE owner_id = ?1 AND audience = 'owner') AS push_subscriptions`,
   )
     .bind(ownerId, daysAgoIso(7), TURNSTILE_STATE_KEY)
     .first<{
@@ -45,6 +49,9 @@ systemApi.get("/", async (c) => {
       last_run: string | null;
       turnstile_ok: string | null;
       failures: number;
+      push_failures: number;
+      push_last_success: string | null;
+      push_subscriptions: number;
     }>();
   const accessConfigured = Boolean(env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD);
   const turnstileOk = counts?.turnstile_ok ?? null;
@@ -72,6 +79,12 @@ systemApi.get("/", async (c) => {
       configured: emailConfigured(env),
       lastOwnerDelivery: delivery,
       recentFailures: counts?.failures ?? 0,
+    },
+    push: {
+      configured: (await loadVapid(env)) !== null,
+      subscriptions: counts?.push_subscriptions ?? 0,
+      recentFailures: counts?.push_failures ?? 0,
+      lastSuccessAt: counts?.push_last_success ?? null,
     },
     maintenance: { lastRunAt: counts?.last_run ?? null, lastBackupAt: counts?.last_backup ?? null },
     counts: {

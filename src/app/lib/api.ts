@@ -1,4 +1,5 @@
 /** Tiny typed fetch client for the owner API (same origin, cookies automatic). */
+import { reportApiReachable } from "./connectivity";
 
 interface Issue {
   path: ReadonlyArray<string | number>;
@@ -68,8 +69,10 @@ async function request<T>(method: string, path: string, init: RequestInit = {}):
     res = await fetch(`/api${path}`, { method, credentials: "same-origin", ...init });
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") throw e;
+    reportApiReachable(false);
     throw new ApiRequestError(0, "network", "Network error");
   }
+  reportApiReachable(true);
   return parse<T>(res);
 }
 

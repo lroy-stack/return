@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, lazy, type ReactNode, Suspense } from "react";
+import { PwaUpdateToast } from "./components/PwaUpdateToast";
 import { Shell } from "./components/Shell";
 import { useT } from "./lib/i18n";
 import { OverviewProvider } from "./lib/overview-context";
@@ -82,6 +83,7 @@ export function App() {
   return (
     <SettingsProvider>
       <ToastProvider>
+        <PwaUpdateToast />
         <OverviewProvider>
           <Shell>
             <RouteBoundary />

@@ -4,7 +4,16 @@
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "lib": ["ES2023", "DOM"],
+    "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "playwright.config.ts", "e2e", "scripts", "src/shared"]
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "e2e",
+    "scripts",
+    "vite",
+    "src/shared"
+  ]
 }

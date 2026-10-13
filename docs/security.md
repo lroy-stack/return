@@ -22,6 +22,11 @@ attacker on the internet without any tag, someone with a copied finder link.
 | IDOR | Every owner query filters by `owner_id`; foreign ids return 404 | IDOR tests per resource |
 | Secret exposure | Secrets via `wrangler secret`; `.dev.vars` git-ignored; system status reports booleans only; no Cloudflare/Hostinger tokens in the Worker | system test |
 | Notification abuse | Owner-only recipients by default; finder email opt-in (Paid); caps and cooldowns; failures logged, never block storage | notify tests |
+| Push endpoint abuse (SSRF) | The Worker only POSTs to stored endpoints; registration accepts `https:` URLs on known push services only (`fcm.googleapis.com`, `updates.push.services.mozilla.com`, `*.push.apple.com`, `*.notify.windows.com`), no credentials, default port, 1024 chars; owner-only API behind Access + Origin check | `test/push.test.ts`, `pushServiceOf` |
+| Push leaks content on a lock screen | Declarative payload is content-free: never message text, places or return plans; the item name only if the owner turns on `notifications.push.showItemName` (off by default); payload is encrypted end to end to the device (RFC 8291) so the push service sees metadata only | payload snapshot test |
+| Forged or replayed pushes | VAPID ES256 JWT per push service origin (12 h, cached in isolate memory); private key only as the `VAPID_PRIVATE_KEY` secret, pair mismatch disables push; rotation invalidates all subscriptions (runbook in operations) | `test/webpush.test.ts` (RFC 8291 vectors, JWT round trip) |
+| Push subscription theft or takeover | Endpoint and keys are never returned by the API; foreign ids give 404 and an endpoint already stored for another owner is never reassigned; dead endpoints (404/410, 5 failures over 24 h) are deleted | `test/push.test.ts` |
+| Push flooding | 60/h per owner, 2 min follow-up cooldown per conversation, 10 devices, 5 s timeout, no inline retry | `test/push.test.ts` |
 | State tampering | Server-side state machines for recoveries and proposals; actor checks (only the other party accepts) | recovery/proposal tests |
 | Accidental destruction | Delete requires archive + typed name; restore only into an empty inventory; tags never deleted, only revoked; nightly backups | items/data tests |
 

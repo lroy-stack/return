@@ -9,3 +9,7 @@ PUBLIC_HOST=
 APP_HOST=
 # Answer geocoding in-process in local dev/E2E (never calls OpenStreetMap).
 NOMINATIM_STUB=1
+# Web Push (optional): generate a pair with `node scripts/vapid-keys.mjs --out vapid-private.key`
+# (prints the public key), then paste both here. Never commit real values.
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=

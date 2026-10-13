@@ -69,6 +69,14 @@ export const settingsSchema = z.object({
         })
         .prefault({}),
       mutedUntil: z.iso.datetime().nullable().default(null),
+      push: z
+        .object({
+          // Subscriptions exist only when a device opted in, so on by default.
+          enabled: z.boolean().default(true),
+          // Lock screens are public: the item name stays out of push payloads unless asked for.
+          showItemName: z.boolean().default(false),
+        })
+        .prefault({}),
       // Sending to arbitrary finder addresses needs Cloudflare Email Service on Workers Paid.
       notifyFinders: z.boolean().default(false),
     })

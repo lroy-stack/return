@@ -7,6 +7,8 @@
  *   hash is stored, so a database leak does not grant access to conversations.
  */
 
+import { base64urlEncode } from "./base64url";
+
 const CROCKFORD = "0123456789abcdefghjkmnpqrstvwxyz";
 
 export function newId(): string {
@@ -24,7 +26,7 @@ export function normalizeTagToken(raw: string): string | null {
 }
 
 export function newSecretToken(): string {
-  return base64url(crypto.getRandomValues(new Uint8Array(32)));
+  return base64urlEncode(crypto.getRandomValues(new Uint8Array(32)));
 }
 
 export function isWellFormedSecretToken(raw: string): boolean {
@@ -62,12 +64,6 @@ function base32(bytes: Uint8Array): string {
   }
   if (bits > 0) out += CROCKFORD[(value << (5 - bits)) & 31];
   return out;
-}
-
-function base64url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 function hex(bytes: Uint8Array): string {

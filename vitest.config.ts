@@ -23,6 +23,11 @@ export default defineConfig(async () => {
             TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
             IP_HMAC_SECRET: "test-secret",
             DEV_OWNER_EMAIL: "",
+            // Throwaway P-256 pair generated with scripts/vapid-keys.mjs, used only by tests.
+            VAPID_PUBLIC_KEY:
+              "BHa-Th-SyO-86cc_ju3NFFPKQiG17_jE-PhYGKzkrnHI8eOsuLPIlT2F4bnkuZK047VBXbnq_YUMrSXEP26DS18",
+            VAPID_PRIVATE_KEY:
+              "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQggHJxJLJdbLtVpIzXx31P7pWM7MEtiTJ5WxdfIx2IGCuhRANCAAR2vk4fksjvvOnHP47tzRRTykIhte_4xPj4WBis5K5xyPHjrLizyJU9heG55LmStOO1QV256v2FDK0lxD9ug0tf",
             // Geocoding never reaches the real service in tests, and the 1 req/s throttle is off.
             NOMINATIM_URL: "https://nominatim.test",
             NOMINATIM_MIN_INTERVAL_MS: "0",

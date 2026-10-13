@@ -10,6 +10,7 @@ import { Button } from "../../ui/Button";
 import { TextInput, Toggle } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
 import { errorMessage } from "../../ui/States";
+import { PushDevices } from "./PushDevices";
 import { FieldGroup, SectionCard, type SectionProps } from "./shared";
 
 const EVENTS = ["newConversation", "newMessage", "locationShared", "proposal", "lostItemScanned"] as const;
@@ -55,6 +56,7 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
 
   return (
     <div className="flex flex-col gap-5">
+      <PushDevices draft={draft} update={update} />
       <SectionCard title={t("settings.notifications")} description={t("settings.notificationsDesc")}>
         <Toggle
           label={t("notif.enable")}

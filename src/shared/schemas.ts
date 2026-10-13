@@ -533,6 +533,14 @@ export interface SystemStatus {
     /** Failed emails in the last 7 days. */
     recentFailures: number;
   };
+  push: {
+    /** VAPID key pair present and matching. */
+    configured: boolean;
+    subscriptions: number;
+    /** Failed pushes in the last 7 days. */
+    recentFailures: number;
+    lastSuccessAt: string | null;
+  };
   maintenance: { lastRunAt: string | null; lastBackupAt: string | null };
   counts: { items: number; tags: number; openConversations: number };
 }
@@ -551,6 +559,103 @@ export interface OwnerAlert {
   message: string;
   /** When the failed delivery happened (null when email is simply not configured). */
   since: string | null;
+}
+
+/* ------------------------------------------------------------------ Web Push (ADR 0003) */
+
+export const PUSH_EVENT_KINDS = [
+  "new_conversation",
+  "new_message",
+  "location_shared",
+  "proposal",
+  "lost_item_scanned",
+  "test",
+] as const;
+export type PushEventKind = (typeof PUSH_EVENT_KINDS)[number];
+
+export type PushService = "google" | "mozilla" | "apple" | "microsoft";
+
+/**
+ * Which known push service runs this endpoint, or null for anything else. The Worker POSTs to
+ * the stored endpoint, so only https URLs on these hosts (no credentials, default port) are ever
+ * accepted: an endpoint is attacker-controlled input and must not become an SSRF primitive.
+ */
+export function pushServiceOf(endpoint: string): PushService | null {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.port !== "" || url.username !== "" || url.password !== "") return null;
+  const host = url.hostname;
+  if (host === "fcm.googleapis.com") return "google";
+  if (host === "updates.push.services.mozilla.com") return "mozilla";
+  if (host.endsWith(".push.apple.com")) return "apple";
+  if (host.endsWith(".notify.windows.com")) return "microsoft";
+  return null;
+}
+
+/** `PushSubscription.toJSON()` from the browser (extra members such as `expirationTime` are ignored). */
+export const pushSubscribeSchema = z.object({
+  endpoint: z
+    .string()
+    .max(1024)
+    .refine((v) => pushServiceOf(v) !== null, "Endpoint is not a known push service"),
+  keys: z.object({
+    // 65-byte uncompressed P-256 point and 16-byte authentication secret, unpadded base64url.
+    p256dh: z.string().regex(/^[A-Za-z0-9_-]{87}$/),
+    auth: z.string().regex(/^[A-Za-z0-9_-]{22}$/),
+  }),
+  label: nullableStr(80),
+});
+export type PushSubscribeInput = z.infer<typeof pushSubscribeSchema>;
+
+export const pushTestSchema = z.object({ subscriptionId: z.string().max(64).optional() });
+
+/**
+ * Declarative Web Push payload (RFC 8030 transport, WebKit "web_push": 8030 format). It is
+ * content-free by design: never message text, names, places or return plans. The item name is
+ * the single optional exception and only when the owner turns on `notifications.push.showItemName`.
+ */
+export const pushPayloadSchema = z.strictObject({
+  web_push: z.literal(8030),
+  notification: z.strictObject({
+    title: z.string().min(1).max(60),
+    body: z.string().min(1).max(160),
+    navigate: z.url().max(300),
+    lang: z.enum(["en", "de", "es"]),
+    tag: z.string().min(1).max(64),
+  }),
+  return: z.strictObject({
+    v: z.literal(1),
+    kind: z.enum(PUSH_EVENT_KINDS),
+    conversationId: z.string().max(64).nullable(),
+  }),
+});
+export type PushPayload = z.infer<typeof pushPayloadSchema>;
+
+/** One registered device. The endpoint and keys are secrets of the device and are never returned. */
+export interface PushSubscriptionView {
+  id: string;
+  service: PushService | null;
+  label: string | null;
+  createdAt: string;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  /** Consecutive failed deliveries. */
+  failures: number;
+}
+
+/** `vapidPublicKey` is null when push is not set up on this server (key pair missing or mismatched). */
+export interface PushConfig {
+  vapidPublicKey: string | null;
+}
+
+export interface PushTestResult {
+  ok: boolean;
+  code: "sent" | "not_configured" | "no_subscriptions" | "failed";
+  results: { id: string; status: "sent" | "gone" | "failed"; error: string | null }[];
 }
 
 export interface Me {

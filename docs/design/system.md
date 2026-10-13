@@ -195,7 +195,9 @@ All components: typed props, no `any`, semantic HTML first, visible `:focus-visi
 | `Thumb`, `Avatar` | Thumb.tsx | Thumb `xs · sm · md · lg · xl · fill`, photo or category fallback | lazy | Decorative alt by default. Avatar = initial only (never a stranger's photo). |
 | `Sheet`, `SheetBody`, `SheetFooter` | Sheet.tsx | `size md · lg`; `placement auto · compact · center` | open (spring), dragging, closed | Phone: bottom sheet + grabber + drag/scrim/Esc to close. ≥ 640: `auto` = floating side panel (forms), `compact` = small centred panel (short menus such as Create), `center` = alert on every size. Footer: Cancel then primary; solid so scrolled content never shows through. Escape = native `cancel` (prevented; the parent closes via `open`); a `close` the parent did not ask for is reported once, a late `close` after a programmatic close never is. Controls that own Escape (Select, Combobox, Menu) cancel the keydown so the sheet stays open. |
 | `ConfirmDialog` | ConfirmDialog.tsx | `tone danger · primary`, `typed` | pending, error (stays open) | Centred alert. Typed confirmation for irreversible actions. |
-| `ToastProvider`, `useToast` | Toast.tsx | tones `success · error · info`; option `action` | auto-dismiss 4.5 s / 8 s | Glass capsule above the tab bar; errors are alerts. |
+| `ToastProvider`, `useToast` | Toast.tsx | tones `success · error · info`; options `action`, `sticky` | auto-dismiss 4.5 s / 8 s; `sticky` stays until closed | Glass capsule above the tab bar; errors are alerts. `sticky` is for decisions the user must not miss ("Update ready"). |
+| `OfflineBanner` | components/OfflineBanner.tsx | state from `useConnectivity()`: `offline` · `unreachable` | hidden when online | Warning-tint card at the top of `main` (above `AlertsBanner`) on every screen. `offline` (browser says no network): "You are offline", Try again. `unreachable` (online but the API failed at network level, e.g. expired Access session): Try again + Reload. The shell still renders from the service worker; pages show their own `ErrorState`. No offline data in v1. |
+| `PwaUpdateToast` | components/PwaUpdateToast.tsx | none (renders nothing) | — | While a new service worker waits: sticky info toast "Update ready" with a Reload action (skip waiting, reload into the new build). |
 | `Tabs`, `Chip` | Tabs.tsx | Tabs `pill · underline`, counts; Chip `pressed` | selected, focus | Tabs switch views of one object; Chips combine filters. |
 | `EmptyState`, `ErrorState`, `Skeleton`, `SkeletonRows`, `LoadingBlock`, `errorMessage` | States.tsx | `compact`; LoadingBlock `blocks · rows` | — | Empty: why + next step. Error: what + retry. Loading: final-size skeletons. |
 | `PageHeader` | Page.tsx | `eyebrow`, `back`, `badges`, `subtitle`, `actions`, `hideActionsOnPhone` | focus on navigation | The only h1. Feeds the compact header title. |
@@ -255,6 +257,14 @@ language). "More" buttons that open action sheets → `Menu`: `pages/item/ItemDe
 One set: inline 24 × 24 stroke icons in `ui/Icon.tsx` (1.75 stroke; 2 for selected tabs; 1.25–1.6 for large
 fallbacks). Sizes 16 (inline/meta), 20 (buttons, rows), 24 (tabs, rail), 28–40 (empty states). Decorative by default
 (`aria-hidden`); the parent carries the name. Add icons to the same map; never emoji, never a second icon set.
+
+## 10a. Installed app (PWA)
+Manifest `public/manifest.webmanifest`: `display: standalone`, `theme_color`/`background_color` `#FAF7F2` (`warmWhite`;
+manifests have no dark variant, so dark mode relies on the `<meta name="theme-color" media>` pair in `index.html`).
+Icons are generated from the brand mark by `pnpm icons:pwa`: 192 and 512 `any` (rounded petrol tile, transparent
+corners), 512 `maskable` and the 180 apple-touch icon (full-bleed petrol, glyph at 120 % inside the 80 % safe zone).
+iOS: `apple-mobile-web-app-capable`, title `RETURN`, status bar style `default` (`black-translucent` would draw white
+text over the warm-white canvas); `--header-h` and the tab bar already use `env(safe-area-inset-*)`.
 
 ## 11. Voice and copy
 - **Voice**: calm, short, warm, specific. Say what happened and what to do next. No blame, no exclamation marks in

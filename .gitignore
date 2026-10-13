@@ -13,3 +13,4 @@ test-results/
 playwright-report/
 backups/
 .playwright-mcp/
+vapid-private.key

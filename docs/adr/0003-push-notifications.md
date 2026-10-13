@@ -57,7 +57,7 @@ library would. PushForge stays a reference implementation for review.
 - `services/push/expo.ts`: same result type for `ExponentPushToken[...]` targets.
 - `db/push.ts`: subscription queries; every owner query filters by `owner_id`.
 
-### Data model (`migrations/0003_push.sql`, sketch)
+### Data model (`migrations/0005_push.sql`, sketch)
 ```sql
 CREATE TABLE push_subscriptions (
   id              TEXT PRIMARY KEY,
@@ -77,6 +77,10 @@ CREATE TABLE push_subscriptions (
 CREATE INDEX push_subscriptions_owner ON push_subscriptions(owner_id, audience);
 CREATE INDEX push_subscriptions_conversation ON push_subscriptions(conversation_id);
 ```
+Implemented in `migrations/0005_push.sql` (0003 and 0004 were taken by other migrations). Differences from the sketch:
+`first_failure_at` and `last_failure_at` columns (the "5 failures spanning 24 h" rule needs them) and a CHECK that
+`webpush` rows carry `p256dh` and `auth`. The Workers Paid plan removed the CPU concern; the VAPID JWT is still cached per
+audience.
 The existing `notifications` table logs pushes with `channel = 'push'` and `recipient` = subscription id (never the
 endpoint URL, which identifies a device to its push service).
 
@@ -125,17 +129,23 @@ uncompressed P-256 point (base64url); `auth` = 16 bytes.
 - VAPID: ES256 JWT, `aud` = endpoint origin, `exp` = now + 12 h, `sub` = `mailto:` the notify address; cached per
   `aud` in isolate memory until 1 h before expiry. `VAPID_PUBLIC_KEY` (var), `VAPID_PRIVATE_KEY` (secret, PKCS#8).
   Never rotated except on compromise (rotation invalidates every subscription; runbook in operations).
-- Results: 201/202 → `last_success_at`, `failures = 0`; 404/410 → delete the subscription; 400/413 → log as a bug;
-  429/5xx/timeout → log failed, `failures + 1`, no inline retry (the next event notifies again); delete after 5
-  consecutive failures spanning ≥ 24 h. Duplicate notifications are harmless (the `tag` collapses them), so no
+- Results: 201/202 → `last_success_at`, `failures = 0`; 404/410 → delete the subscription at once; transient
+  outcomes (timeout, network error, 429, 5xx) → log failed, `failures + 1`, no inline retry (the next event notifies
+  again), delete after 5 consecutive failures spanning ≥ 24 h. Other outcomes (400/401/403/413, any 3xx, encryption
+  errors, an endpoint outside the allowlist) are our bug or a key mismatch: they are logged as failed with a distinct
+  code (`http_403`, `http_3xx`, `encrypt_failed`, `endpoint_not_allowed`), never counted and never delete the
+  subscription, and they show in System status `push.recentFailures`. Redirects are never followed (`redirect:
+  "manual"`) and the endpoint is re-checked against the allowlist right before sending. Duplicate notifications are harmless (the `tag` collapses them), so no
   idempotency key is needed.
 - Expo: same content rules; `Authorization: Bearer EXPO_ACCESS_TOKEN` (enhanced security on); a
   `DeviceNotRegistered` ticket deletes the subscription; receipts are not polled in v1.
 
 ### Caps and preferences
 - Owner: the existing per-event toggles apply to every channel; new `notifications.push = { enabled, showItemName }`.
-  Follow-up cooldown per conversation 2 min for push (email keeps 10 min); 60 pushes/hour per owner; first contact and
-  lost-item scans bypass the cooldown but count toward the hourly cap; `mutedUntil` applies.
+  Follow-up cooldown per conversation 2 min for push (email keeps 10 min); the hourly cap counts events, not
+  deliveries (an allowed event goes to every device, test pushes excluded): follow-ups stop at 40/h, first contact and
+  lost-item scans at 60/h, so a flood cannot use the reserved room; first contact and scans bypass the cooldown;
+  `mutedUntil` applies.
 - Finder: ≤ 3 subscriptions per conversation (subscribe counts against `PUBLIC_WRITE_LIMIT`); one push per
   conversation per 5 min; only for owner replies, owner return plans and owner responses; subscriptions are deleted
   when the conversation is closed, blocked or deleted, and by retention.

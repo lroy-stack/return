@@ -13,6 +13,7 @@ import { getSettings } from "../db/settings";
 import { newId } from "../lib/ids";
 import { nowIso } from "../lib/time";
 import { appOrigin } from "../lib/urls";
+import { pushToOwner } from "./push/owner-push";
 
 export type OwnerEventKind =
   | "new_conversation"
@@ -66,70 +67,94 @@ export function emailConfigured(env: Env): boolean {
   return Boolean(env.NOTIFY_FROM && env.EMAIL);
 }
 
+/**
+ * Tells the owner about an event on every channel (email, push). The per-event toggles apply to
+ * all channels; each channel then applies its own switches and caps and fails independently.
+ */
 export async function notifyOwner(env: Env, ownerId: string, event: OwnerEvent): Promise<void> {
   try {
     const settings = await getSettings(env.DB, ownerId);
-    const n = settings.notifications;
-    const recipient = n.emailAddress ?? settings.contact.email;
-    const kind = `owner.${event.kind}`;
-    if (!n.emailEnabled || !recipient || !n.events[EVENT_SETTING[event.kind]]) return;
-    if (n.mutedUntil && n.mutedUntil > nowIso()) {
-      await logNotification(env, ownerId, kind, recipient, event.conversationId, "skipped", "muted");
-      return;
-    }
-    const isFollowUp = event.kind !== "new_conversation" && event.kind !== "lost_item_scanned";
-    if (isFollowUp && event.conversationId && (await recentlyNotified(env, event.conversationId))) {
-      return;
-    }
-
-    const item = event.itemName ?? "item";
-    const subject = `RETURN: ${SUBJECTS[event.kind].replace("{item}", item)}`;
-    const link = event.conversationId
-      ? `${appOrigin(env)}/conversations/${event.conversationId}`
-      : `${appOrigin(env)}/`;
-    const text = [
-      subject.replace(/^RETURN: /, ""),
-      "",
-      event.preview ? `"${event.preview.slice(0, 500)}"` : null,
-      "",
-      `Open RETURN: ${link}`,
-    ]
-      .filter((l) => l !== null)
-      .join("\n");
-    await deliver(env, ownerId, kind, recipient, subject, text, event.conversationId);
-
-    // Trusted contacts are a safety net for the "lost my bag and my phone" case: they hear
-    // about first contact and scans of lost items, never about every message. The finder's text
-    // is not forwarded: it is unverified input and only the owner should receive it.
-    if (event.kind === "new_conversation" || event.kind === "lost_item_scanned") {
-      const { results } = await env.DB.prepare(
-        "SELECT name, email FROM trusted_contacts WHERE owner_id = ? AND notify = 1 AND email IS NOT NULL",
-      )
-        .bind(ownerId)
-        .all<{ name: string; email: string }>();
-      for (const contact of results) {
-        const ownerName = settings.identity.publicName || "the owner";
-        const body = [
-          `Hello ${contact.name},`,
-          "",
-          `You are listed as a trusted contact of ${ownerName} in RETURN.`,
-          `${SUBJECTS[event.kind].replace("{item}", item).replace("your", "their")}.`,
-          "",
-          `${ownerName} has been notified too. If they might be unreachable, please let them know.`,
-        ].join("\n");
-        await deliver(
-          env,
-          ownerId,
-          "trusted.alert",
-          contact.email,
-          `RETURN alert for ${ownerName}`,
-          body,
-          event.conversationId,
-        );
-      }
-    }
+    if (!settings.notifications.events[EVENT_SETTING[event.kind]]) return;
+    const guarded = (channel: string, run: () => Promise<void>) =>
+      run().catch((err) =>
+        console.error(
+          JSON.stringify({ level: "error", msg: "notifyOwner failed", channel, error: String(err) }),
+        ),
+      );
+    await Promise.all([
+      guarded("email", () => emailOwner(env, ownerId, settings, event)),
+      guarded("push", () =>
+        pushToOwner(env, ownerId, settings, {
+          kind: event.kind,
+          conversationId: event.conversationId,
+          itemName: event.itemName,
+        }),
+      ),
+    ]);
   } catch (err) {
     console.error(JSON.stringify({ level: "error", msg: "notifyOwner failed", error: String(err) }));
+  }
+}
+
+async function emailOwner(env: Env, ownerId: string, settings: Settings, event: OwnerEvent): Promise<void> {
+  const n = settings.notifications;
+  const recipient = n.emailAddress ?? settings.contact.email;
+  const kind = `owner.${event.kind}`;
+  if (!n.emailEnabled || !recipient) return;
+  if (n.mutedUntil && n.mutedUntil > nowIso()) {
+    await logNotification(env, ownerId, kind, recipient, event.conversationId, "skipped", "muted");
+    return;
+  }
+  const isFollowUp = event.kind !== "new_conversation" && event.kind !== "lost_item_scanned";
+  if (isFollowUp && event.conversationId && (await recentlyNotified(env, event.conversationId))) {
+    return;
+  }
+
+  const item = event.itemName ?? "item";
+  const subject = `RETURN: ${SUBJECTS[event.kind].replace("{item}", item)}`;
+  const link = event.conversationId
+    ? `${appOrigin(env)}/conversations/${event.conversationId}`
+    : `${appOrigin(env)}/`;
+  const text = [
+    subject.replace(/^RETURN: /, ""),
+    "",
+    event.preview ? `"${event.preview.slice(0, 500)}"` : null,
+    "",
+    `Open RETURN: ${link}`,
+  ]
+    .filter((l) => l !== null)
+    .join("\n");
+  await deliver(env, ownerId, kind, recipient, subject, text, event.conversationId);
+
+  // Trusted contacts are a safety net for the "lost my bag and my phone" case: they hear
+  // about first contact and scans of lost items, never about every message. The finder's text
+  // is not forwarded: it is unverified input and only the owner should receive it.
+  if (event.kind === "new_conversation" || event.kind === "lost_item_scanned") {
+    const { results } = await env.DB.prepare(
+      "SELECT name, email FROM trusted_contacts WHERE owner_id = ? AND notify = 1 AND email IS NOT NULL",
+    )
+      .bind(ownerId)
+      .all<{ name: string; email: string }>();
+    for (const contact of results) {
+      const ownerName = settings.identity.publicName || "the owner";
+      const body = [
+        `Hello ${contact.name},`,
+        "",
+        `You are listed as a trusted contact of ${ownerName} in RETURN.`,
+        `${SUBJECTS[event.kind].replace("{item}", item).replace("your", "their")}.`,
+        "",
+        `${ownerName} has been notified too. If they might be unreachable, please let them know.`,
+      ].join("\n");
+      await deliver(
+        env,
+        ownerId,
+        "trusted.alert",
+        contact.email,
+        `RETURN alert for ${ownerName}`,
+        body,
+        event.conversationId,
+      );
+    }
   }
 }
 
@@ -270,7 +295,7 @@ export async function lastOwnerDelivery(db: D1Database, ownerId: string): Promis
   const row = await db
     .prepare(
       `SELECT status, error, created_at FROM notifications
-        WHERE owner_id = ? AND kind LIKE 'owner.%' AND (status <> 'skipped' OR error = 'email_not_configured')
+        WHERE owner_id = ? AND channel = 'email' AND kind LIKE 'owner.%' AND (status <> 'skipped' OR error = 'email_not_configured')
         ORDER BY created_at DESC, rowid DESC LIMIT 1`,
     )
     .bind(ownerId)
@@ -335,7 +360,7 @@ async function logNotification(
 async function overHourlyCap(env: Env, ownerId: string, limit: number): Promise<boolean> {
   const since = new Date(Date.now() - 3_600_000).toISOString();
   const row = await env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM notifications WHERE owner_id = ? AND status = 'sent' AND created_at > ?",
+    "SELECT COUNT(*) AS n FROM notifications WHERE owner_id = ? AND channel = 'email' AND status = 'sent' AND created_at > ?",
   )
     .bind(ownerId, since)
     .first<{ n: number }>();
@@ -346,7 +371,7 @@ async function recentlyNotified(env: Env, conversationId: string): Promise<boole
   const since = new Date(Date.now() - MESSAGE_COOLDOWN_MS).toISOString();
   const row = await env.DB.prepare(
     `SELECT COUNT(*) AS n FROM notifications
-      WHERE conversation_id = ? AND kind LIKE 'owner.%' AND status = 'sent' AND created_at > ?`,
+      WHERE conversation_id = ? AND channel = 'email' AND kind LIKE 'owner.%' AND status = 'sent' AND created_at > ?`,
   )
     .bind(conversationId, since)
     .first<{ n: number }>();

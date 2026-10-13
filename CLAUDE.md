@@ -29,9 +29,11 @@ Node 24 via fnm, pnpm. Versions pinned in `package.json`; decisions in `docs/dec
 - `src/worker/api/*` — owner API. Auth middleware in `api/index.ts` verifies the Access JWT (`auth/access.ts`).
 - `src/worker/public/*` — server-rendered finder pages (Hono JSX, no React bundle), i18n EN/DE/ES.
 - `src/worker/db/*` — SQL + row mappers. Every query filters by `owner_id`.
-- `src/worker/services/*` — notifications (secondary, never throw), maintenance cron (retention, backups).
+- `src/worker/services/*` — notifications (secondary, never throw; email in `notify.ts`, Web Push in `services/push/*`),
+  maintenance cron (retention, backups).
 - `src/shared/*` — zod contracts (`schemas.ts`, `settings.ts`), QR, maps links, card layouts. Used by worker and SPA.
-- `src/app/*` — owner panel SPA. `public/p/*` — static assets for finder pages (skip the Worker).
+- `src/sw/*` + `vite/sw-plugin.ts` — owner-panel service worker, emitted as `/sw.js` at build (`SW_KILL=1` emits the
+  kill switch). Routing rules are the pure `src/shared/sw-routing.ts`. `src/app/*` — owner panel SPA. `public/p/*` — static assets for finder pages (skip the Worker).
 - `migrations/` — D1 migrations. Never edit an applied migration; add `NNNN_*.sql`.
 
 ## Conventions
@@ -55,6 +57,12 @@ Node 24 via fnm, pnpm. Versions pinned in `package.json`; decisions in `docs/dec
   `vite.config.ts`); `pnpm dev` keeps using `.wrangler/state`. The Nominatim stub has no reverse result in the
   open South Atlantic, mirroring the real service.
 - Tests use the `worker` export from `test/helpers/auth.ts` (the generated `Exports` type lacks `default`).
+
+- The service worker exists only in production builds: `vite dev` never registers one. Test it with the `pwa`
+  Playwright project (`pnpm exec playwright test --project=pwa`: builds, then serves with `vite preview` on :5198).
+- Anything a service worker may store must pass `isStorable()` in `src/shared/sw-routing.ts`; never add `/api/` or
+  `/cdn-cgi/` paths there. Any change to the panel changes `sw.js` (build id), which is how updates roll out.
+- Regenerate PWA icons with `pnpm icons:pwa` (needs Playwright's Chromium); the manifest is `public/manifest.webmanifest`.
 
 ## Definition of Done
 - Acceptance criteria met and demonstrated (test, screenshot or command output).

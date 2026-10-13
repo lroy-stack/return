@@ -178,6 +178,14 @@ export function ListRow({
       </button>,
     );
   }
+  // A static row can still carry a button beside it (e.g. "Remove" in a device list).
+  if (action) {
+    return wrap(
+      <div className={cx(row, grow)}>
+        <RowBody {...content} />
+      </div>,
+    );
+  }
   return (
     <li className={cx(row, className)}>
       <RowBody {...content} />

@@ -123,6 +123,25 @@ export function SystemSection() {
               tone: delivery && delivery.status !== "sent" ? "warning" : "default",
             },
             {
+              key: "push",
+              label: t("system.push"),
+              value: s.push.configured
+                ? t("system.pushDevices", { n: s.push.subscriptions })
+                : t("system.pushNotConfigured"),
+              tone: s.push.configured ? "default" : "warning",
+            },
+            {
+              key: "pushFailures",
+              label: t("system.pushFailures"),
+              value: String(s.push.recentFailures),
+              tone: s.push.recentFailures > 0 ? "warning" : "default",
+            },
+            {
+              key: "pushLast",
+              label: t("system.pushLastSuccess"),
+              value: s.push.lastSuccessAt ? format.dateTime(s.push.lastSuccessAt) : t("system.pushNone"),
+            },
+            {
               key: "failures",
               label: t("system.notifFailures"),
               value: String(s.email.recentFailures),

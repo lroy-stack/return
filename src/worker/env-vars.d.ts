@@ -9,6 +9,8 @@ interface OptionalVars {
   NOMINATIM_MIN_INTERVAL_MS?: string;
   /** "1" together with ENVIRONMENT=development answers geocoding from a built-in stub (E2E only). */
   NOMINATIM_STUB?: string;
+  /** Web Push VAPID private key (PKCS#8, base64url). A secret; push is off while it is unset. */
+  VAPID_PRIVATE_KEY?: string;
 }
 
 interface Env extends OptionalVars {}
