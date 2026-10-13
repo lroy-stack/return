@@ -575,10 +575,7 @@ details.card[open] summary {
   display: none;
 }
 
-/* Owner-written text (notes, rewards, messages) may contain long URLs without spaces. */
-.notice p,
-.message p,
-.bubble,
-p {
+/* Owner- and finder-written text may contain long URLs without spaces; inherited everywhere. */
+body {
   overflow-wrap: anywhere;
 }
