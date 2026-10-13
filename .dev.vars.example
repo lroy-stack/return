@@ -7,3 +7,5 @@ FALLBACK_CONTACT_EMAIL=backup@example.test
 # Local dev serves both surfaces on localhost: never use the production hosts here.
 PUBLIC_HOST=
 APP_HOST=
+# Answer geocoding in-process in local dev/E2E (never calls OpenStreetMap).
+NOMINATIM_STUB=1

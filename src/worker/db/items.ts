@@ -28,8 +28,58 @@ export interface ItemRow {
   public_photo_id: string | null;
   contact_visibility: string | null;
   archived_at: string | null;
+  search_text: string | null;
   created_at: string;
   updated_at: string;
+}
+
+const LETTER_FOLDS: Record<string, string> = { ß: "ss", ø: "o", đ: "d", ł: "l", æ: "ae", œ: "oe" };
+
+/**
+ * Accent- and case-insensitive form used for search: NFKD, combining marks removed, lowercase, plus the
+ * few letters that do not decompose (ß ø đ ł æ œ). "Écharpe", "echarpe" and "ÉCHARPE" match each other;
+ * "München" matches "munchen" but not "muenchen" (transliterations are not folded).
+ */
+export function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[ßøđłæœ]/g, (ch) => LETTER_FOLDS[ch] ?? ch);
+}
+
+/** Fields searched by `q`, joined with newlines so a query never matches across two fields. */
+function buildSearchText(f: {
+  name: string;
+  brand: string | null;
+  model: string | null;
+  description: string | null;
+  serial_number: string | null;
+}): string {
+  return normalizeSearchText(
+    [f.name, f.brand, f.model, f.description, f.serial_number].filter(Boolean).join("\n"),
+  );
+}
+
+const BACKFILL_LIMIT = 200;
+
+/** Rows without `search_text` (created before migration 0004, or restored) get it now: bounded per call. */
+async function backfillSearchText(db: D1Database, ownerId: string): Promise<void> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, name, brand, model, description, serial_number FROM items
+        WHERE owner_id = ? AND search_text IS NULL LIMIT ${BACKFILL_LIMIT}`,
+    )
+    .bind(ownerId)
+    .all<Pick<ItemRow, "id" | "name" | "brand" | "model" | "description" | "serial_number">>();
+  if (results.length === 0) return;
+  await db.batch(
+    results.map((r) =>
+      db
+        .prepare("UPDATE items SET search_text = ? WHERE id = ? AND owner_id = ? AND search_text IS NULL")
+        .bind(buildSearchText(r), r.id, ownerId),
+    ),
+  );
 }
 
 export function toItem(r: ItemRow): Item {
@@ -100,10 +150,9 @@ export async function listItemSummaries(
     params.push(filter.category);
   }
   if (filter.q) {
-    const like = `%${filter.q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
-    const columns = ["i.name", "i.brand", "i.model", "i.description", "i.serial_number"];
-    where.push(`(${columns.map((col) => `${col} LIKE ? ESCAPE '\\'`).join(" OR ")})`);
-    params.push(...columns.map(() => like));
+    await backfillSearchText(db, ownerId);
+    where.push("i.search_text LIKE ? ESCAPE '\\'");
+    params.push(`%${normalizeSearchText(filter.q).replace(/[%_\\]/g, (m) => `\\${m}`)}%`);
   }
   const { results } = await db
     .prepare(
@@ -149,6 +198,19 @@ export async function listItemSummaries(
   }));
 }
 
+/** Latest calendar date that exists anywhere on Earth right now (UTC+14), so a traveller's "today" is never refused. */
+function latestAcquiredOn(now = Date.now()): string {
+  return new Date(now + 14 * 3_600_000).toISOString().slice(0, 10);
+}
+
+function assertAcquiredOnNotFuture(acquiredOn: string | null | undefined) {
+  if (acquiredOn && acquiredOn > latestAcquiredOn()) {
+    throw new AppError(422, "validation_failed", "Some fields are invalid", [
+      { path: ["acquiredOn"], message: "The acquisition date cannot be in the future" },
+    ]);
+  }
+}
+
 async function assertValidParent(db: D1Database, ownerId: string, itemId: string | null, parentId: string) {
   if (parentId === itemId) throw new AppError(422, "invalid_parent", "An item cannot contain itself");
   // Walk up the parent chain to reject cycles (chains are short: bag > pouch > cable).
@@ -168,6 +230,7 @@ async function assertValidParent(db: D1Database, ownerId: string, itemId: string
 
 export async function createItem(db: D1Database, ownerId: string, raw: ItemInput): Promise<Item> {
   const input = itemInputSchema.parse(raw);
+  assertAcquiredOnNotFuture(input.acquiredOn);
   if (input.parentId) await assertValidParent(db, ownerId, null, input.parentId);
   const id = newId();
   const now = nowIso();
@@ -175,8 +238,8 @@ export async function createItem(db: D1Database, ownerId: string, raw: ItemInput
     .prepare(
       `INSERT INTO items (id, owner_id, parent_id, name, brand, model, category, description, serial_number,
          estimated_value_cents, currency, acquired_on, private_notes, last_known_location, last_known_at,
-         public_title, public_message, reward_text, contact_visibility, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         public_title, public_message, reward_text, contact_visibility, search_text, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -198,6 +261,13 @@ export async function createItem(db: D1Database, ownerId: string, raw: ItemInput
       input.publicMessage ?? null,
       input.rewardText ?? null,
       input.contactVisibility ? JSON.stringify(input.contactVisibility) : null,
+      buildSearchText({
+        name: input.name,
+        brand: input.brand ?? null,
+        model: input.model ?? null,
+        description: input.description ?? null,
+        serial_number: input.serialNumber ?? null,
+      }),
       now,
       now,
     )
@@ -224,9 +294,12 @@ const PATCH_COLUMNS: Record<keyof ItemPatch, string> = {
   contactVisibility: "contact_visibility",
 };
 
+const SEARCH_KEYS: (keyof ItemPatch)[] = ["name", "brand", "model", "description", "serialNumber"];
+
 export async function updateItem(db: D1Database, ownerId: string, id: string, raw: ItemPatch): Promise<Item> {
   const current = await getOwnedItemRow(db, ownerId, id);
   const patch = itemPatchSchema.parse(raw);
+  assertAcquiredOnNotFuture(patch.acquiredOn);
   if (patch.parentId) await assertValidParent(db, ownerId, id, patch.parentId);
 
   const sets: string[] = [];
@@ -241,6 +314,18 @@ export async function updateItem(db: D1Database, ownerId: string, id: string, ra
   if ("lastKnownLocation" in patch && patch.lastKnownLocation !== current.last_known_location) {
     sets.push("last_known_at = ?");
     params.push(patch.lastKnownLocation ? nowIso() : null);
+  }
+  if (SEARCH_KEYS.some((key) => key in patch)) {
+    sets.push("search_text = ?");
+    params.push(
+      buildSearchText({
+        name: patch.name ?? current.name,
+        brand: "brand" in patch ? (patch.brand ?? null) : current.brand,
+        model: "model" in patch ? (patch.model ?? null) : current.model,
+        description: "description" in patch ? (patch.description ?? null) : current.description,
+        serial_number: "serialNumber" in patch ? (patch.serialNumber ?? null) : current.serial_number,
+      }),
+    );
   }
   if (sets.length === 0) return toItem(current);
   sets.push("updated_at = ?");
@@ -258,11 +343,24 @@ export async function setArchived(
   id: string,
   archived: boolean,
 ): Promise<Item> {
-  await getOwnedItemRow(db, ownerId, id);
+  const row = await getOwnedItemRow(db, ownerId, id);
+  if (archived && row.status === "lost") {
+    throw new AppError(
+      409,
+      "item_lost",
+      "This item is marked as lost, and archiving it would hide its tag page from anyone who finds it. Mark it as recovered or close the search first",
+    );
+  }
   const now = nowIso();
   await db
     .prepare("UPDATE items SET archived_at = ?, updated_at = ? WHERE id = ? AND owner_id = ?")
     .bind(archived ? now : null, now, id, ownerId)
     .run();
   return toItem(await getOwnedItemRow(db, ownerId, id));
+}
+
+/** Names compare equal when they only differ in surrounding or repeated whitespace (HTML collapses it). */
+export function sameItemName(a: string, b: string): boolean {
+  const collapse = (v: string) => v.trim().replace(/\s+/g, " ");
+  return collapse(a) === collapse(b);
 }

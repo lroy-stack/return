@@ -156,6 +156,7 @@ export interface ProposalRow {
   place_detail: string | null;
   place_address: string | null;
   meet_at: string | null;
+  meet_tz: string | null;
   instructions: string | null;
   status: string;
   responded_at: string | null;
@@ -201,6 +202,7 @@ export function toProposal(r: ProposalRow): Proposal {
     lng: r.lng,
     resolvedPlace: toResolvedPlace(r),
     meetAt: r.meet_at,
+    meetTz: r.meet_at ? r.meet_tz : null,
     instructions: r.instructions,
     status: r.status as ProposalStatus,
     respondedAt: r.responded_at,

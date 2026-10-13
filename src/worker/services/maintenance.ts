@@ -6,6 +6,7 @@ import { activityStatement } from "../db/activity";
 import { buildExport } from "../db/export";
 import { getSettings } from "../db/settings";
 import { daysAgoIso } from "../lib/time";
+import { CACHE_TTL_DAYS, purgePlaceCacheStatement } from "./geocode";
 
 const NOTIFICATION_RETENTION_DAYS = 90;
 const BACKUPS_TO_KEEP = 30;
@@ -16,26 +17,32 @@ function logFailure(step: string, ownerId: string | null, err: unknown): void {
   );
 }
 
-async function step(name: string, ownerId: string | null, run: () => Promise<void>): Promise<void> {
+/** Runs one step in isolation; returns false when it failed. */
+async function step(name: string, ownerId: string | null, run: () => Promise<void>): Promise<boolean> {
   try {
     await run();
+    return true;
   } catch (err) {
     logFailure(name, ownerId, err);
+    return false;
   }
 }
 
 async function applyRetention(env: Env, ownerId: string, now: Date): Promise<void> {
   const { privacy } = await getSettings(env.DB, ownerId);
   const nowMs = now.getTime();
+  const db = env.DB;
+  const expiredConversations = `SELECT id FROM conversations
+        WHERE owner_id = ? AND status IN ('closed', 'blocked') AND closed_at IS NOT NULL AND closed_at < ?`;
+  const expiredBinds = [ownerId, daysAgoIso(privacy.closedConversationRetentionDays, nowMs)];
   await env.DB.batch([
     env.DB.prepare("DELETE FROM activity_events WHERE owner_id = ? AND created_at < ?").bind(
       ownerId,
       daysAgoIso(privacy.activityRetentionDays, nowMs),
     ),
-    env.DB.prepare(
-      `DELETE FROM conversations
-        WHERE owner_id = ? AND status IN ('closed', 'blocked') AND closed_at IS NOT NULL AND closed_at < ?`,
-    ).bind(ownerId, daysAgoIso(privacy.closedConversationRetentionDays, nowMs)),
+    // Cached place names of a conversation leave with it (and before its rows disappear).
+    purgePlaceCacheStatement(db, expiredConversations, expiredBinds),
+    env.DB.prepare(`DELETE FROM conversations WHERE id IN (${expiredConversations})`).bind(...expiredBinds),
     env.DB.prepare("DELETE FROM notifications WHERE owner_id = ? AND created_at < ?").bind(
       ownerId,
       daysAgoIso(NOTIFICATION_RETENTION_DAYS, nowMs),
@@ -71,22 +78,32 @@ async function backup(env: Env, ownerId: string, now: Date): Promise<void> {
   if (stale.length > 0) await env.FILES.delete(stale);
 }
 
-const GEOCODE_CACHE_RETENTION_DAYS = 90;
-
 export async function runMaintenance(env: Env, now: Date): Promise<void> {
   let owners: string[] = [];
-  await step("list_owners", null, async () => {
+  let failedSteps = 0;
+  const run = async (name: string, ownerId: string | null, work: () => Promise<void>) => {
+    if (!(await step(name, ownerId, work))) failedSteps += 1;
+  };
+  await run("list_owners", null, async () => {
     const { results } = await env.DB.prepare("SELECT id FROM owners").all<{ id: string }>();
     owners = results.map((r) => r.id);
   });
   for (const ownerId of owners) {
-    await step("retention", ownerId, () => applyRetention(env, ownerId, now));
-    await step("backup", ownerId, () => backup(env, ownerId, now));
+    await run("retention", ownerId, () => applyRetention(env, ownerId, now));
+    await run("backup", ownerId, () => backup(env, ownerId, now));
   }
-  // The geocoder cache holds rounded coordinates that finders shared; keep it no longer than 90 days.
-  await step("geocode_cache", null, async () => {
+  // The place cache holds rounded coordinates that finders shared; it never outlives its TTL.
+  await run("geocode_cache", null, async () => {
     await env.DB.prepare("DELETE FROM geocode_cache WHERE created_at < ?")
-      .bind(new Date(now.getTime() - GEOCODE_CACHE_RETENTION_DAYS * 86_400_000).toISOString())
+      .bind(daysAgoIso(CACHE_TTL_DAYS, now.getTime()).slice(0, 10))
       .run();
   });
+  // Dead-man's-switch data: a run that reached its end, whatever the steps did.
+  for (const ownerId of owners) {
+    await run("record_run", ownerId, () =>
+      activityStatement(env.DB, { ownerId, type: "maintenance.ran", data: { failedSteps } })
+        .run()
+        .then(() => undefined),
+    );
+  }
 }

@@ -7,6 +7,7 @@
  * works on every plan; sending to finders requires Cloudflare Email Service on Workers Paid,
  * which is why it is opt-in (`notifications.notifyFinders`).
  */
+import type { EmailFailureCode, OwnerDelivery, TestEmailResult } from "../../shared/schemas";
 import { type Language, pickLocalized, type Settings } from "../../shared/settings";
 import { getSettings } from "../db/settings";
 import { newId } from "../lib/ids";
@@ -206,11 +207,47 @@ export async function notifyFinder(
   }
 }
 
+const FAILURE_MESSAGES: Record<EmailFailureCode, string> = {
+  email_not_configured:
+    "Email sending is not set up on this server (sender address or email binding missing).",
+  sender_not_verified:
+    "The sending domain is not onboarded in Cloudflare Email Sending. Add and verify it, then send the test again.",
+  recipient_not_allowed:
+    "The destination address is not allowed. Verify it in Cloudflare Email Routing or the binding's allowed list.",
+  rate_limited: "Cloudflare's sending limit was reached. Try again later.",
+  hourly_cap: "RETURN's own hourly email limit was reached. Try again in an hour.",
+  delivery_failed: "The email service accepted the message but could not deliver it.",
+  send_failed: "Sending failed for an unexpected reason. Check the logs for details.",
+};
+
+export const failureMessage = (code: EmailFailureCode): string => FAILURE_MESSAGES[code];
+
+/**
+ * Maps a stored delivery error to a stable code. Cloudflare errors carry `E_*` codes (kept in the
+ * stored text by `deliver`); "could not find domain config" is what an un-onboarded domain returned in production.
+ */
+export function classifyEmailError(error: string | null): EmailFailureCode {
+  const e = error ?? "";
+  if (e === "email_not_configured" || e === "hourly_cap") return e;
+  if (/E_SENDER_NOT_VERIFIED|E_SENDER_DOMAIN_NOT_AVAILABLE|domain config/i.test(e))
+    return "sender_not_verified";
+  if (/E_RECIPIENT_NOT_ALLOWED|E_RECIPIENT_SUPPRESSED/i.test(e)) return "recipient_not_allowed";
+  if (/E_RATE_LIMIT_EXCEEDED|E_DAILY_LIMIT_EXCEEDED/i.test(e)) return "rate_limited";
+  if (/E_DELIVERY_FAILED/i.test(e)) return "delivery_failed";
+  return "send_failed";
+}
+
 /** Used by the settings screen. Unlike the others, reports the outcome to the caller. */
-export async function sendTestEmail(env: Env, ownerId: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendTestEmail(env: Env, ownerId: string): Promise<TestEmailResult> {
   const settings = await getSettings(env.DB, ownerId);
   const recipient = settings.notifications.emailAddress ?? settings.contact.email;
-  if (!recipient) return { ok: false, error: "no_recipient" };
+  if (!recipient) {
+    return {
+      ok: false,
+      code: "no_recipient",
+      message: "No notification address is set. Add one under Notifications first.",
+    };
+  }
   const status = await deliver(
     env,
     ownerId,
@@ -220,7 +257,31 @@ export async function sendTestEmail(env: Env, ownerId: string): Promise<{ ok: bo
     "If you can read this, RETURN can reach you by email.",
     null,
   );
-  return status.ok ? { ok: true } : { ok: false, error: status.error };
+  if (status.ok) return { ok: true, code: "sent", message: "Test email sent. Check your inbox." };
+  const code = classifyEmailError(status.error ?? null);
+  return { ok: false, code, message: failureMessage(code) };
+}
+
+/**
+ * Outcome of the latest email addressed to the owner (alerts and tests). Deliberate skips (muted,
+ * hourly cap) are not outcomes; a missing email setup is.
+ */
+export async function lastOwnerDelivery(db: D1Database, ownerId: string): Promise<OwnerDelivery | null> {
+  const row = await db
+    .prepare(
+      `SELECT status, error, created_at FROM notifications
+        WHERE owner_id = ? AND kind LIKE 'owner.%' AND (status <> 'skipped' OR error = 'email_not_configured')
+        ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    )
+    .bind(ownerId)
+    .first<{ status: OwnerDelivery["status"]; error: string | null; created_at: string }>();
+  if (!row) return null;
+  return {
+    status: row.status,
+    code: row.status === "sent" ? null : classifyEmailError(row.error),
+    error: row.error,
+    at: row.created_at,
+  };
 }
 
 async function deliver(
@@ -247,7 +308,8 @@ async function deliver(
     await logNotification(env, ownerId, kind, to, conversationId, "sent", null);
     return { ok: true };
   } catch (err) {
-    const error = String(err).slice(0, 300);
+    const code = (err as { code?: unknown } | null)?.code;
+    const error = (typeof code === "string" ? `${code}: ${String(err)}` : String(err)).slice(0, 300);
     await logNotification(env, ownerId, kind, to, conversationId, "failed", error);
     return { ok: false, error };
   }

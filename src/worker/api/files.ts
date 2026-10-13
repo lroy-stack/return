@@ -6,6 +6,7 @@ import { getOwnedItemRow } from "../db/items";
 import type { AppContext, AppEnv } from "../env";
 import { AppError, notFound, parseWith } from "../lib/http";
 import { newId } from "../lib/ids";
+import { InvalidImageError, stripJpegMetadata, stripPngMetadata } from "../lib/strip-metadata";
 import { nowIso } from "../lib/time";
 
 export const filesApi = new Hono<AppEnv>();
@@ -60,6 +61,20 @@ export function attachmentDisposition(filename: string): string {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
+/** Photos can be shown to finders, so GPS/EXIF and text metadata never reach storage, whatever the client did. */
+function stripPhotoMetadata(bytes: Uint8Array, type: DetectedType): Uint8Array {
+  try {
+    if (type === "image/jpeg") return stripJpegMetadata(bytes);
+    if (type === "image/png") return stripPngMetadata(bytes);
+    return bytes;
+  } catch (err) {
+    if (err instanceof InvalidImageError) {
+      throw new AppError(422, "invalid_image", "The image is damaged or not a complete JPEG/PNG file");
+    }
+    throw err;
+  }
+}
+
 // biome-ignore lint/suspicious/noControlCharactersInRegex: removing control characters is the point
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 
@@ -104,11 +119,12 @@ filesApi.post("/", async (c) => {
   if (file.size > rule.maxBytes) {
     throw new AppError(413, "file_too_large", `The file exceeds ${rule.maxBytes / MB} MB`);
   }
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const type = detectContentType(bytes);
+  const uploaded = new Uint8Array(await file.arrayBuffer());
+  const type = detectContentType(uploaded);
   if (!type || !rule.types.includes(type)) {
     throw new AppError(415, "unsupported_type", "Unsupported file type", { allowed: rule.types });
   }
+  const bytes = fields.kind === "photo" ? stripPhotoMetadata(uploaded, type) : uploaded;
 
   const id = newId();
   const key = fileKey(ownerId, item.id, id);

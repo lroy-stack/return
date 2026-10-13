@@ -4,7 +4,13 @@
  * The export is a self-describing JSON document with the raw database rows (snake_case, without
  * `owner_id`). It includes tag tokens (printed QR codes must survive a restore) and finder token
  * hashes (finder links keep working). File bytes are NOT included, only their metadata: a restore
- * keeps working file links only while the R2 objects still exist.
+ * keeps working file links only while the R2 objects still exist (`findMissingFiles` tells the
+ * restoring owner which ones do not).
+ *
+ * Blocks are included: `ip_hmac` is a keyed hash, never an address, so the export stays pseudonymous
+ * and a restore does not silently unblock a finder. The notification log and the activity history are
+ * deliberately left out: they hold recipient addresses and delivery diagnostics, are pruned by the
+ * retention job anyway, and a restored account regenerates them from new events.
  */
 import { z } from "zod";
 import {
@@ -121,6 +127,16 @@ const RECOVERIES: TableSpec = {
     "updated_at",
   ],
 };
+const RECOVERY_EVENTS: TableSpec = {
+  table: "recovery_events",
+  owned: true,
+  columns: ["id", "recovery_id", "status", "note", "created_at"],
+};
+const BLOCKS: TableSpec = {
+  table: "blocks",
+  owned: true,
+  columns: ["id", "ip_hmac", "reason", "expires_at", "created_at"],
+};
 const CONTACTS: TableSpec = {
   table: "trusted_contacts",
   owned: true,
@@ -192,6 +208,7 @@ const PROPOSALS: TableSpec = {
     "lat",
     "lng",
     "meet_at",
+    "meet_tz",
     "instructions",
     "status",
     "responded_at",
@@ -298,11 +315,25 @@ const recoveryRow = z.object({
   status: z.enum(RECOVERY_STATUSES),
   lost_at: tsOrNull,
   lost_place: text(300),
-  notes: text(2000),
+  notes: text(20_000),
   recovered_at: tsOrNull,
   closed_at: tsOrNull,
   created_at: ts,
   updated_at: ts,
+});
+const recoveryEventRow = z.object({
+  id,
+  recovery_id: id,
+  status: z.enum(RECOVERY_STATUSES),
+  note: text(2000),
+  created_at: ts,
+});
+const blockRow = z.object({
+  id,
+  ip_hmac: requiredText(128),
+  reason: text(300),
+  expires_at: tsOrNull,
+  created_at: ts,
 });
 const contactRow = z.object({
   id,
@@ -365,6 +396,7 @@ const proposalRow = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
     .nullable(),
+  meet_tz: z.string().max(64).nullable().default(null),
   instructions: text(1000),
   status: z.enum(PROPOSAL_STATUSES),
   responded_at: tsOrNull,
@@ -382,6 +414,9 @@ export const exportDocumentSchema = z.object({
   tags: z.array(tagRow),
   trackers: z.array(trackerRow),
   recoveries: z.array(recoveryRow),
+  // Added after the first exports shipped: older documents simply have none.
+  recoveryEvents: z.array(recoveryEventRow).default([]),
+  blocks: z.array(blockRow).default([]),
   trustedContacts: z.array(contactRow),
   conversations: z.array(z.object({ conversation: conversationRow, messages: z.array(messageRow) })),
   sharedLocations: z.array(locationRow),
@@ -405,6 +440,8 @@ export interface ExportDocument {
   tags: ExportRow[];
   trackers: ExportRow[];
   recoveries: ExportRow[];
+  recoveryEvents: ExportRow[];
+  blocks: ExportRow[];
   trustedContacts: ExportRow[];
   conversations: ExportConversation[];
   sharedLocations: ExportRow[];
@@ -444,9 +481,11 @@ export async function buildExport(db: D1Database, ownerId: string): Promise<Expo
       selectRows(db, CONVERSATIONS, ownerId),
       selectRows(db, MESSAGES, ownerId),
     ]);
-  const [sharedLocations, proposals] = await Promise.all([
+  const [sharedLocations, proposals, recoveryEvents, blocks] = await Promise.all([
     selectRows(db, LOCATIONS, ownerId),
     selectRows(db, PROPOSALS, ownerId),
+    selectRows(db, RECOVERY_EVENTS, ownerId),
+    selectRows(db, BLOCKS, ownerId),
   ]);
   const messagesByConversation = new Map<string, ExportRow[]>();
   for (const message of messages) {
@@ -464,6 +503,8 @@ export async function buildExport(db: D1Database, ownerId: string): Promise<Expo
     tags,
     trackers,
     recoveries,
+    recoveryEvents,
+    blocks,
     trustedContacts,
     conversations: conversations.map((conversation) => ({
       conversation,
@@ -480,6 +521,8 @@ export interface ImportCounts {
   tags: number;
   trackers: number;
   recoveries: number;
+  recoveryEvents: number;
+  blocks: number;
   trustedContacts: number;
   conversations: number;
   messages: number;
@@ -592,6 +635,10 @@ function assertReferences(doc: ParsedExport): void {
   }
   for (const r of doc.trackers) check(itemIds, "trackers", "item_id", r.item_id);
   for (const r of doc.recoveries) check(itemIds, "recoveries", "item_id", r.item_id);
+  for (const r of doc.recoveryEvents) {
+    if (!recoveryIds.has(r.recovery_id))
+      throw invalidReference("recovery_events", "recovery_id", r.recovery_id);
+  }
   for (const { conversation: c, messages } of doc.conversations) {
     check(itemIds, "conversations", "item_id", c.item_id);
     check(tagIds, "conversations", "tag_id", c.tag_id);
@@ -635,6 +682,8 @@ async function assertNoConflicts(db: D1Database, doc: ParsedExport): Promise<voi
               (SELECT COUNT(*) FROM trackers WHERE id ${inList(5)}) AS trackers,
               (SELECT COUNT(*) FROM recoveries WHERE id ${inList(6)}) AS recoveries,
               (SELECT COUNT(*) FROM trusted_contacts WHERE id ${inList(7)}) AS trusted_contacts,
+              (SELECT COUNT(*) FROM recovery_events WHERE id ${inList(13)}) AS recovery_events,
+              (SELECT COUNT(*) FROM blocks WHERE id ${inList(14)}) AS blocks,
               (SELECT COUNT(*) FROM conversations WHERE id ${inList(8)} OR finder_token_hash ${inList(9)}) AS conversations,
               (SELECT COUNT(*) FROM messages WHERE id ${inList(10)}) AS messages,
               (SELECT COUNT(*) FROM shared_locations WHERE id ${inList(11)}) AS shared_locations,
@@ -653,6 +702,8 @@ async function assertNoConflicts(db: D1Database, doc: ParsedExport): Promise<voi
       json(doc.conversations.flatMap((c) => c.messages.map((m) => m.id))),
       json(doc.sharedLocations.map((r) => r.id)),
       json(doc.proposals.map((r) => r.id)),
+      json(doc.recoveryEvents.map((r) => r.id)),
+      json(doc.blocks.map((r) => r.id)),
     )
     .first<Record<string, number>>();
   const clash = Object.entries(found ?? {}).find(([, count]) => count > 0)?.[0];
@@ -685,6 +736,8 @@ export async function importExport(
     ...insertStatements(db, TAGS, doc.tags, ownerId),
     ...insertStatements(db, TRACKERS, doc.trackers, ownerId),
     ...insertStatements(db, RECOVERIES, doc.recoveries, ownerId),
+    ...insertStatements(db, RECOVERY_EVENTS, doc.recoveryEvents, ownerId),
+    ...insertStatements(db, BLOCKS, doc.blocks, ownerId),
     ...insertStatements(db, CONTACTS, doc.trustedContacts, ownerId),
     ...insertStatements(db, CONVERSATIONS, conversations, ownerId),
     ...insertStatements(db, MESSAGES, messages, ownerId),
@@ -710,10 +763,52 @@ export async function importExport(
     tags: doc.tags.length,
     trackers: doc.trackers.length,
     recoveries: doc.recoveries.length,
+    recoveryEvents: doc.recoveryEvents.length,
+    blocks: doc.blocks.length,
     trustedContacts: doc.trustedContacts.length,
     conversations: conversations.length,
     messages: messages.length,
     sharedLocations: doc.sharedLocations.length,
     proposals: doc.proposals.length,
   };
+}
+
+/** Upper bound on R2 lookups after a restore; an owner's inventory is far below it. */
+const MAX_FILE_CHECKS = 500;
+const HEAD_CONCURRENCY = 20;
+
+export interface MissingFile {
+  id: string;
+  itemId: string;
+  filename: string;
+}
+
+export interface FileCheck {
+  /** How many file rows were looked up in R2 (at most MAX_FILE_CHECKS). */
+  checked: number;
+  /** Rows whose object is not in R2: their thumbnails and downloads will 404 until the file is uploaded again. */
+  missing: MissingFile[];
+}
+
+/** After a restore: which file rows point at an R2 object that does not exist. Bounded, read-only. */
+export async function findMissingFiles(
+  db: D1Database,
+  bucket: R2Bucket,
+  ownerId: string,
+): Promise<FileCheck> {
+  const { results } = await db
+    .prepare(
+      "SELECT id, item_id, filename, r2_key FROM item_files WHERE owner_id = ? ORDER BY created_at, id LIMIT ?",
+    )
+    .bind(ownerId, MAX_FILE_CHECKS)
+    .all<{ id: string; item_id: string; filename: string; r2_key: string }>();
+  const missing: MissingFile[] = [];
+  for (let i = 0; i < results.length; i += HEAD_CONCURRENCY) {
+    const chunk = results.slice(i, i + HEAD_CONCURRENCY);
+    const heads = await Promise.all(chunk.map((f) => bucket.head(f.r2_key)));
+    chunk.forEach((f, index) => {
+      if (heads[index] === null) missing.push({ id: f.id, itemId: f.item_id, filename: f.filename });
+    });
+  }
+  return { checked: results.length, missing };
 }

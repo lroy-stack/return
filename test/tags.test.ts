@@ -95,13 +95,33 @@ describe("tags", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/csv");
     expect(res.headers.get("Content-Disposition")).toContain("attachment");
-    const csv = await res.text();
+    const raw = new Uint8Array(await res.arrayBuffer());
+    expect([...raw.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    const csv = new TextDecoder().decode(raw);
     const lines = csv.trimEnd().split("\r\n");
     expect(lines[0]).toBe("label,item,url,status,nfc_status");
     expect(csv).toContain(`"'=HYPERLINK(""http://evil.test"",""x"")"`);
     expect(csv).toContain(`"Bag, ""large"""`);
     expect(csv).toContain(",'-2+3,");
     for (const line of lines.slice(1)) expect(line).toMatch(/https:\/\/return\.test\/t\/[0-9a-z]{26}/);
+  });
+
+  it("filters the NFC list by status and keeps non-ASCII names readable", async () => {
+    const item = await newItem("Écharpe 🧣 Zoë");
+    const [live, dead] = (await newTags({ itemId: item.id, count: 2 })).tags;
+    await apiJson("POST", `/tags/${dead?.id}/revoke`);
+    const fetchCsv = async (query: string) => (await api("GET", `/tags/export.csv${query}`)).text();
+    const all = await fetchCsv("");
+    expect(all).toContain(live?.url);
+    expect(all).toContain(dead?.url);
+    expect(all).toContain("Écharpe 🧣 Zoë");
+    const active = await fetchCsv("?status=active");
+    expect(active).toContain(live?.url);
+    expect(active).not.toContain(dead?.url);
+    const revoked = await fetchCsv("?status=revoked");
+    expect(revoked).not.toContain(live?.url);
+    expect(revoked).toContain(dead?.url);
+    expect((await api("GET", "/tags/export.csv?status=weird")).status).toBe(422);
   });
 
   it("serves a QR code as an SVG attachment", async () => {
@@ -119,8 +139,19 @@ describe("tags", () => {
     const [loose] = (await newTags()).tags;
     const settings = await apiJson<Settings>("GET", "/settings");
 
-    const noEmail = await apiJson<TagVerification>("GET", `/tags/${tag?.id}/verify`);
-    expect(noEmail).toMatchObject({ ok: false, problems: ["no_contact_method"], url: tag?.url });
+    // The server-side FALLBACK_CONTACT_EMAIL counts as a way to be reached; without it nothing does.
+    const fallback = env.FALLBACK_CONTACT_EMAIL;
+    env.FALLBACK_CONTACT_EMAIL = "";
+    try {
+      const noEmail = await apiJson<TagVerification>("GET", `/tags/${tag?.id}/verify`);
+      expect(noEmail).toMatchObject({ ok: false, problems: ["no_contact_method"], url: tag?.url });
+    } finally {
+      env.FALLBACK_CONTACT_EMAIL = fallback;
+    }
+    expect(await apiJson<TagVerification>("GET", `/tags/${tag?.id}/verify`)).toMatchObject({
+      ok: true,
+      problems: [],
+    });
 
     await apiJson("PUT", "/settings", {
       ...settings,
@@ -139,6 +170,36 @@ describe("tags", () => {
     const bad = await apiJson<TagVerification>("GET", `/tags/${tag?.id}/verify`);
     expect(bad.ok).toBe(false);
     expect(bad.problems).toEqual(["revoked", "item_archived"]);
+  });
+
+  it("reports open conversations on verify and revoke, and leaves them open", async () => {
+    const item = await newItem("Daypack");
+    const [tag] = (await newTags({ itemId: item.id })).tags;
+    const now = new Date().toISOString();
+    for (const [id, status] of [
+      ["tag-conv-open", "open"],
+      ["tag-conv-closed", "closed"],
+    ] as const) {
+      await env.DB.prepare(
+        `INSERT INTO conversations (id, owner_id, item_id, tag_id, finder_token_hash, subject, status, last_message_at, created_at)
+         SELECT ?1, owner_id, ?2, ?3, ?1, 'Found', ?4, ?5, ?5 FROM items WHERE id = ?2`,
+      )
+        .bind(`${id}-${tag?.id}`, item.id, tag?.id, status, now)
+        .run();
+    }
+    expect(
+      (await apiJson<{ openConversations: number }>("GET", `/tags/${tag?.id}/verify`)).openConversations,
+    ).toBe(1);
+    const revoked = await apiJson<Tag & { openConversations: number }>("POST", `/tags/${tag?.id}/revoke`);
+    expect(revoked).toMatchObject({ id: tag?.id, status: "revoked", openConversations: 1 });
+    const row = await env.DB.prepare("SELECT status FROM conversations WHERE id = ?")
+      .bind(`tag-conv-open-${tag?.id}`)
+      .first<{ status: string }>();
+    expect(row?.status).toBe("open");
+    // Revoking again is idempotent and reports the same number.
+    expect(
+      (await apiJson<{ openConversations: number }>("POST", `/tags/${tag?.id}/revoke`)).openConversations,
+    ).toBe(1);
   });
 
   it("numbers labels with the configured prefix and digits", async () => {

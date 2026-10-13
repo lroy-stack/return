@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { vi } from "vitest";
+import { nowInZone } from "../../src/shared/datetime";
 import { type Settings, settingsSchema } from "../../src/shared/settings";
 import { saveSettings } from "../../src/worker/db/settings";
 import { newId, newTagToken } from "../../src/worker/lib/ids";
@@ -16,7 +17,9 @@ export const turnstile = {
   calls: [] as { body: string }[],
 };
 
-const NOMINATIM_ORIGIN = "https://nominatim.openstreetmap.org/";
+/** The stubbed geocoder origin (`NOMINATIM_URL` in vitest.config.ts); `env`'s test type does not list optional vars. */
+export const NOMINATIM_BASE = (env as Env).NOMINATIM_URL ?? "";
+const NOMINATIM_ORIGIN = `${NOMINATIM_BASE}/`;
 
 /**
  * Controls and records the stubbed Nominatim API (the network is never used). By default it is
@@ -62,6 +65,11 @@ fetchMock.mockImplementation(async (input, init) => {
   }
   return (previousFetch ?? realFetch)(input, init);
 });
+
+/** A wall-clock "YYYY-MM-DDTHH:MM" in `zone`, `minutes` from now (negative for the past). */
+export function localIn(zone: string, minutes: number): string {
+  return nowInZone(zone, new Date(Date.now() + minutes * 60_000));
+}
 
 let ipCounter = 0;
 /** A fresh client IP per call, so per-IP budgets and caps never leak between tests. */

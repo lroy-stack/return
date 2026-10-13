@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { ItemDetail } from "../../shared/schemas";
+import type { ConversationSummary, ItemDetail } from "../../shared/schemas";
 import {
   deleteItemSchema,
   itemInputSchema,
@@ -12,8 +12,23 @@ import {
 import { recordActivity } from "../db/activity";
 import { listConversationSummaries } from "../db/conversations";
 import { deleteStoredObjects, listItemFiles } from "../db/files";
-import { createItem, getOwnedItemRow, listItemSummaries, setArchived, toItem, updateItem } from "../db/items";
-import { markLost, markRecovered, RECOVERY_SELECT, type RecoveryRow, toRecovery } from "../db/recoveries";
+import {
+  createItem,
+  getOwnedItemRow,
+  listItemSummaries,
+  sameItemName,
+  setArchived,
+  toItem,
+  updateItem,
+} from "../db/items";
+import {
+  listRecoveryEvents,
+  markLost,
+  markRecovered,
+  RECOVERY_SELECT,
+  type RecoveryRow,
+  toRecovery,
+} from "../db/recoveries";
 import { listTags } from "../db/tags";
 import { listTrackers } from "../db/trackers";
 import type { AppEnv } from "../env";
@@ -46,7 +61,7 @@ itemsApi.get("/:id", async (c) => {
   const ownerId = c.get("ownerId");
   const db = c.env.DB;
   const item = toItem(await getOwnedItemRow(db, ownerId, c.req.param("id")));
-  const [files, tags, trackers, children, recoveries, conversations] = await Promise.all([
+  const [files, tags, trackers, children, recoveries, recoveryEvents, conversations] = await Promise.all([
     listItemFiles(db, ownerId, item.id),
     listTags(db, ownerId, publicOrigin(c.env, c.req.url), { itemId: item.id }),
     listTrackers(db, ownerId, { itemId: item.id }),
@@ -56,9 +71,19 @@ itemsApi.get("/:id", async (c) => {
       .bind(ownerId, item.id)
       .all<RecoveryRow>()
       .then((r) => r.results.map(toRecovery)),
+    listRecoveryEvents(db, ownerId, item.id),
     listConversationSummaries(db, ownerId, { itemId: item.id }),
   ]);
-  return c.json<ItemDetail>({ item, files, tags, trackers, children, recoveries, conversations });
+  return c.json<ItemDetail>({
+    item,
+    files,
+    tags,
+    trackers,
+    children,
+    recoveries,
+    recoveryEvents,
+    conversations,
+  });
 });
 
 itemsApi.patch("/:id", async (c) => {
@@ -92,7 +117,7 @@ itemsApi.delete("/:id", async (c) => {
   const ownerId = c.get("ownerId");
   const row = await getOwnedItemRow(c.env.DB, ownerId, c.req.param("id"));
   if (!row.archived_at) throw new AppError(409, "not_archived", "Archive the item before deleting it");
-  if (confirmName !== row.name)
+  if (!sameItemName(confirmName, row.name))
     throw new AppError(422, "confirmation_mismatch", "Type the item name to confirm");
   const { results: files } = await c.env.DB.prepare(
     "SELECT r2_key FROM item_files WHERE item_id = ? AND owner_id = ?",
@@ -124,8 +149,15 @@ itemsApi.post("/:id/lost", async (c) => {
 
 itemsApi.post("/:id/recovered", async (c) => {
   const { notes } = await parseJson(c, markFoundSchema);
-  const recovery = await markRecovered(c.env.DB, c.get("ownerId"), c.req.param("id"), notes ?? null);
-  return c.json({ recovery });
+  const ownerId = c.get("ownerId");
+  const itemId = c.req.param("id");
+  const recovery = await markRecovered(c.env.DB, ownerId, itemId, notes ?? null);
+  // Conversations stay open on purpose: the owner decides whether to thank the finder and close them.
+  const openConversations: ConversationSummary[] = await listConversationSummaries(c.env.DB, ownerId, {
+    itemId,
+    status: "open",
+  });
+  return c.json({ recovery, openConversations });
 });
 
 /** Choose which photo (if any) finders see. Only photos of this item qualify. */

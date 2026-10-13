@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { Recovery, RecoveryStatus, recoveryPatchSchema } from "../../shared/schemas";
+import type { Recovery, RecoveryEvent, RecoveryStatus, recoveryPatchSchema } from "../../shared/schemas";
 import { AppError, notFound } from "../lib/http";
 import { newId } from "../lib/ids";
 import { nowIso } from "../lib/time";
@@ -21,6 +21,97 @@ export interface RecoveryRow {
   updated_at: string;
 }
 
+/** Allowed status changes. `closed` is terminal; `recovered` can only be closed. */
+export const RECOVERY_TRANSITIONS: Record<RecoveryStatus, readonly RecoveryStatus[]> = {
+  lost: ["found", "returning", "recovered", "closed"],
+  found: ["returning", "recovered", "closed", "lost"],
+  returning: ["recovered", "closed", "found"],
+  recovered: ["closed"],
+  closed: [],
+};
+
+const ACTIVE_STATUSES = ["lost", "found", "returning"] as const;
+const isActive = (status: RecoveryStatus) => (ACTIVE_STATUSES as readonly string[]).includes(status);
+
+/** A lost-at time slightly ahead of the server clock is tolerated (clock skew between phone and server). */
+const LOST_AT_SKEW_MS = 10 * 60_000;
+
+function assertLostAtNotFuture(lostAt: string | null | undefined) {
+  if (lostAt && Date.parse(lostAt) > Date.now() + LOST_AT_SKEW_MS) {
+    throw new AppError(422, "validation_failed", "Some fields are invalid", [
+      { path: ["lostAt"], message: "The time it was lost cannot be in the future" },
+    ]);
+  }
+}
+
+/** Notes are an append-only log once a recovery moves on; the oldest entries give way past this size. */
+const NOTES_MAX = 20_000;
+
+export function appendNote(
+  existing: string | null,
+  note: string | null | undefined,
+  at: string,
+): string | null {
+  if (!note) return existing;
+  const entry = `[${at}] ${note}`;
+  const joined = existing ? `${existing}\n${entry}` : entry;
+  return joined.length > NOTES_MAX ? `…${joined.slice(-(NOTES_MAX - 1))}` : joined;
+}
+
+function eventStatement(
+  db: D1Database,
+  ownerId: string,
+  recoveryId: string,
+  status: RecoveryStatus,
+  note: string | null,
+  at: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      "INSERT INTO recovery_events (id, owner_id, recovery_id, status, note, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(newId(), ownerId, recoveryId, status, note, at);
+}
+
+/** The item goes back to "normal" only when no other recovery for it is still active. */
+function releaseItemStatement(
+  db: D1Database,
+  ownerId: string,
+  itemId: string,
+  recoveryId: string,
+  at: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE items SET status = 'normal', updated_at = ? WHERE id = ? AND owner_id = ?
+         AND NOT EXISTS (SELECT 1 FROM recoveries WHERE item_id = ? AND id != ? AND status IN ('lost', 'found', 'returning'))`,
+    )
+    .bind(at, itemId, ownerId, itemId, recoveryId);
+}
+
+/** Timeline of every recovery of an item, oldest first. */
+export async function listRecoveryEvents(
+  db: D1Database,
+  ownerId: string,
+  itemId: string,
+): Promise<RecoveryEvent[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT e.id, e.recovery_id, e.status, e.note, e.created_at FROM recovery_events e
+         JOIN recoveries r ON r.id = e.recovery_id
+        WHERE r.owner_id = ? AND r.item_id = ? ORDER BY e.created_at, e.rowid`,
+    )
+    .bind(ownerId, itemId)
+    .all<{ id: string; recovery_id: string; status: string; note: string | null; created_at: string }>();
+  return results.map((r) => ({
+    id: r.id,
+    recoveryId: r.recovery_id,
+    status: r.status as RecoveryStatus,
+    note: r.note,
+    createdAt: r.created_at,
+  }));
+}
+
 export const RECOVERY_SELECT = `SELECT r.*, i.name AS item_name FROM recoveries r JOIN items i ON i.id = r.item_id`;
 
 export function toRecovery(r: RecoveryRow): Recovery {
@@ -36,6 +127,7 @@ export function toRecovery(r: RecoveryRow): Recovery {
     closedAt: r.closed_at,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    allowedTransitions: [...RECOVERY_TRANSITIONS[r.status as RecoveryStatus]],
   };
 }
 
@@ -61,7 +153,11 @@ export async function markLost(
   itemId: string,
   input: { lostAt?: string | null; lostPlace?: string | null; notes?: string | null },
 ): Promise<Recovery> {
-  await getOwnedItemRow(db, ownerId, itemId);
+  const item = await getOwnedItemRow(db, ownerId, itemId);
+  if (item.archived_at) {
+    throw new AppError(409, "item_archived", "Restore the item before marking it as lost");
+  }
+  assertLostAtNotFuture(input.lostAt);
   const now = nowIso();
   const open = await activeRecovery(db, ownerId, itemId);
   const recoveryId = open?.id ?? newId();
@@ -89,6 +185,7 @@ export async function markLost(
         );
   await db.batch([
     recoveryStmt,
+    ...(open ? [] : [eventStatement(db, ownerId, recoveryId, "lost", input.notes ?? null, now)]),
     db
       .prepare("UPDATE items SET status = 'lost', updated_at = ? WHERE id = ? AND owner_id = ?")
       .bind(now, itemId, ownerId),
@@ -104,7 +201,7 @@ export async function markLost(
   return toRecovery(row);
 }
 
-/** The item is back with its owner: close the loop on the open recovery. */
+/** The item is back with its owner: close the loop on the open recovery. Notes are appended, never overwritten. */
 export async function markRecovered(
   db: D1Database,
   ownerId: string,
@@ -124,10 +221,10 @@ export async function markRecovered(
     statements.push(
       db
         .prepare(
-          `UPDATE recoveries SET status = 'recovered', recovered_at = ?, notes = COALESCE(?, notes), updated_at = ?
-           WHERE id = ?`,
+          "UPDATE recoveries SET status = 'recovered', recovered_at = ?, notes = ?, updated_at = ? WHERE id = ?",
         )
-        .bind(now, notes, now, open.id),
+        .bind(now, appendNote(open.notes, notes, now), now, open.id),
+      eventStatement(db, ownerId, open.id, "recovered", notes, now),
     );
   }
   await db.batch(statements);
@@ -135,15 +232,6 @@ export async function markRecovered(
   const row = await db.prepare(`${RECOVERY_SELECT} WHERE r.id = ?`).bind(open.id).first<RecoveryRow>();
   return row ? toRecovery(row) : null;
 }
-
-/** Allowed status changes. `closed` is terminal; `recovered` can only be closed. */
-export const RECOVERY_TRANSITIONS: Record<RecoveryStatus, readonly RecoveryStatus[]> = {
-  lost: ["found", "returning", "recovered", "closed"],
-  found: ["returning", "recovered", "closed", "lost"],
-  returning: ["recovered", "closed", "found"],
-  recovered: ["closed"],
-  closed: [],
-};
 
 export async function getOwnedRecoveryRow(db: D1Database, ownerId: string, id: string): Promise<RecoveryRow> {
   const row = await db
@@ -175,8 +263,10 @@ export async function listRecoveries(
 type RecoveryPatch = z.output<typeof recoveryPatchSchema>;
 
 /**
- * Edit a recovery. A status change must follow RECOVERY_TRANSITIONS (else 409 invalid_transition).
- * recovered: stamps recovered_at and returns the item to "normal"; closed: stamps closed_at only.
+ * Edit a recovery. A status change must follow RECOVERY_TRANSITIONS (else 409 invalid_transition) and
+ * is recorded in the timeline; the note that comes with it is appended to the notes, while an edit
+ * without a status change replaces them. recovered/closed return the item to "normal" unless another
+ * recovery for it is still active; closed means the owner stopped searching.
  */
 export async function updateRecovery(
   db: D1Database,
@@ -194,7 +284,9 @@ export async function updateRecovery(
       allowed: RECOVERY_TRANSITIONS[from],
     });
   }
+  assertLostAtNotFuture(patch.lostAt);
   const now = nowIso();
+  const changed = to !== from;
   const sets = ["updated_at = ?"];
   const params: unknown[] = [now];
   if ("lostAt" in patch) {
@@ -207,24 +299,25 @@ export async function updateRecovery(
   }
   if ("notes" in patch) {
     sets.push("notes = ?");
-    params.push(patch.notes ?? null);
+    params.push(changed ? appendNote(current.notes, patch.notes, now) : (patch.notes ?? null));
   }
   const statements: D1PreparedStatement[] = [];
-  if (to !== from) {
+  if (changed) {
     sets.push("status = ?");
     params.push(to);
     if (to === "recovered") {
       sets.push("recovered_at = ?");
       params.push(now);
-      statements.push(
-        db
-          .prepare("UPDATE items SET status = 'normal', updated_at = ? WHERE id = ? AND owner_id = ?")
-          .bind(now, current.item_id, ownerId),
-        activityStatement(db, { ownerId, type: "item.recovered", itemId: current.item_id }),
-      );
     } else if (to === "closed") {
       sets.push("closed_at = ?");
       params.push(now);
+    }
+    statements.push(eventStatement(db, ownerId, id, to, patch.notes ?? null, now));
+    if ((to === "recovered" || to === "closed") && isActive(from)) {
+      statements.push(releaseItemStatement(db, ownerId, current.item_id, id, now));
+    }
+    if (to === "recovered") {
+      statements.push(activityStatement(db, { ownerId, type: "item.recovered", itemId: current.item_id }));
     }
     statements.push(
       activityStatement(db, {

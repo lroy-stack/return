@@ -129,6 +129,7 @@ export const en = {
     place: "Please say where (up to 300 characters).",
     kind: "Please choose a type.",
     when: "Please enter a valid date and time.",
+    whenPast: "That time has already passed. Please choose a later date and time.",
     instructions: "The instructions are too long (up to 1000 characters).",
     fixFields: "Please check the highlighted fields.",
     badForm: "This form could not be read. Please reload the page and try again.",
@@ -158,10 +159,13 @@ export const en = {
     seen: "The owner of the item. If the owner has named trusted contacts, they may be told that someone made contact (never your message text). Nobody else, and it is not used for advertising or analytics.",
     processorsTitle: "Service providers",
     processors:
-      "Cloudflare processes data on our behalf: it hosts this service, runs the Turnstile bot check (which sees your IP address) and delivers e-mail. When you share a position, its coordinates (and nothing else) are sent to OpenStreetMap's geocoding service (Nominatim, OpenStreetMap Foundation) to show a place name. Place names © OpenStreetMap contributors.",
+      "Cloudflare processes data on our behalf: it hosts this service, runs the Turnstile bot check (which sees your IP address) and delivers e-mail.",
+    recipientsTitle: "Other recipients",
+    recipients:
+      "When you share a position, its coordinates (and nothing else) are sent to OpenStreetMap's geocoding service (Nominatim), run by the OpenStreetMap Foundation, to show a place name. The Foundation is an independent recipient with its own privacy policy, not a processor acting for us. Place names © OpenStreetMap contributors.",
     retentionTitle: "How long",
     retention:
-      "Closed conversations are deleted after the period the owner has set (90 days by default). The owner can delete a conversation at any time.",
+      "Closed conversations are deleted after the period the owner has set (90 days by default). The owner can delete a conversation at any time. Nightly backups keep a deleted conversation for up to 30 days more. Place names looked up for shared positions are cached for at most 30 days and are removed with the conversation.",
     cookiesTitle: "Cookies and tracking",
     cookies:
       "There is no analytics and no tracking. The only cookie is a strictly necessary one that lets you reopen your conversation on this device.",
@@ -332,6 +336,7 @@ const de: Dict = {
     place: "Bitte geben Sie einen Ort an (bis zu 300 Zeichen).",
     kind: "Bitte wählen Sie eine Art.",
     when: "Bitte geben Sie ein gültiges Datum mit Uhrzeit ein.",
+    whenPast: "Dieser Zeitpunkt liegt in der Vergangenheit. Bitte wählen Sie einen späteren Termin.",
     instructions: "Die Hinweise sind zu lang (bis zu 1000 Zeichen).",
     fixFields: "Bitte prüfen Sie die markierten Felder.",
     badForm:
@@ -363,10 +368,13 @@ const de: Dict = {
     seen: "Der Eigentümer des Gegenstands. Hat der Eigentümer Vertrauenspersonen benannt, erfahren diese möglicherweise, dass jemand Kontakt aufgenommen hat (nie den Text Ihrer Nachricht). Niemand sonst, und es wird nicht für Werbung oder Analyse verwendet.",
     processorsTitle: "Dienstleister",
     processors:
-      "Cloudflare verarbeitet Daten in unserem Auftrag: Es hostet diesen Dienst, betreibt die Turnstile-Bot-Prüfung (die Ihre IP-Adresse sieht) und versendet E-Mails. Wenn Sie einen Standort teilen, werden dessen Koordinaten (und sonst nichts) an den Geocoding-Dienst von OpenStreetMap (Nominatim, OpenStreetMap Foundation) gesendet, um einen Ortsnamen anzuzeigen. Ortsnamen © OpenStreetMap contributors.",
+      "Cloudflare verarbeitet Daten in unserem Auftrag: Es hostet diesen Dienst, betreibt die Turnstile-Bot-Prüfung (die Ihre IP-Adresse sieht) und versendet E-Mails.",
+    recipientsTitle: "Weitere Empfänger",
+    recipients:
+      "Wenn Sie einen Standort teilen, werden dessen Koordinaten (und sonst nichts) an den Geocoding-Dienst von OpenStreetMap (Nominatim) gesendet, den die OpenStreetMap Foundation betreibt, um einen Ortsnamen anzuzeigen. Die Foundation ist ein eigenständiger Empfänger mit eigener Datenschutzerklärung, kein Auftragsverarbeiter für uns. Ortsnamen © OpenStreetMap contributors.",
     retentionTitle: "Wie lange",
     retention:
-      "Beendete Gespräche werden nach der vom Eigentümer eingestellten Frist gelöscht (standardmäßig 90 Tage). Der Eigentümer kann ein Gespräch jederzeit löschen.",
+      "Beendete Gespräche werden nach der vom Eigentümer eingestellten Frist gelöscht (standardmäßig 90 Tage). Der Eigentümer kann ein Gespräch jederzeit löschen. Nächtliche Sicherungen bewahren ein gelöschtes Gespräch bis zu 30 Tage länger auf. Für geteilte Standorte nachgeschlagene Ortsnamen werden höchstens 30 Tage zwischengespeichert und mit dem Gespräch entfernt.",
     cookiesTitle: "Cookies und Tracking",
     cookies:
       "Es gibt weder Analyse noch Tracking. Das einzige Cookie ist ein technisch notwendiges, mit dem Sie Ihr Gespräch auf diesem Gerät wieder öffnen können.",
@@ -531,6 +539,7 @@ const es: Dict = {
     place: "Indica dónde (hasta 300 caracteres).",
     kind: "Elige un tipo.",
     when: "Introduce una fecha y hora válidas.",
+    whenPast: "Esa hora ya ha pasado. Elige una fecha y hora posteriores.",
     instructions: "Las indicaciones son demasiado largas (hasta 1000 caracteres).",
     fixFields: "Revisa los campos marcados.",
     badForm: "No se pudo leer el formulario. Recarga la página e inténtalo de nuevo.",
@@ -560,10 +569,13 @@ const es: Dict = {
     seen: "El propietario del objeto. Si el propietario ha designado personas de confianza, puede que se les avise de que alguien ha contactado (nunca el texto de tu mensaje). Nadie más, y no se usa para publicidad ni analítica.",
     processorsTitle: "Proveedores de servicios",
     processors:
-      "Cloudflare trata datos por encargo nuestro: aloja este servicio, ejecuta la comprobación antirrobots Turnstile (que ve tu dirección IP) y entrega el correo electrónico. Cuando compartes una posición, sus coordenadas (y nada más) se envían al servicio de geocodificación de OpenStreetMap (Nominatim, OpenStreetMap Foundation) para mostrar el nombre del lugar. Nombres de lugares © OpenStreetMap contributors.",
+      "Cloudflare trata datos por encargo nuestro: aloja este servicio, ejecuta la comprobación antirrobots Turnstile (que ve tu dirección IP) y entrega el correo electrónico.",
+    recipientsTitle: "Otros destinatarios",
+    recipients:
+      "Cuando compartes una posición, sus coordenadas (y nada más) se envían al servicio de geocodificación de OpenStreetMap (Nominatim), gestionado por la OpenStreetMap Foundation, para mostrar el nombre del lugar. La Fundación es un destinatario independiente con su propia política de privacidad, no un encargado del tratamiento que actúe por cuenta nuestra. Nombres de lugares © OpenStreetMap contributors.",
     retentionTitle: "Cuánto tiempo",
     retention:
-      "Las conversaciones cerradas se borran tras el plazo que haya fijado el propietario (90 días por defecto). El propietario puede borrar una conversación en cualquier momento.",
+      "Las conversaciones cerradas se borran tras el plazo que haya fijado el propietario (90 días por defecto). El propietario puede borrar una conversación en cualquier momento. Las copias de seguridad nocturnas conservan una conversación borrada hasta 30 días más. Los nombres de lugar consultados para posiciones compartidas se guardan en caché como máximo 30 días y se eliminan junto con la conversación.",
     cookiesTitle: "Cookies y seguimiento",
     cookies:
       "No hay analítica ni seguimiento. La única cookie es una estrictamente necesaria que te permite reabrir tu conversación en este dispositivo.",

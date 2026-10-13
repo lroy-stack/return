@@ -3,6 +3,7 @@
  * problems as localized messages keyed by field, so the page can re-render with the user's input.
  */
 import { z } from "zod";
+import { isValidTimeZone } from "../../shared/datetime";
 import { locationInputSchema, messageInputSchema, proposalInputSchema } from "../../shared/schemas";
 import type { LocationData } from "../domain/conversations";
 import type { FormErrors, FormValues } from "./components";
@@ -90,6 +91,8 @@ export function parseProposal(values: FormValues, t: Dict): Parsed<z.output<type
     kind: values.kind,
     place: values.place ?? "",
     meetAt: meetRaw,
+    // A zone the browser reported; anything unusable falls back to the owner's time zone in the domain layer.
+    meetTz: values.meet_tz && isValidTimeZone(values.meet_tz) ? values.meet_tz : null,
     instructions: values.instructions ?? null,
   });
   const errors: FormErrors = {};
@@ -103,9 +106,6 @@ export function parseProposal(values: FormValues, t: Dict): Parsed<z.output<type
       else errors.form = t.errors.fixFields;
     }
     return { ok: false, errors };
-  }
-  if (result.data.meetAt && Number.isNaN(Date.parse(`${result.data.meetAt}:00Z`))) {
-    return { ok: false, errors: { meetAt: t.errors.when } };
   }
   return { ok: true, data: result.data };
 }

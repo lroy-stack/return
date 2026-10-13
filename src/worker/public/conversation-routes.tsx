@@ -171,7 +171,16 @@ conversationRoutes.post("/:token/proposals", async (c) => {
   if (!parsed.ok) return renderConversation(c, loaded, "proposal", { values, errors: parsed.errors }, 422);
   const data = parsed.data;
   return withCap(c, loaded, "proposal", values, async () => {
-    const proposal = await createProposal(c.env.DB, loaded.conv, "finder", data);
+    let proposal: Awaited<ReturnType<typeof createProposal>>;
+    try {
+      proposal = await createProposal(c.env.DB, loaded.conv, "finder", data);
+    } catch (err) {
+      if (err instanceof AppError && err.code === "meeting_in_past") {
+        const errors = { meetAt: dict(loaded.lang).errors.whenPast };
+        return renderConversation(c, loaded, "proposal", { values, errors }, 422);
+      }
+      throw err;
+    }
     defer(
       c,
       resolveAndStorePlace(c.env, loaded.conv.owner_id, { table: "proposals", id: proposal.id }, proposal),

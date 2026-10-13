@@ -8,6 +8,7 @@ import { APP, PUBLIC, worker } from "./helpers/auth";
 import {
   finderGet,
   finderPost,
+  localIn,
   openConversation,
   ownerId,
   resetPublicStubs,
@@ -881,7 +882,7 @@ describe("conversation page", () => {
     const proposal = await finderPost(`${path}/proposals`, {
       kind: "hotel_reception",
       place: "Hotel Sol, Calle Mayor 1",
-      meet_at: "2026-10-14T18:30",
+      meet_at: localIn("Europe/Madrid", 3 * 24 * 60),
       instructions: "Ask for Sam",
     });
     expect(proposal.status).toBe(303);
@@ -1184,4 +1185,89 @@ describe("conversation privacy and caps", () => {
       (await api("POST", `/conversations/${conv.id}/proposals`, { kind: "other", place: "o" })).status,
     ).toBe(201);
   });
+});
+
+describe("finder pages: dates, accessibility and privacy wording", () => {
+  async function proposalPage(fields: Record<string, string>) {
+    const seeded = await seedTag({ settings: { identity: { timezone: "Europe/Berlin" } } });
+    const conv = await openConversation(seeded);
+    const res = await finderPost(`/c/${conv.token}/proposals`, { kind: "other", place: "Pier", ...fields });
+    return { conv, res };
+  }
+
+  it("shows the meeting time with the zone it was typed in, to both parties", async () => {
+    const meetAt = localIn("Asia/Tokyo", 3 * 24 * 60);
+    const { conv, res } = await proposalPage({ meet_at: meetAt, meet_tz: "Asia/Tokyo" });
+    expect(res.status).toBe(303);
+    const html = await (await finderGet(`/c/${conv.token}`)).text();
+    expect(html).toContain("(Tokyo)");
+    const detail = await apiJson<ConversationDetail>("GET", `/conversations/${conv.id}`);
+    expect(detail.proposals[0]).toMatchObject({ meetAt, meetTz: "Asia/Tokyo" });
+  });
+
+  it("falls back to the owner's time zone when the browser sent none or junk", async () => {
+    const meetAt = localIn("Europe/Berlin", 3 * 24 * 60);
+    const none = await proposalPage({ meet_at: meetAt });
+    expect(
+      (await apiJson<ConversationDetail>("GET", `/conversations/${none.conv.id}`)).proposals[0]?.meetTz,
+    ).toBe("Europe/Berlin");
+    const junk = await proposalPage({ meet_at: meetAt, meet_tz: "Mars/Olympus" });
+    expect(junk.res.status).toBe(303);
+    expect(
+      (await apiJson<ConversationDetail>("GET", `/conversations/${junk.conv.id}`)).proposals[0]?.meetTz,
+    ).toBe("Europe/Berlin");
+  });
+
+  it("rejects impossible calendar dates and past times with a field error and keeps the input", async () => {
+    const impossible = await proposalPage({ meet_at: "2099-02-31T18:30" });
+    expect(impossible.res.status).toBe(422);
+    const past = await proposalPage({ meet_at: localIn("Europe/Berlin", -60), meet_tz: "Europe/Berlin" });
+    expect(past.res.status).toBe(422);
+    const html = await past.res.text();
+    expect(html).toContain("already passed");
+    expect(html).toContain('value="Pier"');
+    expect(html).toContain('aria-invalid="true"');
+    expect(html).toContain('aria-describedby="p-when-error"');
+    expect(html).toContain("data-error-summary");
+  });
+
+  it("allows a time that started a few minutes ago (grace period)", async () => {
+    const { res } = await proposalPage({ meet_at: localIn("Europe/Berlin", -5), meet_tz: "Europe/Berlin" });
+    expect(res.status).toBe(303);
+  });
+
+  it("judges the past on the clock of the zone it was typed in", async () => {
+    // An hour ago in Auckland; the same digits read in Los Angeles are almost a day ahead.
+    const digits = localIn("Pacific/Auckland", -60);
+    const auckland = await proposalPage({ meet_at: digits, meet_tz: "Pacific/Auckland" });
+    expect(auckland.res.status).toBe(422);
+    const losAngeles = await proposalPage({ meet_at: digits, meet_tz: "America/Los_Angeles" });
+    expect(losAngeles.res.status).toBe(303);
+  });
+
+  it("ties tag-page errors to their fields and marks message bubbles dir=auto", async () => {
+    const seeded = await seedTag();
+    const bad = await finderPost(`/t/${seeded.token}/contact`, { message: "", ...TURNSTILE_FIELD });
+    expect(bad.status).toBe(422);
+    const html = await bad.text();
+    expect(html).toContain('aria-invalid="true"');
+    expect(html).toContain('aria-describedby="message-hint message-error"');
+    expect(html).toContain("data-error-summary");
+
+    const conv = await openConversation(seeded, { message: "مرحبا" });
+    expect(await (await finderGet(`/c/${conv.token}`)).text()).toContain('class="body" dir="auto"');
+  });
+
+  it.each([
+    ["en", "independent recipient", "30 days"],
+    ["de", "eigenständiger Empfänger", "30 Tage"],
+    ["es", "destinatario independiente", "30 días"],
+  ])(
+    "names OpenStreetMap a recipient and mentions backups and the place cache in %s",
+    async (lang, recipient, days) => {
+      const html = await (await finderGet(`/privacy?lang=${lang}`)).text();
+      expect(html).toContain(recipient);
+      expect(html).toContain(days);
+    },
+  );
 });

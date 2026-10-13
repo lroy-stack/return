@@ -1,8 +1,71 @@
 import { env } from "cloudflare:workers";
 import { APP, accessJwt, worker } from "./auth";
 
-export const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
-export const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46]);
+const ascii = (text: string) => new TextEncoder().encode(text);
+const join = (...parts: Uint8Array[]) => {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+};
+const u32 = (n: number) => new Uint8Array([(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff]);
+
+/** JPEG segment: marker + big-endian length (which counts itself) + payload. */
+export const jpegSegment = (marker: number, payload: Uint8Array) =>
+  join(new Uint8Array([0xff, marker, (payload.length + 2) >> 8, (payload.length + 2) & 0xff]), payload);
+const JPEG_SOI = new Uint8Array([0xff, 0xd8]);
+const JPEG_SCAN = new Uint8Array([0xff, 0xda, 0, 8, 1, 1, 0, 0, 0x3f, 0, 0x12, 0x34, 0xff, 0xd9]);
+
+/** PNG chunk; the CRC is not checked by the Worker, so zeros are fine for fixtures. */
+export const pngChunk = (type: string, data: Uint8Array) =>
+  join(u32(data.length), ascii(type), data, new Uint8Array(4));
+const PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const PNG_IHDR = pngChunk("IHDR", join(u32(1), u32(1), new Uint8Array([8, 2, 0, 0, 0])));
+const PNG_IDAT = pngChunk("IDAT", new Uint8Array([0x78, 0x9c, 0x63, 0, 0, 0, 2, 0, 1]));
+const PNG_IEND = pngChunk("IEND", new Uint8Array());
+
+/** Smallest well-formed files of each type, with no metadata at all. */
+export const PNG_BYTES = join(PNG_SIGNATURE, PNG_IHDR, PNG_IDAT, PNG_IEND);
+export const JPEG_BYTES = join(
+  JPEG_SOI,
+  jpegSegment(0xe0, ascii("JFIF\0\x01\x01\0\0\x01\0\x01\0\0")),
+  JPEG_SCAN,
+);
+
+/** A camera-style JPEG: EXIF with GPS (APP1), XMP (APP1), IPTC (APP13) and a comment, around a kept ICC profile. */
+export const GPS_MARKER = "GPS-LAT-48.8584N-LON-2.2945E";
+export function jpegWithMetadata(): Uint8Array {
+  return join(
+    JPEG_SOI,
+    jpegSegment(0xe0, ascii("JFIF\0\x01\x01\0\0\x01\0\x01\0\0")),
+    jpegSegment(0xe1, ascii(`Exif\0\0MM\0*${GPS_MARKER}`)),
+    jpegSegment(0xe1, ascii("http://ns.adobe.com/xap/1.0/\0<x:xmpmeta>owner@example.test</x:xmpmeta>")),
+    jpegSegment(0xe2, ascii("ICC_PROFILE\0\x01\x01keep-me")),
+    jpegSegment(0xed, ascii("Photoshop 3.0\0IPTC-CITY-PARIS")),
+    jpegSegment(0xfe, ascii("shot by Alice")),
+    JPEG_SCAN,
+  );
+}
+
+/** A PNG with text chunks and an eXIf chunk carrying GPS, around a kept gAMA chunk. */
+export function pngWithMetadata(): Uint8Array {
+  return join(
+    PNG_SIGNATURE,
+    PNG_IHDR,
+    pngChunk("tEXt", ascii("Author\0Alice")),
+    pngChunk("eXIf", ascii(`MM\0*${GPS_MARKER}`)),
+    pngChunk("gAMA", u32(45455)),
+    pngChunk("iTXt", ascii("XML:com.adobe.xmp\0\0\0\0\0owner@example.test")),
+    pngChunk("zTXt", ascii("Comment\0\0x")),
+    PNG_IDAT,
+    PNG_IEND,
+    ascii("TRAILING-SECRET"),
+  );
+}
+
 export const PDF_BYTES = new TextEncoder().encode("%PDF-1.4\n%test\n");
 export const WEBP_BYTES = new Uint8Array([0x52, 0x49, 0x46, 0x46, 4, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
 

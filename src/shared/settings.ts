@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidLocale, isValidTimeZone } from "./datetime";
 
 export const LANGUAGES = ["en", "de", "es"] as const;
 export type Language = (typeof LANGUAGES)[number];
@@ -28,8 +29,8 @@ export const settingsSchema = z.object({
       publicName: text(80).default(""),
       panelLanguage: languageSchema.default("en"),
       defaultPublicLanguage: languageSchema.default("en"),
-      timezone: text(64).default("Europe/Berlin"),
-      locale: text(16).default("en-GB"),
+      timezone: text(64).refine(isValidTimeZone, "Unknown time zone").default("Europe/Berlin"),
+      locale: text(16).refine(isValidLocale, "Unknown locale").default("en-GB"),
     })
     .prefault({}),
   messages: z
@@ -107,4 +108,15 @@ export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({});
 /** Resolve a localized text for a language, falling back to English, then to a built-in default. */
 export function pickLocalized(value: Localized, lang: Language, fallback = ""): string {
   return value[lang] || value.en || fallback;
+}
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Recursively overlays `patch` on `base`: objects merge key by key, everything else is replaced. */
+export function deepMerge(base: unknown, patch: unknown): unknown {
+  if (!isPlainObject(base) || !isPlainObject(patch)) return patch;
+  const out: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(patch)) out[key] = deepMerge(base[key], value);
+  return out;
 }

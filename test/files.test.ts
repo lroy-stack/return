@@ -2,7 +2,17 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import type { FileMeta, Item } from "../src/shared/schemas";
 import { api, apiJson } from "./helpers/api";
-import { JPEG_BYTES, PDF_BYTES, PNG_BYTES, seedForeignOwner, upload, WEBP_BYTES } from "./helpers/files";
+import {
+  GPS_MARKER,
+  JPEG_BYTES,
+  jpegWithMetadata,
+  PDF_BYTES,
+  PNG_BYTES,
+  pngWithMetadata,
+  seedForeignOwner,
+  upload,
+  WEBP_BYTES,
+} from "./helpers/files";
 
 const newItem = (name = "Backpack") => apiJson<Item>("POST", "/items", { name });
 
@@ -107,6 +117,70 @@ describe("files", () => {
     const okDoc = new Uint8Array(9 * 1024 * 1024);
     okDoc.set(PDF_BYTES);
     expect((await upload({ itemId: item.id, kind: "document", bytes: okDoc })).status).toBe(201);
+  });
+
+  describe("metadata stripping", () => {
+    const stored = async (id: string) =>
+      new Uint8Array(await (await api("GET", `/files/${id}`)).arrayBuffer());
+    const text = (bytes: Uint8Array) => new TextDecoder("latin1").decode(bytes);
+
+    it("drops EXIF/GPS, XMP, IPTC and comments from JPEG photos but keeps other segments", async () => {
+      const item = await newItem();
+      const original = jpegWithMetadata();
+      expect(text(original)).toContain(GPS_MARKER);
+      const meta = await uploadOk(item.id, "photo", original, "gps.jpg");
+      const bytes = await stored(meta.id);
+      const body = text(bytes);
+      for (const secret of [GPS_MARKER, "Exif", "owner@example.test", "IPTC-CITY-PARIS", "shot by Alice"]) {
+        expect(body, secret).not.toContain(secret);
+      }
+      expect(body).toContain("ICC_PROFILE");
+      expect(bytes.slice(0, 3)).toEqual(new Uint8Array([0xff, 0xd8, 0xff]));
+      expect(bytes.slice(-2)).toEqual(new Uint8Array([0xff, 0xd9]));
+      expect(meta.sizeBytes).toBe(bytes.byteLength);
+      expect(bytes.byteLength).toBeLessThan(original.byteLength);
+    });
+
+    it("drops text and eXIf chunks and trailing data from PNG photos", async () => {
+      const item = await newItem();
+      const meta = await uploadOk(item.id, "photo", pngWithMetadata(), "gps.png");
+      const body = text(await stored(meta.id));
+      for (const secret of [
+        GPS_MARKER,
+        "tEXt",
+        "iTXt",
+        "zTXt",
+        "eXIf",
+        "owner@example.test",
+        "TRAILING-SECRET",
+      ]) {
+        expect(body, secret).not.toContain(secret);
+      }
+      for (const kept of ["IHDR", "gAMA", "IDAT", "IEND"]) expect(body, kept).toContain(kept);
+    });
+
+    it("leaves clean files byte-identical and does not rewrite documents", async () => {
+      const item = await newItem();
+      expect(await stored((await uploadOk(item.id, "photo", JPEG_BYTES)).id)).toEqual(JPEG_BYTES);
+      const withExif = jpegWithMetadata();
+      const doc = await uploadOk(item.id, "document", withExif, "scan.jpg");
+      expect(await stored(doc.id)).toEqual(withExif);
+    });
+
+    it("refuses truncated or malformed JPEG/PNG photos instead of storing unverified bytes", async () => {
+      const item = await newItem();
+      const truncatedJpeg = jpegWithMetadata().slice(0, 40);
+      const truncatedPng = pngWithMetadata().slice(0, 30);
+      for (const bytes of [truncatedJpeg, truncatedPng]) {
+        const res = await upload({ itemId: item.id, kind: "photo", bytes });
+        expect(res.status).toBe(422);
+        expect(((await res.json()) as { error: { code: string } }).error.code).toBe("invalid_image");
+      }
+      const { n } = (await env.DB.prepare("SELECT COUNT(*) AS n FROM item_files WHERE item_id = ?")
+        .bind(item.id)
+        .first<{ n: number }>()) ?? { n: -1 };
+      expect(n).toBe(0);
+    });
   });
 
   it("validates the form fields", async () => {

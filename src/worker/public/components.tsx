@@ -23,6 +23,18 @@ interface FieldProps {
   children: Child;
 }
 
+/**
+ * ARIA attributes for a form control inside a `Field`: marks it invalid and ties it to its hint and
+ * error message (`<id>-hint`, `<id>-error`), so assistive technology announces why it failed.
+ */
+export function fieldAria(id: string, opts: { hint?: boolean; error?: string }) {
+  const described = [opts.hint ? `${id}-hint` : null, opts.error ? `${id}-error` : null].filter(Boolean);
+  return {
+    "aria-invalid": opts.error ? ("true" as const) : undefined,
+    "aria-describedby": described.length > 0 ? described.join(" ") : undefined,
+  };
+}
+
 export function Field({ id, label, hint, optionalLabel, error, labelHidden, children }: FieldProps) {
   return (
     <div class={error ? "field has-error" : "field"}>
@@ -50,7 +62,8 @@ export function FormErrorSummary({ state, t }: { state: FormState; t: Dict }) {
   if (count === 0) return null;
   const general = state.errors.form;
   return (
-    <div class="notice notice-error" role="alert">
+    // public.js moves focus here after a failed submit (tabindex -1: focusable by script only).
+    <div class="notice notice-error" role="alert" tabindex={-1} data-error-summary>
       {general ?? t.errors.fixFields}
     </div>
   );
@@ -98,6 +111,7 @@ export function LocationFields({
           maxlength={300}
           autocomplete="off"
           value={v.location_label ?? ""}
+          {...fieldAria(id("label"), { error: state.errors.location })}
         />
       </Field>
       <button type="button" class="btn btn-secondary" data-gps-start hidden>

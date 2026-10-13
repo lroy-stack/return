@@ -67,6 +67,22 @@ export async function listTags(
   return results.map((r) => toTag(r, origin));
 }
 
+/**
+ * Conversations that came in through this tag and are still open. Revoking a tag never closes them
+ * (the finder may be mid-return); callers surface the number so the owner can decide.
+ */
+export async function countOpenConversations(
+  db: D1Database,
+  ownerId: string,
+  tagId: string,
+): Promise<number> {
+  const row = await db
+    .prepare("SELECT COUNT(*) AS n FROM conversations WHERE owner_id = ? AND tag_id = ? AND status = 'open'")
+    .bind(ownerId, tagId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 /** Fetch a tag that belongs to the owner, or throw 404. */
 export async function getOwnedTagRow(db: D1Database, ownerId: string, id: string): Promise<TagRow> {
   const row = await db

@@ -62,6 +62,17 @@ describe("overview", () => {
     expect(overview.recentActivity.map((e) => e.id)).not.toContain("foreign-event");
   });
 
+  it("drops an item from lost items and open recoveries once its search is closed", async () => {
+    const item = await apiJson<Item>("POST", "/items", { name: "Abandoned search" });
+    const recovery = await apiJson<Recovery>("POST", `/items/${item.id}/lost`, {});
+    let overview = await apiJson<Overview>("GET", "/overview");
+    expect(overview.lostItems.map((i) => i.id)).toContain(item.id);
+    await apiJson("PATCH", `/recoveries/${recovery.id}`, { status: "closed" });
+    overview = await apiJson<Overview>("GET", "/overview");
+    expect(overview.lostItems.map((i) => i.id)).not.toContain(item.id);
+    expect(overview.openRecoveries.map((r) => r.id)).not.toContain(recovery.id);
+  });
+
   it("caps recent activity at 20", async () => {
     for (let i = 0; i < 22; i++) await apiJson("POST", "/items", { name: `Bulk ${i}` });
     const overview = await apiJson<Overview>("GET", "/overview");

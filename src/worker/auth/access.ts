@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, type JWTVerifyGetKey, jwtVerify } from "jose";
-import { isDevelopment } from "../env";
+import { isDevelopment, isLoopbackHost } from "../env";
 
 /**
  * Owner authentication. The app host is protected by Cloudflare Access, which forwards a
@@ -67,7 +67,6 @@ export function ownerEmails(env: Env): Set<string> {
  */
 function devOwnerEmail(request: Request, env: Env): string | null {
   if (!isDevelopment(env) || !env.DEV_OWNER_EMAIL) return null;
-  const host = new URL(request.url).hostname;
-  if (host !== "localhost" && host !== "127.0.0.1" && host !== "[::1]") return null;
+  if (!isLoopbackHost(new URL(request.url).hostname)) return null;
   return env.DEV_OWNER_EMAIL.toLowerCase();
 }

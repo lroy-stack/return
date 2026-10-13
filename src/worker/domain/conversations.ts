@@ -4,7 +4,9 @@
  * so the rules live in one place and neither surface can bypass them.
  */
 import type { z } from "zod";
+import { isPastMeeting } from "../../shared/datetime";
 import type {
+  BlockDuration,
   ConversationDetail,
   Message,
   Party,
@@ -14,6 +16,7 @@ import type {
 } from "../../shared/schemas";
 import type { Language } from "../../shared/settings";
 import { activityStatement } from "../db/activity";
+import { blockExpiry } from "../db/blocks";
 import {
   type ConversationRow,
   loadConversationDetail,
@@ -23,9 +26,11 @@ import {
   toSharedLocation,
 } from "../db/conversations";
 import { activeRecovery } from "../db/recoveries";
+import { getSettings } from "../db/settings";
 import { AppError, notFound } from "../lib/http";
 import { newId, newSecretToken, sha256Hex } from "../lib/ids";
 import { nowIso } from "../lib/time";
+import { purgePlaceCacheStatement } from "../services/geocode";
 
 export type LocationData = {
   source: "gps" | "manual";
@@ -305,6 +310,26 @@ export async function shareLocation(
   });
 }
 
+export const meetingInPast = () =>
+  new AppError(422, "meeting_in_past", "The meeting time is in the past", [
+    { code: "custom", path: ["meetAt"], message: "The meeting time is in the past" },
+  ]);
+
+/**
+ * A meeting time is stored with the zone it was typed in (the owner's time zone setting when the
+ * client sent none) and must not be in the past, judged on the clock of that zone.
+ */
+async function meetingTime(
+  db: D1Database,
+  ownerId: string,
+  input: ProposalData,
+): Promise<{ meetAt: string; meetTz: string } | null> {
+  if (!input.meetAt) return null;
+  const meetTz = input.meetTz ?? (await getSettings(db, ownerId)).identity.timezone;
+  if (isPastMeeting(input.meetAt, meetTz)) throw meetingInPast();
+  return { meetAt: input.meetAt, meetTz };
+}
+
 export async function createProposal(
   db: D1Database,
   conv: ConversationRow,
@@ -312,6 +337,7 @@ export async function createProposal(
   input: ProposalData,
 ): Promise<Proposal> {
   assertOpen(conv);
+  const meeting = await meetingTime(db, conv.owner_id, input);
   const now = nowIso();
   const row: ProposalRow = {
     id: newId(),
@@ -324,7 +350,8 @@ export async function createProposal(
     place_name: null,
     place_detail: null,
     place_address: null,
-    meet_at: input.meetAt ?? null,
+    meet_at: meeting?.meetAt ?? null,
+    meet_tz: meeting?.meetTz ?? null,
     instructions: input.instructions || null,
     status: "proposed",
     responded_at: null,
@@ -334,8 +361,8 @@ export async function createProposal(
   const [inserted] = await db.batch([
     db
       .prepare(
-        `INSERT INTO proposals (id, conversation_id, proposed_by, kind, place, lat, lng, meet_at, instructions, status, created_at)
-         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ? WHERE ${cap.sql}`,
+        `INSERT INTO proposals (id, conversation_id, proposed_by, kind, place, lat, lng, meet_at, meet_tz, instructions, status, created_at)
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ? WHERE ${cap.sql}`,
       )
       .bind(
         row.id,
@@ -346,6 +373,7 @@ export async function createProposal(
         row.lat,
         row.lng,
         row.meet_at,
+        row.meet_tz,
         row.instructions,
         now,
         ...cap.binds,
@@ -467,25 +495,33 @@ export async function reopenConversation(db: D1Database, conv: ConversationRow):
     .run();
 }
 
-/** Blocks the conversation and the finder's (hashed) IP for this owner. */
+/**
+ * Blocks the conversation and the finder's (hashed) IP for this owner. Blocking again replaces the
+ * earlier block of the same address, so changing the reason or the duration never stacks entries.
+ */
 export async function blockConversation(
   db: D1Database,
   conv: ConversationRow,
   reason: string | null,
+  duration: BlockDuration = "permanent",
 ): Promise<void> {
-  const now = nowIso();
+  const now = new Date();
+  const stamp = now.toISOString();
   const statements: D1PreparedStatement[] = [
     db
       .prepare("UPDATE conversations SET status = 'blocked', closed_at = COALESCE(closed_at, ?) WHERE id = ?")
-      .bind(now, conv.id),
+      .bind(stamp, conv.id),
   ];
   if (conv.finder_ip_hmac) {
     statements.push(
       db
+        .prepare("DELETE FROM blocks WHERE owner_id = ? AND ip_hmac = ?")
+        .bind(conv.owner_id, conv.finder_ip_hmac),
+      db
         .prepare(
-          "INSERT INTO blocks (id, owner_id, ip_hmac, reason, expires_at, created_at) VALUES (?, ?, ?, ?, NULL, ?)",
+          "INSERT INTO blocks (id, owner_id, ip_hmac, reason, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
         )
-        .bind(newId(), conv.owner_id, conv.finder_ip_hmac, reason, now),
+        .bind(newId(), conv.owner_id, conv.finder_ip_hmac, reason, blockExpiry(duration, now), stamp),
     );
   }
   statements.push(
@@ -495,14 +531,51 @@ export async function blockConversation(
       itemId: conv.item_id,
       tagId: conv.tag_id,
       conversationId: conv.id,
+      data: { duration },
     }),
   );
   await db.batch(statements);
 }
 
-/** Hard delete; messages, locations and proposals go with it (ON DELETE CASCADE). */
+/** Lifts the block on the finder's address and reopens the conversation. */
+export async function unblockConversation(db: D1Database, conv: ConversationRow): Promise<void> {
+  if (conv.status !== "blocked") {
+    throw new AppError(409, "conversation_not_blocked", "This conversation is not blocked");
+  }
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        "UPDATE conversations SET status = 'open', closed_at = NULL WHERE id = ? AND status = 'blocked'",
+      )
+      .bind(conv.id),
+  ];
+  if (conv.finder_ip_hmac) {
+    statements.push(
+      db
+        .prepare("DELETE FROM blocks WHERE owner_id = ? AND ip_hmac = ?")
+        .bind(conv.owner_id, conv.finder_ip_hmac),
+    );
+  }
+  statements.push(
+    activityStatement(db, {
+      ownerId: conv.owner_id,
+      type: "conversation.unblocked",
+      itemId: conv.item_id,
+      tagId: conv.tag_id,
+      conversationId: conv.id,
+    }),
+  );
+  await db.batch(statements);
+}
+
+/**
+ * Hard delete; messages, locations and proposals go with it (ON DELETE CASCADE), and so do the
+ * cached place names of its coordinates. A block on the finder's address stays: it may be the
+ * reason the conversation is being deleted.
+ */
 export async function deleteConversation(db: D1Database, conv: ConversationRow): Promise<void> {
   await db.batch([
+    purgePlaceCacheStatement(db, "?", [conv.id]),
     // The notification log outlives the conversation; do not keep finder addresses in it.
     db.prepare("UPDATE notifications SET recipient = '[deleted]' WHERE conversation_id = ?").bind(conv.id),
     db.prepare("DELETE FROM conversations WHERE id = ? AND owner_id = ?").bind(conv.id, conv.owner_id),

@@ -16,12 +16,16 @@ async function seedAccount(): Promise<{ ownerId: string; tagTokens: string[] }> 
   const { tag: replacement } = await apiJson<{ tag: Tag }>("POST", `/tags/${tags[0]?.id}/replace`);
   await apiJson("POST", "/trackers", { name: "AirTag", itemId: bag.id });
   await apiJson("POST", "/contacts", { name: "Ana", email: "ana@example.test", notify: true });
-  await apiJson("POST", `/items/${pouch.id}/lost`, { lostPlace: "Airport" });
+  const lost = await apiJson<{ id: string }>("POST", `/items/${pouch.id}/lost`, { lostPlace: "Airport" });
+  await apiJson("PATCH", `/recoveries/${lost.id}`, { status: "found", notes: "A cafe has it" });
   await apiJson("PUT", "/settings", { identity: { publicName: "Lena" }, tags: { labelPrefix: "RT-" } });
   const photo = await upload({ itemId: bag.id, kind: "photo", bytes: PNG_BYTES, filename: "bag.png" });
   expect(photo.status).toBe(201);
   const t = "2026-05-01T10:00:00.000Z";
   await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO blocks (id, owner_id, ip_hmac, reason, expires_at, created_at) VALUES ('block-1', ?1, 'hmac-spammer', 'spam', NULL, ?2), ('block-2', ?1, 'hmac-timed', NULL, '2099-01-01T00:00:00.000Z', ?2)",
+    ).bind(ownerId, t),
     env.DB.prepare(
       `INSERT INTO conversations (id, owner_id, item_id, tag_id, finder_token_hash, finder_name, subject, last_message_at, created_at)
        VALUES ('conv-1', ?1, ?2, ?3, ?4, 'Finder', 'Found your suitcase', ?5, ?5)`,
@@ -147,6 +151,25 @@ describe("data export and restore", () => {
         .first<{ n: number }>();
       expect(n?.n, "nothing may be written").toBe(0);
     };
+
+    it("rejects blocks and recovery events that are malformed or point nowhere", async () => {
+      await attack((doc) => {
+        doc.blocks[0] = { ...doc.blocks[0], ip_hmac: "" };
+      }, 422);
+      await attack((doc) => {
+        doc.blocks[0] = { ...doc.blocks[0], expires_at: "tomorrow" };
+      }, 422);
+      await attack(
+        (doc) => {
+          doc.recoveryEvents[0] = { ...doc.recoveryEvents[0], recovery_id: "nowhere" };
+        },
+        422,
+        "invalid_reference",
+      );
+      await attack((doc) => {
+        doc.recoveryEvents[0] = { ...doc.recoveryEvents[0], status: "teleported" };
+      }, 422);
+    });
 
     it("rejects a file row pointing at another key (e.g. someone's backup)", () =>
       attack(
@@ -277,12 +300,17 @@ describe("data export and restore", () => {
         tags: 3,
         trackers: 1,
         recoveries: 1,
+        recoveryEvents: 2,
+        blocks: 2,
         trustedContacts: 1,
         conversations: 1,
         messages: 1,
         sharedLocations: 1,
         proposals: 1,
       },
+      // File bytes are not in the export: the restored row points at a key that holds nothing.
+      filesChecked: 1,
+      missingFiles: [{ id: original.files[0]?.id, itemId: original.files[0]?.item_id, filename: "bag.png" }],
     });
 
     const restored = await exportAs();
@@ -292,6 +320,8 @@ describe("data export and restore", () => {
       "tags",
       "trackers",
       "recoveries",
+      "recoveryEvents",
+      "blocks",
       "trustedContacts",
       "sharedLocations",
       "proposals",
@@ -313,6 +343,31 @@ describe("data export and restore", () => {
     const { events } = await apiJson<{ events: { type: string }[] }>("GET", "/activity");
     expect(events.map((e) => e.type)).toContain("data.imported");
     expect((await api("POST", "/data/import", importBody(original))).status).toBe(409);
+  });
+
+  it("restores older exports that have no blocks or recovery events, and sees files that survived", async () => {
+    const oldOwnerId = await wipeOwner();
+    const legacy = structuredClone(original) as Partial<ExportDocument>;
+    delete legacy.blocks;
+    delete legacy.recoveryEvents;
+    const file = original.files[0];
+    const { ownerId } = await apiJson<{ ownerId: string }>("GET", "/me");
+    await env.FILES.put(`owners/${ownerId}/items/${file?.item_id}/${file?.id}`, PNG_BYTES);
+    const res = await api("POST", "/data/import", importBody(legacy));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      imported: { blocks: 0, recoveryEvents: 0 },
+      filesChecked: 1,
+      missingFiles: [],
+    });
+    expect(ownerId).not.toBe(oldOwnerId);
+  });
+
+  it("leaves notification and activity history out of the export", async () => {
+    const doc = (await exportAs()) as unknown as Record<string, unknown>;
+    expect(Object.keys(doc)).not.toContain("notifications");
+    expect(Object.keys(doc)).not.toContain("activity");
+    expect(JSON.stringify(doc)).not.toContain("foreign-event");
   });
 
   it("also refuses a restore when only a tag exists", async () => {

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { ownerApi } from "./api";
 import type { AppEnv } from "./env";
-import { appHeaders, toErrorResponse } from "./lib/http";
+import { AppError, appHeaders, toErrorResponse } from "./lib/http";
 import { publicApp } from "./public";
 import { runMaintenance } from "./services/maintenance";
 
@@ -31,6 +31,10 @@ const appSurface = new Hono<AppEnv>();
 appSurface.onError(toErrorResponse);
 appSurface.use("*", appHeaders);
 appSurface.route("/api", ownerApi);
+// A sub-app's own notFound handler is not used once mounted: unknown API paths must not fall into the SPA.
+appSurface.all("/api/*", () => {
+  throw new AppError(404, "not_found", "Unknown API route");
+});
 // Everything else on the app host is the panel (static SPA with client-side routing).
 appSurface.all("*", async (c) => {
   const res = await c.env.ASSETS.fetch(c.req.raw);

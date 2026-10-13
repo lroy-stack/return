@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import {
+  blockInputSchema,
   CONVERSATION_STATUSES,
   type ConversationDetail,
   messageInputSchema,
@@ -23,10 +24,11 @@ import {
   markRead,
   reopenConversation,
   respondToProposal,
+  unblockConversation,
 } from "../domain/conversations";
 import type { AppContext, AppEnv } from "../env";
-import { parseJson, parseWith } from "../lib/http";
-import { resolveAndStorePlace } from "../services/geocode";
+import { AppError, parseJson, parseWith } from "../lib/http";
+import { resolveAndStorePlace, retryUnresolvedPlaces } from "../services/geocode";
 import { notifyFinder } from "../services/notify";
 
 export const conversationsApi = new Hono<AppEnv>();
@@ -35,8 +37,20 @@ const listQuerySchema = z.object({
   status: z.enum(CONVERSATION_STATUSES).optional(),
   itemId: z.string().max(64).optional(),
 });
-const blockSchema = z.object({ reason: z.string().trim().max(300).nullable().optional() });
 const deleteSchema = z.object({ confirm: z.literal("DELETE") });
+
+/** Like `parseJson`, but an empty body means "no fields" (the panel posts no body for plain actions). */
+async function parseOptionalJson<T extends z.ZodType>(c: AppContext, schema: T): Promise<z.output<T>> {
+  const text = await c.req.text();
+  if (text.trim() === "") return parseWith(schema, {});
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new AppError(400, "invalid_json", "Request body must be valid JSON");
+  }
+  return parseWith(schema, raw);
+}
 
 function loadRow(c: AppContext): Promise<ConversationRow> {
   return getOwnedConversationRow(c.env.DB, c.get("ownerId"), c.req.param("id") ?? "");
@@ -68,6 +82,7 @@ conversationsApi.get("/", async (c) => {
 conversationsApi.get("/:id", async (c) => {
   const conv = await loadRow(c);
   await markRead(c.env.DB, conv, "owner");
+  c.executionCtx.waitUntil(retryUnresolvedPlaces(c.env, conv.owner_id, conv.id));
   return c.json(await detail(c, conv));
 });
 
@@ -111,8 +126,14 @@ conversationsApi.post("/:id/reopen", async (c) => {
 
 conversationsApi.post("/:id/block", async (c) => {
   const conv = await loadRow(c);
-  const input = await parseJson(c, blockSchema);
-  await blockConversation(c.env.DB, conv, input.reason || null);
+  const input = await parseOptionalJson(c, blockInputSchema);
+  await blockConversation(c.env.DB, conv, input.reason || null, input.duration);
+  return c.json(await detail(c, conv));
+});
+
+conversationsApi.post("/:id/unblock", async (c) => {
+  const conv = await loadRow(c);
+  await unblockConversation(c.env.DB, conv);
   return c.json(await detail(c, conv));
 });
 

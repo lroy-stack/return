@@ -5,7 +5,15 @@ import { type Tag, type TagVerification, tagCreateSchema, tagPatchSchema } from 
 import { recordActivity } from "../db/activity";
 import { getOwnedItemRow } from "../db/items";
 import { getSettings } from "../db/settings";
-import { createTags, getOwnedTagRow, listTags, replaceTag, type TagRow, toTag } from "../db/tags";
+import {
+  countOpenConversations,
+  createTags,
+  getOwnedTagRow,
+  listTags,
+  replaceTag,
+  type TagRow,
+  toTag,
+} from "../db/tags";
 import type { AppContext, AppEnv } from "../env";
 import { AppError, parseJson, parseWith } from "../lib/http";
 import { nowIso } from "../lib/time";
@@ -14,10 +22,20 @@ import { attachmentDisposition } from "./files";
 
 export const tagsApi = new Hono<AppEnv>();
 
+const tagStatusSchema = z.enum(["active", "revoked"]);
 const tagListQuerySchema = z.object({
   itemId: z.string().max(64).optional(),
-  status: z.enum(["active", "revoked"]).optional(),
+  status: tagStatusSchema.optional(),
 });
+const csvQuerySchema = z.object({ status: tagStatusSchema.optional() });
+
+/** `POST /tags/:id/revoke` returns the tag plus how many of its conversations are still open (they stay open). */
+type RevokeResponse = Tag & { openConversations: number };
+/** `GET /tags/:id/verify`. */
+type VerifyResponse = TagVerification & { openConversations: number };
+
+/** Excel only reads UTF-8 CSV when it starts with a byte order mark. */
+const UTF8_BOM = "\uFEFF";
 
 async function loadTag(c: AppContext, ownerId: string, id: string): Promise<Tag> {
   return toTag(await getOwnedTagRow(c.env.DB, ownerId, id), publicOrigin(c.env, c.req.url));
@@ -51,16 +69,20 @@ const csvCell = (value: string): string => {
   return /[",\r\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
 };
 
-/** NFC programming list. Must be registered before `/:id` routes. */
+/**
+ * NFC programming list (UTF-8 with BOM). `?status=active` keeps only tags that still work, `revoked` only
+ * the dead ones; without it every tag is listed. Must be registered before `/:id` routes.
+ */
 tagsApi.get("/export.csv", async (c) => {
-  const tags = await listTags(c.env.DB, c.get("ownerId"), publicOrigin(c.env, c.req.url));
+  const { status } = parseWith(csvQuerySchema, c.req.query());
+  const tags = await listTags(c.env.DB, c.get("ownerId"), publicOrigin(c.env, c.req.url), { status });
   const header = ["label", "item", "url", "status", "nfc_status"];
   const rows = tags
     .slice()
     .sort((a, b) => a.seq - b.seq)
     .map((t) => [t.label, t.itemName ?? "", t.url, t.status, t.nfcStatus]);
   const body = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
-  return new Response(`${body}\r\n`, {
+  return new Response(`${UTF8_BOM}${body}\r\n`, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": attachmentDisposition("return-tags.csv"),
@@ -103,6 +125,7 @@ tagsApi.patch("/:id", async (c) => {
 tagsApi.post("/:id/revoke", async (c) => {
   const ownerId = c.get("ownerId");
   const row = await getOwnedTagRow(c.env.DB, ownerId, c.req.param("id"));
+  // Open conversations are left alone on purpose: the finder may be in the middle of arranging a return.
   if (row.status !== "revoked") {
     await c.env.DB.prepare("UPDATE tags SET status = 'revoked', revoked_at = ? WHERE id = ? AND owner_id = ?")
       .bind(nowIso(), row.id, ownerId)
@@ -115,7 +138,8 @@ tagsApi.post("/:id/revoke", async (c) => {
       data: { label: row.label },
     });
   }
-  return c.json(await loadTag(c, ownerId, row.id));
+  const openConversations = await countOpenConversations(c.env.DB, ownerId, row.id);
+  return c.json<RevokeResponse>({ ...(await loadTag(c, ownerId, row.id)), openConversations });
 });
 
 tagsApi.post("/:id/replace", async (c) => {
@@ -141,8 +165,9 @@ tagsApi.get("/:id/qr.svg", async (c) => {
 
 /**
  * Pre-print check. `no_contact_method` is reported only when the owner cannot be reached by email
- * at all: no notification address, no contact email and no printed fallback email. Finders can
- * always message through the tag page, so a missing phone or WhatsApp number is not a problem.
+ * at all: no notification address, no contact email, no printed fallback email and no
+ * FALLBACK_CONTACT_EMAIL on the server. Finders can always message through the tag page, so a missing
+ * phone or WhatsApp number is not a problem. `openConversations` counts conversations still open on this tag.
  */
 tagsApi.get("/:id/verify", async (c) => {
   const ownerId = c.get("ownerId");
@@ -157,8 +182,12 @@ tagsApi.get("/:id/verify", async (c) => {
   }
   const settings = await getSettings(c.env.DB, ownerId);
   const reachable =
-    settings.notifications.emailAddress ?? settings.contact.email ?? settings.tags.printedEmail;
+    settings.notifications.emailAddress ??
+    settings.contact.email ??
+    settings.tags.printedEmail ??
+    (c.env.FALLBACK_CONTACT_EMAIL || null);
   if (!reachable) problems.push("no_contact_method");
   const url = toTag(row, publicOrigin(c.env, c.req.url)).url;
-  return c.json<TagVerification>({ url, ok: problems.length === 0, problems });
+  const openConversations = await countOpenConversations(c.env.DB, ownerId, row.id);
+  return c.json<VerifyResponse>({ url, ok: problems.length === 0, problems, openConversations });
 });

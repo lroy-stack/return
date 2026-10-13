@@ -1,10 +1,14 @@
 import { env } from "cloudflare:workers";
-import { afterEach, describe, expect, it } from "vitest";
-import type { ConversationDetail, GeocodeResult } from "../src/shared/schemas";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ConversationDetail, GeocodeSearchResponse } from "../src/shared/schemas";
+import { DAILY_OUTBOUND_CAP, NOMINATIM_USER_AGENT, searchPlaces } from "../src/worker/services/geocode";
+import { stubNominatim } from "../src/worker/services/nominatim-stub";
+import { APP_VERSION } from "../src/worker/version";
 import { api, apiJson } from "./helpers/api";
 import {
   finderGet,
   finderPost,
+  NOMINATIM_BASE,
   nominatim,
   openConversation,
   resetPublicStubs,
@@ -87,9 +91,9 @@ describe("reverse geocoding of shared locations", () => {
     expect(call?.url.searchParams.get("lat")).toBe(point.lat);
     expect(call?.url.searchParams.get("accept-language")).toBe("es,en");
     expect(call?.url.searchParams.get("addressdetails")).toBe("1");
-    expect(call?.headers.get("User-Agent")).toBe(
-      "RETURN/0.2 (+https://return.lr0y.dev; personal lost-item app)",
-    );
+    expect(call?.url.origin).toBe(NOMINATIM_BASE);
+    expect(call?.headers.get("User-Agent")).toBe(NOMINATIM_USER_AGENT);
+    expect(NOMINATIM_USER_AGENT).toContain(`RETURN/${APP_VERSION} `);
 
     const html = await (await finderGet(`/c/${conv.token}`)).text();
     expect(html).toContain('<p class="place-name">Estación de Atocha</p>');
@@ -146,7 +150,7 @@ describe("reverse geocoding of shared locations", () => {
     const point = freshPoint();
     const shared = await finderPost(`/c/${conv.token}/location`, gpsFields(point));
     expect(shared.status).toBe(303);
-    for (let i = 0; i < 30 && nominatim.calls.length === 0; i++) await settle(100);
+    await vi.waitFor(() => expect(nominatim.calls).toHaveLength(1));
     await settle();
 
     expect((await locationRow(conv.id))?.place_name).toBeNull();
@@ -236,7 +240,7 @@ describe("GET /api/geocode/search", () => {
   it("returns at most 5 results with attribution and caches the query", async () => {
     nominatim.respond = () => Response.json(hits);
     const url = "/geocode/search?q=Cafe%20Gran%20V%C3%ADa";
-    const body = await apiJson<{ results: GeocodeResult[]; attribution: string }>("GET", url);
+    const body = await apiJson<GeocodeSearchResponse>("GET", url);
     expect(body.attribution).toBe("© OpenStreetMap contributors");
     expect(body.results).toHaveLength(5);
     expect(body.results[0]).toEqual({
@@ -249,9 +253,9 @@ describe("GET /api/geocode/search", () => {
     const call = nominatim.calls[0];
     expect(call?.url.pathname).toBe("/search");
     expect(call?.url.searchParams.get("limit")).toBe("5");
-    expect(call?.headers.get("User-Agent")).toContain("RETURN/0.2");
+    expect(call?.headers.get("User-Agent")).toBe(NOMINATIM_USER_AGENT);
 
-    const again = await apiJson<{ results: GeocodeResult[] }>(
+    const again = await apiJson<GeocodeSearchResponse>(
       "GET",
       "/geocode/search?q=%20cafe%20%20gran%20v%C3%ADa",
     );
@@ -259,21 +263,184 @@ describe("GET /api/geocode/search", () => {
     expect(nominatim.calls).toHaveLength(1);
   });
 
-  it("returns an empty list when Nominatim fails, without a 5xx", async () => {
+  it("says OpenStreetMap is unavailable when Nominatim fails, without a 5xx", async () => {
     nominatim.respond = () => new Response("down", { status: 502 });
     const res = await api("GET", "/geocode/search?q=nowhere+land");
     expect(res.status).toBe(200);
-    expect((await res.json()) as { results: unknown[] }).toMatchObject({ results: [] });
+    expect(await res.json()).toMatchObject({ results: [], unavailable: true });
+    expect(nominatim.calls).toHaveLength(1);
   });
 
-  it("limits each owner to 30 searches per hour", async () => {
+  it("does not report 'unavailable' for a real search without matches, and caches it", async () => {
+    nominatim.respond = () => Response.json([]);
+    const first = await apiJson<GeocodeSearchResponse>("GET", "/geocode/search?q=zzzz+nothing");
+    expect(first).toMatchObject({ results: [], unavailable: false });
+    await apiJson("GET", "/geocode/search?q=zzzz+nothing");
+    expect(nominatim.calls).toHaveLength(1);
+  });
+
+  it("limits each owner to 30 outbound searches per hour; cache hits are free", async () => {
     nominatim.respond = () => Response.json(hits);
     await env.DB.prepare("DELETE FROM geocode_cache WHERE key LIKE 'rl:%'").run();
     for (let i = 0; i < 30; i++) {
-      expect((await api("GET", "/geocode/search?q=limit+probe")).status).toBe(200);
+      expect((await api("GET", `/geocode/search?q=limit+probe+${i}`)).status).toBe(200);
     }
-    const blocked = await api("GET", "/geocode/search?q=limit+probe");
+    expect(nominatim.calls).toHaveLength(30);
+    // Already-searched queries still answer, and cost nothing.
+    for (let i = 0; i < 5; i++)
+      expect((await api("GET", "/geocode/search?q=limit+probe+0")).status).toBe(200);
+    expect(nominatim.calls).toHaveLength(30);
+    const blocked = await api("GET", "/geocode/search?q=limit+probe+new");
     expect(blocked.status).toBe(429);
     expect(((await blocked.json()) as { error: { code: string } }).error.code).toBe("rate_limited");
+    expect(nominatim.calls).toHaveLength(30);
+  });
+});
+
+describe("picked places, cache retention and budgets", () => {
+  beforeEach(async () => {
+    await env.DB.prepare("DELETE FROM geocode_cache WHERE key LIKE 'rl:%' OR key LIKE 'cap:%'").run();
+  });
+
+  const found = {
+    name: "Mercado de San Miguel",
+    display_name: "Mercado de San Miguel, Plaza de San Miguel, Madrid, España",
+    lat: "40.41540",
+    lon: "-3.70890",
+    address: { amenity: "Mercado de San Miguel", city: "Madrid", country: "España" },
+  };
+
+  it("keeps the name the owner picked: the proposal is never re-resolved to something else", async () => {
+    nominatim.respond = (url) =>
+      url.pathname === "/search" ? Response.json([found]) : Response.json(ATOCHA);
+    const conv = await openConversation(await seedTag());
+    const search = await apiJson<GeocodeSearchResponse>("GET", "/geocode/search?q=mercado+san+miguel");
+    const pick = search.results[0];
+    expect(pick?.name).toBe("Mercado de San Miguel");
+
+    await api("POST", `/conversations/${conv.id}/proposals`, {
+      kind: "public_place",
+      place: pick?.name,
+      lat: pick?.lat,
+      lng: pick?.lng,
+    });
+    let resolved: ConversationDetail["proposals"][number] | undefined;
+    await vi.waitFor(async () => {
+      resolved = (await apiJson<ConversationDetail>("GET", `/conversations/${conv.id}`)).proposals[0];
+      expect(resolved?.resolvedPlace).not.toBeNull();
+    });
+    expect(resolved?.resolvedPlace?.name).toBe("Mercado de San Miguel");
+    expect(nominatim.calls.map((c) => c.url.pathname)).toEqual(["/search"]);
+  });
+
+  it("stores cache timestamps at day precision", async () => {
+    nominatim.respond = () => Response.json(ATOCHA);
+    const point = freshPoint();
+    await waitForPlace((await openConversation(await seedTag(), gpsFields(point))).id);
+    const row = await env.DB.prepare("SELECT created_at FROM geocode_cache WHERE key LIKE ?")
+      .bind(`${point.lat},${point.lng},%`)
+      .first<{ created_at: string }>();
+    expect(row?.created_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("forgets a conversation's cached places when the conversation is deleted", async () => {
+    nominatim.respond = () => Response.json(ATOCHA);
+    const point = freshPoint();
+    const conv = await openConversation(await seedTag(), gpsFields(point));
+    await waitForPlace(conv.id);
+    const cached = () =>
+      env.DB.prepare("SELECT COUNT(*) AS n FROM geocode_cache WHERE key LIKE ?")
+        .bind(`${point.lat},${point.lng},%`)
+        .first<{ n: number }>();
+    expect((await cached())?.n).toBe(1);
+    expect((await api("DELETE", `/conversations/${conv.id}`, { confirm: "DELETE" })).status).toBe(204);
+    expect((await cached())?.n).toBe(0);
+  });
+
+  it("skips resolution once the global daily cap is spent, and keeps the coordinates", async () => {
+    nominatim.respond = () => Response.json(ATOCHA);
+    const day = new Date().toISOString().slice(0, 10);
+    await env.DB.prepare("INSERT OR REPLACE INTO geocode_cache (key, payload, created_at) VALUES (?, ?, ?)")
+      .bind(`cap:${day}`, String(DAILY_OUTBOUND_CAP), day)
+      .run();
+    const conv = await openConversation(await seedTag(), gpsFields(freshPoint()));
+    await settle(400);
+    expect(nominatim.calls).toHaveLength(0);
+    expect((await locationRow(conv.id))?.place_name).toBeNull();
+  });
+
+  it("answers a search as unavailable (not an error) when the daily cap is spent", async () => {
+    const day = new Date().toISOString().slice(0, 10);
+    await env.DB.prepare("INSERT OR REPLACE INTO geocode_cache (key, payload, created_at) VALUES (?, ?, ?)")
+      .bind(`cap:${day}`, String(DAILY_OUTBOUND_CAP), day)
+      .run();
+    const body = await apiJson<GeocodeSearchResponse>("GET", "/geocode/search?q=capped+query");
+    expect(body).toMatchObject({ results: [], unavailable: true });
+    expect(nominatim.calls).toHaveLength(0);
+  });
+
+  describe("retry on the next owner view", () => {
+    async function unresolved(): Promise<{ id: string }> {
+      nominatim.respond = () => new Response("down", { status: 503 });
+      const conv = await openConversation(await seedTag(), gpsFields(freshPoint()));
+      await vi.waitFor(() => expect(nominatim.calls).toHaveLength(1));
+      await settle();
+      // Old enough for a retry; the first attempt has long finished.
+      await env.DB.prepare("UPDATE shared_locations SET created_at = ? WHERE conversation_id = ?")
+        .bind(new Date(Date.now() - 120_000).toISOString(), conv.id)
+        .run();
+      nominatim.calls.length = 0;
+      return conv;
+    }
+
+    it("resolves a place on the next view once OpenStreetMap is back", async () => {
+      const conv = await unresolved();
+      nominatim.respond = () => Response.json(ATOCHA);
+      await apiJson("GET", `/conversations/${conv.id}`);
+      expect((await waitForPlace(conv.id)).place_name).toBe("Estación de Atocha");
+      expect(nominatim.calls).toHaveLength(1);
+    });
+
+    it("retries at most once", async () => {
+      const conv = await unresolved();
+      await apiJson("GET", `/conversations/${conv.id}`);
+      await vi.waitFor(() => expect(nominatim.calls).toHaveLength(1));
+      await settle();
+      await apiJson("GET", `/conversations/${conv.id}`);
+      await apiJson("GET", `/conversations/${conv.id}`);
+      await settle(300);
+      expect(nominatim.calls).toHaveLength(1);
+      expect((await locationRow(conv.id))?.place_name).toBeNull();
+    });
+
+    it("leaves fresh rows alone: the first attempt may still be running", async () => {
+      nominatim.respond = () => new Response("down", { status: 503 });
+      const conv = await openConversation(await seedTag(), gpsFields(freshPoint()));
+      await vi.waitFor(() => expect(nominatim.calls).toHaveLength(1));
+      await apiJson("GET", `/conversations/${conv.id}`);
+      await settle(300);
+      expect(nominatim.calls).toHaveLength(1);
+    });
+  });
+
+  describe("hermetic seams", () => {
+    it("answers from the built-in stub only in development with NOMINATIM_STUB=1", async () => {
+      const dev = Object.assign(Object.create(env), { ENVIRONMENT: "development", NOMINATIM_STUB: "1" });
+      const out = await searchPlaces(dev, "stub-owner", "stub query one", "en");
+      expect(out).toMatchObject({ status: "ok" });
+      expect(out.status === "ok" && out.results[0]?.name).toBe("stub query one (stub 1)");
+      expect(nominatim.calls).toHaveLength(0);
+
+      const prod = Object.assign(Object.create(env), { ENVIRONMENT: "production", NOMINATIM_STUB: "1" });
+      nominatim.respond = () => Response.json([]);
+      await searchPlaces(prod, "stub-owner", "stub query two", "en");
+      expect(nominatim.calls).toHaveLength(1);
+    });
+
+    it("stub reverse answers are deterministic", () => {
+      expect(stubNominatim("/reverse", { lat: "1.00000", lon: "2.00000" })).toMatchObject({
+        name: "Stub Place",
+      });
+    });
   });
 });

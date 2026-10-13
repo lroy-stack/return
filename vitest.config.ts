@@ -23,6 +23,9 @@ export default defineConfig(async () => {
             TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
             IP_HMAC_SECRET: "test-secret",
             DEV_OWNER_EMAIL: "",
+            // Geocoding never reaches the real service in tests, and the 1 req/s throttle is off.
+            NOMINATIM_URL: "https://nominatim.test",
+            NOMINATIM_MIN_INTERVAL_MS: "0",
           },
         },
       }),

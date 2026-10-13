@@ -241,7 +241,14 @@ tagRoutes.post("/:token/contact", async (c) => {
   const parsed = parseContact(values, t, settings.notifications.notifyFinders);
   if (!parsed.ok) return rerender({ values, errors: parsed.errors }, 422);
 
-  if (!(await verifyTurnstile(c.env, values["cf-turnstile-response"] ?? null, rawClientIp(c.req.raw)))) {
+  if (
+    !(await verifyTurnstile(
+      c.env,
+      values["cf-turnstile-response"] ?? null,
+      rawClientIp(c.req.raw),
+      new URL(c.req.url).hostname,
+    ))
+  ) {
     return rerender({ values, errors: { form: t.errors.verification } }, 403);
   }
 

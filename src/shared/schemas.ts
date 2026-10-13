@@ -3,6 +3,7 @@
  * schemas on the server; response types are shared with the React panel.
  */
 import { z } from "zod";
+import { isRealWallClock, isValidTimeZone } from "./datetime";
 import { type ContactVisibility, contactVisibilitySchema, type Settings } from "./settings";
 
 const str = (max: number) => z.string().trim().max(max);
@@ -127,6 +128,8 @@ export interface ItemDetail {
   trackers: Tracker[];
   children: ItemSummary[];
   recoveries: Recovery[];
+  /** Timeline of all recoveries of this item, oldest first. */
+  recoveryEvents: RecoveryEvent[];
   conversations: ConversationSummary[];
 }
 
@@ -185,6 +188,15 @@ export interface TagVerification {
   ok: boolean;
   /** Machine-readable problems: "revoked", "unassigned", "item_archived", "no_contact_method". */
   problems: string[];
+  /** Conversations started from this tag that are still open (revoking does not close them). */
+  openConversations: number;
+}
+
+/** `POST /data/import` result. `missingFiles` lists restored file rows whose bytes are not in storage. */
+export interface ImportResult {
+  imported: Record<string, number>;
+  filesChecked: number;
+  missingFiles: { id: string; itemId: string; filename: string }[];
 }
 
 // ------------------------------------------------------------ trackers ----
@@ -228,6 +240,23 @@ export interface Recovery {
   closedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Statuses this recovery may move to next (server-enforced state machine). */
+  allowedTransitions: RecoveryStatus[];
+}
+
+/** One step of a recovery's timeline: the status reached, when, and the note given at that moment. */
+export interface RecoveryEvent {
+  id: string;
+  recoveryId: string;
+  status: RecoveryStatus;
+  note: string | null;
+  createdAt: string;
+}
+
+/** `POST /items/:id/recovered`: open conversations are returned so the owner can thank and close them. */
+export interface RecoveredResponse {
+  recovery: Recovery | null;
+  openConversations: ConversationSummary[];
 }
 export const recoveryPatchSchema = z.object({
   status: z.enum(RECOVERY_STATUSES).optional(),
@@ -299,7 +328,10 @@ export interface Proposal {
   lng: number | null;
   /** Readable place for the coordinates, when they were given and could be resolved. */
   resolvedPlace: ResolvedPlace | null;
+  /** Wall-clock time as typed ("2026-10-14T18:30"); read it together with `meetTz`. */
   meetAt: string | null;
+  /** IANA zone `meetAt` was typed in. Null for proposals made before zones were stored. */
+  meetTz: string | null;
   instructions: string | null;
   status: ProposalStatus;
   respondedAt: string | null;
@@ -330,7 +362,35 @@ export interface GeocodeResult extends ResolvedPlace {
   lng: number;
 }
 
+/** `unavailable` is true when OpenStreetMap could not be asked (down, timed out, daily budget spent). */
+export interface GeocodeSearchResponse {
+  results: GeocodeResult[];
+  attribution: string;
+  unavailable: boolean;
+}
+
 export const geocodeSearchQuerySchema = z.object({ q: str(200).min(3) });
+
+export const BLOCK_DURATIONS = ["7d", "30d", "90d", "permanent"] as const;
+export type BlockDuration = (typeof BLOCK_DURATIONS)[number];
+
+/** Body of `POST /conversations/:id/block`; the whole body is optional. */
+export const blockInputSchema = z.object({
+  reason: str(300).nullable().optional(),
+  duration: z.enum(BLOCK_DURATIONS).default("permanent"),
+});
+
+export interface BlockEntry {
+  id: string;
+  createdAt: string;
+  reason: string | null;
+  /** Null for a permanent block. */
+  expiresAt: string | null;
+  /** The conversation that was blocked, if it still exists. */
+  conversation: { id: string; subject: string; itemName: string | null } | null;
+  /** The conversation was deleted; the block stays until removed or expired. */
+  orphaned: boolean;
+}
 
 export interface ConversationDetail {
   conversation: ConversationSummary & {
@@ -354,12 +414,10 @@ export const proposalInputSchema = z
     place: str(300).min(1),
     lat: latitude.nullable().optional(),
     lng: longitude.nullable().optional(),
-    // Local wall-clock time as typed by the proposer, e.g. "2026-10-14T18:30".
-    meetAt: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
-      .nullable()
-      .optional(),
+    // Wall-clock time as typed by the proposer, e.g. "2026-10-14T18:30": a real date, not in the past.
+    meetAt: z.string().refine(isRealWallClock, "Enter a real date and time").nullable().optional(),
+    // IANA zone the time was typed in. Defaults to the owner's time zone setting.
+    meetTz: z.string().max(64).refine(isValidTimeZone, "Unknown time zone").nullable().optional(),
     instructions: nullableStr(1000),
   })
   .refine((p) => (p.lat == null) === (p.lng == null), { message: "lat and lng go together" });
@@ -428,11 +486,31 @@ export interface Overview {
 
 // -------------------------------------------------------------- system ----
 
+export type EmailFailureCode =
+  | "email_not_configured"
+  | "sender_not_verified"
+  | "recipient_not_allowed"
+  | "rate_limited"
+  | "hourly_cap"
+  | "delivery_failed"
+  | "send_failed";
+
+/** Outcome of the most recent email meant for the owner. */
+export interface OwnerDelivery {
+  status: "sent" | "failed" | "skipped";
+  /** Stable code for the panel to translate; null when the email was sent. */
+  code: EmailFailureCode | null;
+  /** Raw error text (max 300 characters); null when the email was sent. */
+  error: string | null;
+  at: string;
+}
+
 export interface SystemStatus {
   version: string;
   environment: string;
   publicOrigin: string | null;
   appOrigin: string | null;
+  /** "Configured" only says variables and bindings exist; see `verified` and `email` for evidence. */
   checks: {
     database: boolean;
     storage: boolean;
@@ -441,9 +519,42 @@ export interface SystemStatus {
     emailConfigured: boolean;
     fallbackContactConfigured: boolean;
   };
+  /** Evidence that a service really works. */
+  verified: {
+    /** This very request carried a valid Cloudflare Access token (false for the local dev bypass). */
+    access: boolean;
+    /** A finder passed Turnstile siteverify in the last 30 days. */
+    turnstile: boolean;
+    turnstileLastSuccessAt: string | null;
+  };
+  email: {
+    configured: boolean;
+    lastOwnerDelivery: OwnerDelivery | null;
+    /** Failed emails in the last 7 days. */
+    recentFailures: number;
+  };
+  maintenance: { lastRunAt: string | null; lastBackupAt: string | null };
   counts: { items: number; tags: number; openConversations: number };
+  /** Same value as `maintenance.lastBackupAt` (kept until the panel reads the new field). */
   lastBackupAt: string | null;
+  /** Same value as `email.recentFailures` (kept until the panel reads the new field). */
   recentNotificationFailures: number;
+}
+
+/** Response of `POST /settings/test-email`. `code` is "sent" on success. */
+export interface TestEmailResult {
+  ok: boolean;
+  code: "sent" | "no_recipient" | EmailFailureCode;
+  /** English sentence; the panel shows its own translation chosen by `code`. */
+  message: string;
+}
+
+export interface OwnerAlert {
+  kind: "owner_email_failed";
+  code: EmailFailureCode;
+  message: string;
+  /** When the failed delivery happened (null when email is simply not configured). */
+  since: string | null;
 }
 
 export interface Me {

@@ -1,5 +1,5 @@
 import { LANGUAGES, type Language } from "../../shared/settings";
-import { EMPTY_FORM, Field, FormErrorSummary, type FormState, LocationFields } from "./components";
+import { EMPTY_FORM, Field, FormErrorSummary, type FormState, fieldAria, LocationFields } from "./components";
 import { dict, fmt, LANGUAGE_NAMES } from "./i18n";
 import { Layout } from "./layout";
 
@@ -98,6 +98,8 @@ export function PrivacyPage({ lang }: { lang: Language }) {
       <p>{t.seen}</p>
       <h2>{t.processorsTitle}</h2>
       <p>{t.processors}</p>
+      <h2>{t.recipientsTitle}</h2>
+      <p>{t.recipients}</p>
       <h2>{t.retentionTitle}</h2>
       <p>{t.retention}</p>
       <h2>{t.cookiesTitle}</h2>
@@ -194,7 +196,7 @@ export function TagPage({
               rows={5}
               maxlength={4000}
               required
-              aria-describedby="message-hint"
+              {...fieldAria("message", { hint: true, error: form.errors.message })}
             >
               {v.message ?? ""}
             </textarea>
@@ -207,6 +209,7 @@ export function TagPage({
               maxlength={80}
               autocomplete="name"
               value={v.name ?? ""}
+              {...fieldAria("name", { error: form.errors.name })}
             />
           </Field>
           {view.notifyFinders ? (
@@ -225,7 +228,7 @@ export function TagPage({
                 autocomplete="email"
                 inputmode="email"
                 value={v.email ?? ""}
-                aria-describedby="email-hint"
+                {...fieldAria("email", { hint: true, error: form.errors.email })}
               />
             </Field>
           ) : null}

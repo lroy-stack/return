@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { recordActivity } from "../db/activity";
-import { buildExport, importExport, importRequestSchema, ownerIsEmpty } from "../db/export";
+import { buildExport, findMissingFiles, importExport, importRequestSchema, ownerIsEmpty } from "../db/export";
 import type { AppEnv } from "../env";
 import { AppError, parseJson } from "../lib/http";
 import { attachmentDisposition } from "./files";
@@ -20,7 +20,11 @@ dataApi.get("/export", async (c) => {
   });
 });
 
-/** Disaster recovery only: refuses to run when the owner already has items or tags. */
+/**
+ * Disaster recovery only: refuses to run when the owner already has items or tags.
+ * Response: `{ imported: counts, filesChecked: n, missingFiles: [{ id, itemId, filename }] }`. File bytes
+ * are not part of the export, so `missingFiles` lists every file row whose R2 object is absent.
+ */
 dataApi.post("/import", async (c) => {
   const { data } = await parseJson(c, importRequestSchema);
   const ownerId = c.get("ownerId");
@@ -29,5 +33,6 @@ dataApi.post("/import", async (c) => {
   }
   const imported = await importExport(c.env.DB, ownerId, data);
   await recordActivity(c.env.DB, { ownerId, type: "data.imported", data: { ...imported } });
-  return c.json({ imported });
+  const { checked, missing } = await findMissingFiles(c.env.DB, c.env.FILES, ownerId);
+  return c.json({ imported, filesChecked: checked, missingFiles: missing });
 });

@@ -6,7 +6,7 @@ import {
   type ResolvedPlace,
 } from "../../shared/schemas";
 import type { Language } from "../../shared/settings";
-import { EMPTY_FORM, Field, FormErrorSummary, type FormState, LocationFields } from "./components";
+import { EMPTY_FORM, Field, FormErrorSummary, type FormState, fieldAria, LocationFields } from "./components";
 import { formatCoordinate, formatInstant, formatWallClock } from "./format";
 import { dict, fmt, proposalKindName, proposalStatusName } from "./i18n";
 import { Layout } from "./layout";
@@ -111,7 +111,7 @@ function ProposalCard({
       ) : null}
       {proposal.meetAt ? (
         <p>
-          <strong>{t.conv.when}:</strong> {formatWallClock(proposal.meetAt, lang)}
+          <strong>{t.conv.when}:</strong> {formatWallClock(proposal.meetAt, proposal.meetTz, lang)}
         </p>
       ) : null}
       {proposal.instructions ? (
@@ -190,7 +190,9 @@ export function ConversationPage({
                 <p class="who">
                   {m.sender === "finder" ? t.conv.you : m.sender === "owner" ? t.conv.owner : t.conv.system}
                 </p>
-                <p class="body">{m.body}</p>
+                <p class="body" dir="auto">
+                  {m.body}
+                </p>
                 <time datetime={m.createdAt} data-local-time>
                   {formatInstant(m.createdAt, lang)}
                 </time>
@@ -249,7 +251,14 @@ export function ConversationPage({
               <FormErrorSummary state={reply} t={t} />
               <form method="post" action={`${base}/messages`} class="stack">
                 <Field id="reply-body" label={t.form.reply} labelHidden error={reply.errors.message}>
-                  <textarea id="reply-body" name="message" rows={4} maxlength={4000} required>
+                  <textarea
+                    id="reply-body"
+                    name="message"
+                    rows={4}
+                    maxlength={4000}
+                    required
+                    {...fieldAria("reply-body", { error: reply.errors.message })}
+                  >
                     {reply.values.message ?? ""}
                   </textarea>
                 </Field>
@@ -275,7 +284,12 @@ export function ConversationPage({
               <FormErrorSummary state={proposal} t={t} />
               <form method="post" action={`${base}/proposals`} class="stack">
                 <Field id="p-kind" label={t.form.proposeKind} error={proposal.errors.kind}>
-                  <select id="p-kind" name="kind" required>
+                  <select
+                    id="p-kind"
+                    name="kind"
+                    required
+                    {...fieldAria("p-kind", { error: proposal.errors.kind })}
+                  >
                     {PROPOSAL_KINDS.map((k) => (
                       <option key={k} value={k} selected={proposal.values.kind === k}>
                         {proposalKindName(lang, k)}
@@ -291,6 +305,7 @@ export function ConversationPage({
                     maxlength={300}
                     required
                     value={proposal.values.place ?? ""}
+                    {...fieldAria("p-place", { error: proposal.errors.place })}
                   />
                 </Field>
                 <Field
@@ -304,7 +319,9 @@ export function ConversationPage({
                     name="meet_at"
                     type="datetime-local"
                     value={proposal.values.meet_at ?? ""}
+                    {...fieldAria("p-when", { error: proposal.errors.meetAt })}
                   />
+                  <input type="hidden" name="meet_tz" value={proposal.values.meet_tz ?? ""} data-browser-tz />
                 </Field>
                 <Field
                   id="p-instr"
@@ -312,7 +329,13 @@ export function ConversationPage({
                   optionalLabel={t.form.optional}
                   error={proposal.errors.instructions}
                 >
-                  <textarea id="p-instr" name="instructions" rows={3} maxlength={1000}>
+                  <textarea
+                    id="p-instr"
+                    name="instructions"
+                    rows={3}
+                    maxlength={1000}
+                    {...fieldAria("p-instr", { error: proposal.errors.instructions })}
+                  >
                     {proposal.values.instructions ?? ""}
                   </textarea>
                 </Field>

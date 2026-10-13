@@ -18,6 +18,8 @@ export type ActivityType =
   | "conversation.created"
   | "conversation.closed"
   | "conversation.blocked"
+  | "conversation.unblocked"
+  | "block.removed"
   | "conversation.deleted"
   | "location.shared"
   | "proposal.created"
@@ -26,6 +28,7 @@ export type ActivityType =
   | "data.exported"
   | "data.imported"
   | "backup.created"
+  | "maintenance.ran"
   | "notification.failed";
 
 export interface ActivityInput {

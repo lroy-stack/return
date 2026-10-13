@@ -1,9 +1,12 @@
 import { Hono } from "hono";
 import type { SystemStatus } from "../../shared/schemas";
-import type { AppEnv } from "../env";
+import { type AppEnv, isDevelopment } from "../env";
 import { daysAgoIso } from "../lib/time";
-import { emailConfigured } from "../services/notify";
+import { emailConfigured, lastOwnerDelivery } from "../services/notify";
+import { TURNSTILE_STATE_KEY } from "../services/turnstile";
 import { APP_VERSION } from "../version";
+
+const TURNSTILE_VERIFIED_DAYS = 30;
 
 export const systemApi = new Hono<AppEnv>();
 
@@ -29,16 +32,23 @@ systemApi.get("/", async (c) => {
             (SELECT COUNT(*) FROM tags WHERE owner_id = ?1) AS tags,
             (SELECT COUNT(*) FROM conversations WHERE owner_id = ?1 AND status = 'open') AS open_conversations,
             (SELECT MAX(created_at) FROM activity_events WHERE owner_id = ?1 AND type = 'backup.created') AS last_backup,
+            (SELECT MAX(created_at) FROM activity_events WHERE owner_id = ?1 AND type = 'maintenance.ran') AS last_run,
+            (SELECT updated_at FROM system_state WHERE key = ?3) AS turnstile_ok,
             (SELECT COUNT(*) FROM notifications WHERE owner_id = ?1 AND status = 'failed' AND created_at > ?2) AS failures`,
   )
-    .bind(ownerId, daysAgoIso(7))
+    .bind(ownerId, daysAgoIso(7), TURNSTILE_STATE_KEY)
     .first<{
       items: number;
       tags: number;
       open_conversations: number;
       last_backup: string | null;
+      last_run: string | null;
+      turnstile_ok: string | null;
       failures: number;
     }>();
+  const accessConfigured = Boolean(env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD);
+  const turnstileOk = counts?.turnstile_ok ?? null;
+  const delivery = await lastOwnerDelivery(env.DB, ownerId);
   return c.json<SystemStatus>({
     version: APP_VERSION,
     environment: env.ENVIRONMENT,
@@ -47,11 +57,23 @@ systemApi.get("/", async (c) => {
     checks: {
       database,
       storage,
-      accessConfigured: Boolean(env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD),
+      accessConfigured,
       turnstileConfigured: Boolean(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY),
       emailConfigured: emailConfigured(env),
       fallbackContactConfigured: Boolean(env.FALLBACK_CONTACT_EMAIL),
     },
+    verified: {
+      // The auth middleware only lets a request through with a verified token, unless the dev bypass is on.
+      access: accessConfigured && !isDevelopment(env) && Boolean(c.req.header("Cf-Access-Jwt-Assertion")),
+      turnstile: turnstileOk !== null && turnstileOk > daysAgoIso(TURNSTILE_VERIFIED_DAYS),
+      turnstileLastSuccessAt: turnstileOk,
+    },
+    email: {
+      configured: emailConfigured(env),
+      lastOwnerDelivery: delivery,
+      recentFailures: counts?.failures ?? 0,
+    },
+    maintenance: { lastRunAt: counts?.last_run ?? null, lastBackupAt: counts?.last_backup ?? null },
     counts: {
       items: counts?.items ?? 0,
       tags: counts?.tags ?? 0,

@@ -163,17 +163,72 @@ describe("maintenance", () => {
     expect(await listBackups("broken")).toEqual([]);
   });
 
-  it("prunes geocoder cache entries older than 90 days (they hold rounded finder coordinates)", async () => {
+  it("prunes geocoder cache entries older than 30 days (they hold rounded finder coordinates)", async () => {
+    const day = (days: number) => ago(days).slice(0, 10);
     await env.DB.batch([
       env.DB.prepare("INSERT INTO geocode_cache (key, payload, created_at) VALUES ('rev:old', '{}', ?)").bind(
-        ago(91),
+        day(31),
       ),
       env.DB.prepare("INSERT INTO geocode_cache (key, payload, created_at) VALUES ('rev:new', '{}', ?)").bind(
-        ago(5),
+        day(5),
       ),
     ]);
     await runMaintenance(env, new Date());
     expect(await count("SELECT COUNT(*) AS n FROM geocode_cache WHERE key = 'rev:old'")).toBe(0);
     expect(await count("SELECT COUNT(*) AS n FROM geocode_cache WHERE key = 'rev:new'")).toBe(1);
+  });
+
+  it("forgets the cached places of conversations it retires", async () => {
+    const id = await ownerId();
+    await apiJson("PUT", "/settings", { privacy: { closedConversationRetentionDays: 30 } });
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO conversations (id, owner_id, finder_token_hash, subject, status, closed_at, last_message_at, created_at)
+         VALUES ('c-retire', ?1, 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 's', 'closed', ?2, ?2, ?2)`,
+      ).bind(id, ago(40)),
+      env.DB.prepare(
+        "INSERT INTO shared_locations (id, conversation_id, shared_by, source, lat, lng, created_at) VALUES ('l-retire', 'c-retire', 'finder', 'gps', 40.41678, -3.70379, ?)",
+      ).bind(ago(40)),
+      env.DB.prepare(
+        "INSERT INTO geocode_cache (key, payload, created_at) VALUES ('40.41678,-3.70379,en', 'null', ?), ('40.41678,-3.70379,es', 'null', ?), ('41.00000,-3.00000,en', 'null', ?)",
+      ).bind(ago(2).slice(0, 10), ago(2).slice(0, 10), ago(2).slice(0, 10)),
+    ]);
+    await runMaintenance(env, new Date());
+    expect(await count("SELECT COUNT(*) AS n FROM conversations WHERE id = 'c-retire'")).toBe(0);
+    expect(await count("SELECT COUNT(*) AS n FROM geocode_cache WHERE key LIKE '40.41678,-3.70379,%'")).toBe(
+      0,
+    );
+    expect(await count("SELECT COUNT(*) AS n FROM geocode_cache WHERE key = '41.00000,-3.00000,en'")).toBe(1);
+  });
+
+  it("records that it ran, once per owner and run, even when a step failed", async () => {
+    const id = await ownerId();
+    await env.DB.prepare("DELETE FROM activity_events WHERE type = 'maintenance.ran'").run();
+    await runMaintenance(env, new Date());
+    expect(
+      await count(
+        "SELECT COUNT(*) AS n FROM activity_events WHERE owner_id = ? AND type = 'maintenance.ran'",
+        id,
+      ),
+    ).toBe(1);
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO owners (id, email, created_at) VALUES ('broken-run', 'br@example.test', ?)",
+    )
+      .bind(ago(1))
+      .run();
+    await env.DB.prepare(
+      "INSERT OR REPLACE INTO settings (owner_id, data, updated_at) VALUES ('broken-run', 'not json', ?)",
+    )
+      .bind(ago(1))
+      .run();
+    await runMaintenance(env, new Date());
+    const row = await env.DB.prepare(
+      "SELECT data FROM activity_events WHERE owner_id = ? AND type = 'maintenance.ran' ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    )
+      .bind(id)
+      .first<{ data: string }>();
+    expect(JSON.parse(row?.data ?? "{}").failedSteps).toBeGreaterThan(0);
   });
 });
