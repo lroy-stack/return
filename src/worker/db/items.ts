@@ -20,6 +20,9 @@ export interface ItemRow {
   acquired_on: string | null;
   private_notes: string | null;
   last_known_location: string | null;
+  last_known_lat: number | null;
+  last_known_lng: number | null;
+  last_known_accuracy_m: number | null;
   last_known_at: string | null;
   status: string;
   public_title: string | null;
@@ -97,6 +100,9 @@ export function toItem(r: ItemRow): Item {
     acquiredOn: r.acquired_on,
     privateNotes: r.private_notes,
     lastKnownLocation: r.last_known_location,
+    lastKnownLat: r.last_known_lat,
+    lastKnownLng: r.last_known_lng,
+    lastKnownAccuracyM: r.last_known_accuracy_m,
     lastKnownAt: r.last_known_at,
     status: r.status as ItemStatus,
     publicTitle: r.public_title,
@@ -228,18 +234,29 @@ async function assertValidParent(db: D1Database, ownerId: string, itemId: string
   }
 }
 
+/** lat and lng go together; a position needs a description to be shown next to it. */
+function assertPositionPair(lat: number | null | undefined, lng: number | null | undefined): void {
+  if ((lat == null) !== (lng == null)) {
+    throw new AppError(422, "validation_failed", "lastKnownLat and lastKnownLng go together", [
+      { code: "custom", path: ["lastKnownLat"], message: "lat and lng go together" },
+    ]);
+  }
+}
+
 export async function createItem(db: D1Database, ownerId: string, raw: ItemInput): Promise<Item> {
   const input = itemInputSchema.parse(raw);
   assertAcquiredOnNotFuture(input.acquiredOn);
+  assertPositionPair(input.lastKnownLat, input.lastKnownLng);
   if (input.parentId) await assertValidParent(db, ownerId, null, input.parentId);
   const id = newId();
   const now = nowIso();
   await db
     .prepare(
       `INSERT INTO items (id, owner_id, parent_id, name, brand, model, category, description, serial_number,
-         estimated_value_cents, currency, acquired_on, private_notes, last_known_location, last_known_at,
+         estimated_value_cents, currency, acquired_on, private_notes, last_known_location,
+         last_known_lat, last_known_lng, last_known_accuracy_m, last_known_at,
          public_title, public_message, reward_text, contact_visibility, search_text, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -256,6 +273,9 @@ export async function createItem(db: D1Database, ownerId: string, raw: ItemInput
       input.acquiredOn ?? null,
       input.privateNotes ?? null,
       input.lastKnownLocation ?? null,
+      input.lastKnownLat ?? null,
+      input.lastKnownLng ?? null,
+      input.lastKnownLat == null ? null : (input.lastKnownAccuracyM ?? null),
       input.lastKnownLocation ? now : null,
       input.publicTitle ?? null,
       input.publicMessage ?? null,
@@ -287,6 +307,9 @@ const PATCH_COLUMNS: Record<keyof ItemPatch, string> = {
   acquiredOn: "acquired_on",
   privateNotes: "private_notes",
   lastKnownLocation: "last_known_location",
+  lastKnownLat: "last_known_lat",
+  lastKnownLng: "last_known_lng",
+  lastKnownAccuracyM: "last_known_accuracy_m",
   parentId: "parent_id",
   publicTitle: "public_title",
   publicMessage: "public_message",
@@ -300,6 +323,16 @@ export async function updateItem(db: D1Database, ownerId: string, id: string, ra
   const current = await getOwnedItemRow(db, ownerId, id);
   const patch = itemPatchSchema.parse(raw);
   assertAcquiredOnNotFuture(patch.acquiredOn);
+  assertPositionPair(patch.lastKnownLat, patch.lastKnownLng);
+  // Coordinates belong to the text they were set with: changing the text alone drops them.
+  if (
+    "lastKnownLocation" in patch &&
+    patch.lastKnownLocation !== current.last_known_location &&
+    !("lastKnownLat" in patch)
+  ) {
+    Object.assign(patch, { lastKnownLat: null, lastKnownLng: null, lastKnownAccuracyM: null });
+  }
+  if ("lastKnownLat" in patch && patch.lastKnownLat == null) patch.lastKnownAccuracyM = null;
   if (patch.parentId) await assertValidParent(db, ownerId, id, patch.parentId);
 
   const sets: string[] = [];

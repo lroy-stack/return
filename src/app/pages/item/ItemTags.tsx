@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { useT } from "../../lib/i18n";
 import { Button, ButtonLink } from "../../ui/Button";
 import { Section } from "../../ui/Card";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { Icon } from "../../ui/Icon";
 import { IconTile, List, ListRow } from "../../ui/List";
 import { errorMessage } from "../../ui/States";
@@ -23,6 +24,7 @@ export function ItemTags({
   const toast = useToast();
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [confirmAdd, setConfirmAdd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const tags: Tag[] = detail.tags;
   const active = tags.filter((x) => x.status === "active");
@@ -59,7 +61,7 @@ export function ItemTags({
               {t("itemTags.print")}
             </ButtonLink>
           ) : null}
-          <Button size="sm" variant="tinted" icon="plus" loading={adding} onClick={add}>
+          <Button size="sm" variant="tinted" icon="plus" loading={adding} onClick={() => setConfirmAdd(true)}>
             {t("itemTags.add")}
           </Button>
         </>
@@ -94,6 +96,15 @@ export function ItemTags({
       <p role="alert" className="text-subhead font-medium text-danger empty:hidden">
         {error}
       </p>
+      <ConfirmDialog
+        open={confirmAdd}
+        title={t("itemTags.addTitle")}
+        message={t("itemTags.addBody", { n: active.length })}
+        confirmLabel={t("itemTags.add")}
+        tone="primary"
+        onClose={() => setConfirmAdd(false)}
+        onConfirm={add}
+      />
       <TagSheet tag={open} onClose={() => setOpenId(null)} onChanged={onChanged} />
     </Section>
   );

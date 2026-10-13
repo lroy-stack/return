@@ -3,6 +3,7 @@ import { cx } from "../../ui/cx";
 import { Checkbox, SegmentedControl } from "../../ui/Field";
 import { PageHeader } from "../../ui/Page";
 import { Foundations } from "./Foundations";
+import { IconSpecimens } from "./IconSpecimens";
 import { SelectionSpecimens } from "./SelectionSpecimens";
 import {
   ActionsSpecimens,
@@ -20,6 +21,8 @@ const SECTIONS = [
   ["type", "Type"],
   ["shape", "Shape"],
   ["material", "Glass"],
+  ["icons", "Icons"],
+  ["illustrations", "Illustrations"],
   ["buttons", "Buttons"],
   ["fields", "Fields"],
   ["selection", "Selection"],
@@ -59,6 +62,7 @@ function All() {
   return (
     <>
       <Foundations />
+      <IconSpecimens />
       <ActionsSpecimens />
       <FieldSpecimens />
       <SelectionSpecimens />

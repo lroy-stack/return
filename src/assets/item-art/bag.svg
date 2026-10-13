@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <defs>
+    <linearGradient id="lit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".34"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".18"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".3"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".08"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="shadow">
+      <stop offset="0" stop-color="#000" stop-opacity=".32"/>
+      <stop offset=".6" stop-color="#000" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <path id="f" d="M28 42H62A15 15 0 0 1 77 57V61A13 13 0 0 1 64 74H26A13 13 0 0 1 13 61V57A15 15 0 0 1 28 42Z"/>
+  </defs>
+  <ellipse cx="48" cy="79" rx="36" ry="5" fill="url(#shadow)"/>
+  <path d="M37 39c0-14 4-19 13-19s13 5 13 19" class="ia-s-accent-side" fill="none" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M19.28 44.79L26.28 39.79A15 15 0 0 1 35 37H69A15 15 0 0 1 84 52V56A13 13 0 0 1 78.56 66.58L71.56 71.58A13 13 0 0 1 64 74H26A13 13 0 0 1 13 61V57A15 15 0 0 1 19.28 44.79Z" class="ia-side"/>
+  <path d="M19.28 44.79L26.28 39.79A15 15 0 0 1 35 37H69A15 15 0 0 1 77.72 39.79L70.72 44.79Z" class="ia-top"/>
+  <path d="M31.5 39.5H67" class="ia-seam" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <use href="#f" class="ia-body"/>
+  <use href="#f" fill="url(#lit)"/>
+  <path d="M28 43v30M62 43v30" class="ia-seam" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M33 45c0-15 4-21 12-21s12 6 12 21" class="ia-s-accent-side" fill="none" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M33 45c0-15 4-21 12-21s12 6 12 21" class="ia-s-accent" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 43.5h6a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 28.5 51v-6a1.5 1.5 0 0 1 1.5-1.5zM54 43.5h6a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-6a1.5 1.5 0 0 1-1.5-1.5v-6a1.5 1.5 0 0 1 1.5-1.5z" class="ia-accent"/>
+  <path d="M17 66V57c0-6 3.5-10.5 9-12" fill="none" stroke="#fff" stroke-opacity="0.6" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

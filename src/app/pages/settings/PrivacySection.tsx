@@ -4,7 +4,7 @@ import { TextInput, Toggle } from "../../ui/Field";
 import { BlockedFinders } from "./BlockedFinders";
 import { SectionCard, type SectionProps } from "./shared";
 
-export function PrivacySection({ draft, update, errors }: SectionProps) {
+export function PrivacySection({ draft, update, instant, errors }: SectionProps) {
   const t = useT();
   const p = draft.privacy;
   return (
@@ -45,7 +45,7 @@ export function PrivacySection({ draft, update, errors }: SectionProps) {
           description={t("privacy.scanCountryHint")}
           checked={p.recordScanCountry}
           onChange={(on) =>
-            update((d) => {
+            instant((d) => {
               d.privacy.recordScanCountry = on;
             })
           }

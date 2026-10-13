@@ -39,7 +39,9 @@ function countGeocodeRequests(page: Page): () => number {
 
 async function openProposalSheet(page: Page, conversationId: string) {
   await page.goto(`/conversations/${conversationId}`);
-  await page.getByRole("button", { name: "Propose a return plan" }).click();
+  // The composer's "+" menu holds the secondary actions (return plan, share my location).
+  await page.getByRole("button", { name: "Add to the conversation" }).click();
+  await page.getByRole("menuitem", { name: "Propose a return plan" }).click();
   const dialog = page.getByRole("dialog", { name: "Propose a return plan" });
   await expect(dialog).toBeVisible();
   return dialog;

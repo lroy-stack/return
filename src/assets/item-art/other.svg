@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <defs>
+    <linearGradient id="lit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".34"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".18"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".3"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".08"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="shadow">
+      <stop offset="0" stop-color="#000" stop-opacity=".32"/>
+      <stop offset=".6" stop-color="#000" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <path id="f" d="M23 38H63A3 3 0 0 1 66 41V71A3 3 0 0 1 63 74H23A3 3 0 0 1 20 71V41A3 3 0 0 1 23 38Z"/>
+  </defs>
+  <ellipse cx="50" cy="79" rx="34" ry="5" fill="url(#shadow)"/>
+  <path d="M21.2 38.6L33.2 29.6A3 3 0 0 1 35 29H75A3 3 0 0 1 78 32V62A3 3 0 0 1 76.8 64.4L64.8 73.4A3 3 0 0 1 63 74H23A3 3 0 0 1 20 71V41A3 3 0 0 1 21.2 38.6Z" class="ia-side"/>
+  <path d="M21.2 38.6L33.2 29.6A3 3 0 0 1 35 29H75A3 3 0 0 1 76.74 29.56L64.74 38.56Z" class="ia-top"/>
+  <use href="#f" class="ia-body"/>
+  <use href="#f" fill="url(#lit)"/>
+  <path d="M38 38l12-9h8l-12 9z" class="ia-accent"/>
+  <path d="M38 38h8v16h-8z" class="ia-accent-side"/>
+  <path d="M51 58h10a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 61 69H51a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 51 58z" class="ia-paper"/>
+  <path d="M53 61.5h6M53 65h4" class="ia-s-dark" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22.5 71V41a2 2 0 0 1 1.5-2" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="1.4" stroke-linecap="round"/>
+</svg>

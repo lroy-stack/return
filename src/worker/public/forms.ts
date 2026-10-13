@@ -47,8 +47,7 @@ export function parseLocation(values: FormValues, t: Dict): Parsed<LocationData 
   const accuracy = numberOrNull(values.location_accuracy);
   if (!label && lat === null && lng === null) return { ok: true, data: null };
   const fail: Parsed<LocationData | null> = { ok: false, errors: { location: t.errors.location } };
-  // A position or place is only stored after the finder explicitly agreed to share it.
-  if (values.location_confirmed !== "yes") return fail;
+  // Consent is the act itself: typing a place or tapping "Use my current position" (the page says who sees it).
   if (lat === "invalid" || lng === "invalid" || accuracy === "invalid") return fail;
   const result = locationInputSchema.safeParse({
     source: values.location_source === "gps" ? "gps" : "manual",

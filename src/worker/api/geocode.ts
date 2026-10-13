@@ -1,9 +1,14 @@
 import { Hono } from "hono";
-import { type GeocodeSearchResponse, geocodeSearchQuerySchema } from "../../shared/schemas";
+import {
+  type GeocodeReverseResponse,
+  type GeocodeSearchResponse,
+  geocodeReverseQuerySchema,
+  geocodeSearchQuerySchema,
+} from "../../shared/schemas";
 import { getSettings } from "../db/settings";
 import type { AppEnv } from "../env";
 import { AppError, parseWith } from "../lib/http";
-import { OSM_ATTRIBUTION, searchPlaces } from "../services/geocode";
+import { OSM_ATTRIBUTION, reversePlaceForOwner, searchPlaces } from "../services/geocode";
 
 export const geocodeApi = new Hono<AppEnv>();
 
@@ -23,4 +28,15 @@ geocodeApi.get("/search", async (c) => {
     attribution: OSM_ATTRIBUTION,
     unavailable: outcome.status === "unavailable",
   });
+});
+
+/** Name for a point the owner chose (e.g. "Use my location"); cached points are free, others share the search budget. */
+geocodeApi.get("/reverse", async (c) => {
+  const { lat, lng } = parseWith(geocodeReverseQuerySchema, c.req.query());
+  const { identity } = await getSettings(c.env.DB, c.get("ownerId"));
+  const outcome = await reversePlaceForOwner(c.env, c.get("ownerId"), lat, lng, identity.panelLanguage);
+  if (outcome.status === "budget_exceeded") {
+    throw new AppError(429, "rate_limited", "Too many place lookups this hour, try again later");
+  }
+  return c.json<GeocodeReverseResponse>({ place: outcome.place, attribution: OSM_ATTRIBUTION });
 });

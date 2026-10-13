@@ -203,6 +203,7 @@ export function InventoryPage() {
           </EmptyState>
         ) : (
           <EmptyState
+            art="items"
             title={t("inventory.emptyTitle")}
             action={
               <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>

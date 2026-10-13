@@ -11,6 +11,7 @@ import type {
   ResolvedPlace,
   SharedLocation,
 } from "../../shared/schemas";
+import { isApproximate } from "../../shared/schemas";
 import { notFound } from "../lib/http";
 
 export interface ConversationSummaryRow {
@@ -186,6 +187,7 @@ export function toSharedLocation(r: LocationRow): SharedLocation {
     lat: r.lat,
     lng: r.lng,
     accuracyM: r.accuracy_m,
+    approximate: isApproximate(r.accuracy_m),
     place: toResolvedPlace(r),
     createdAt: r.created_at,
     maps: mapLinks({ lat: r.lat, lng: r.lng, label: r.label }),

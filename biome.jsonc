@@ -31,6 +31,15 @@
       }
     }
   },
+  "overrides": [
+    {
+      // Icon/illustration sources are decorative building blocks compiled by scripts/build-icons.ts, and
+      // public/p/icons.svg is its generated <symbol> sprite (never rendered on its own). The accessible name is
+      // applied where they are used (Icon, ItemArt, finder <svg aria-hidden>), so a <title> would be wrong.
+      "includes": ["src/assets/**/*.svg", "public/p/icons.svg"],
+      "linter": { "rules": { "a11y": { "noSvgWithoutTitle": "off" } } }
+    }
+  ],
   "css": {
     "parser": {
       "tailwindDirectives": true

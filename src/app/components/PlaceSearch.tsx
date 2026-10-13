@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import type { GeocodeResult } from "../../shared/schemas";
+import type { GeocodeResult, GeocodeSearchResponse } from "../../shared/schemas";
 import { ApiRequestError, api, qs } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { Button } from "../ui/Button";
@@ -42,11 +42,10 @@ export function PlaceSearch({ onPick }: { onPick: (result: GeocodeResult) => voi
     abort.current = ctrl;
     setState({ status: "searching" });
     try {
-      const res = await api.get<{ results: GeocodeResult[]; attribution: string }>(
-        `/geocode/search${qs({ q: query })}`,
-        ctrl.signal,
-      );
-      setState({ status: "done", results: res.results });
+      const res = await api.get<GeocodeSearchResponse>(`/geocode/search${qs({ q: query })}`, ctrl.signal);
+      // OpenStreetMap down or over budget is not "no places": say so and let the owner type the place instead.
+      if (res.unavailable) setState({ status: "error", message: t("place.unavailable") });
+      else setState({ status: "done", results: res.results });
     } catch (e) {
       if (ctrl.signal.aborted) return;
       setState({

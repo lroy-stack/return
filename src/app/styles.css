@@ -10,6 +10,8 @@
 /* `dark:` follows the explicit choice ([data-theme]) and the OS preference when no explicit light choice exists. */
 /* Viewports tall enough to pin a side navigation without hiding its last rows (landscape phones are not). */
 @custom-variant tall (@media (min-height: 40rem));
+/* The complement: landscape phones (375-430 px tall), where side navigation must shrink to fit. */
+@custom-variant short (@media (max-height: 39.999rem));
 
 @custom-variant dark {
   &:where([data-theme="dark"], [data-theme="dark"] *) {
@@ -490,6 +492,29 @@
     :focus-visible {
       outline-color: Highlight;
     }
+  }
+}
+
+/* No focus zoom (M-04): iOS Safari zooms the page when a text field under 16 px gets focus, and the zoom is never
+   locked (maximum-scale / user-scalable=no harm low-vision users and iOS ignores them). Unlayered on purpose: it
+   must beat utility classes such as text-subhead on any field, present or future. Buttons-as-inputs and
+   checkable controls are excluded. e2e/mobile-panel.spec.ts asserts the computed size of every field. */
+@media (pointer: coarse) {
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="file"],
+    [type="color"],
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="image"],
+    [type="hidden"]
+  ),
+  select,
+  textarea {
+    font-size: max(1rem, 16px);
   }
 }
 

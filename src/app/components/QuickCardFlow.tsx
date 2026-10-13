@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   buildPaperSheet,
   CardLayoutError,
@@ -12,11 +12,13 @@ import type { Item, ItemDetail, ItemSummary, Tag } from "../../shared/schemas";
 import { CARD_THEMES, type Language, type Settings } from "../../shared/settings";
 import { api, qs } from "../lib/api";
 import { notifyDataChanged } from "../lib/data-events";
+import { downloadBlob, fileStem, svgDataUrl } from "../lib/files";
 import { useDebounced, useMediaQuery, useResource } from "../lib/hooks";
 import { useT } from "../lib/i18n";
 import { LANGUAGE_OPTIONS } from "../lib/locale-options";
 import { useSettings } from "../lib/settings-context";
-import { downloadBlob, fileStem, paperToPng, svgDataUrl } from "../pages/print/export";
+import { canShareFiles, shareFile } from "../lib/share";
+import { paperToPng } from "../pages/print/export";
 import { StatusPill } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Section } from "../ui/Card";
@@ -40,19 +42,6 @@ export function defaultPaper(locale: string): PaperSize {
     return region && LETTER_REGIONS.has(region) ? "letter" : "a4";
   } catch {
     return "a4";
-  }
-}
-
-/** True when the browser can hand a file to the system share sheet (AirDrop, Messages, print…). */
-function canShareFiles(): boolean {
-  try {
-    return (
-      typeof navigator.share === "function" &&
-      typeof navigator.canShare === "function" &&
-      navigator.canShare({ files: [new File([""], "card.png", { type: "image/png" })] })
-    );
-  } catch {
-    return false;
   }
 }
 
@@ -127,6 +116,9 @@ export function QuickCardFlow({ initialItemId }: { initialItemId: string | null 
   const [phase, setPhase] = useState<Phase | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [readyLabel, setReadyLabel] = useState<string | null>(null);
+  // The PNG for the share sheet, built ahead of the tap: navigator.share needs the click's user activation, which
+  // iOS drops after the seconds a 300 dpi render takes. `for` ties it to the layout it was rendered from.
+  const [prepared, setPrepared] = useState<{ for: unknown; file: File } | null>(null);
 
   const detail = useResource<ItemDetail>(itemId ? `qc-item-${itemId}` : null, (signal) =>
     api.get<ItemDetail>(`/items/${itemId}`, signal),
@@ -165,6 +157,41 @@ export function QuickCardFlow({ initialItemId }: { initialItemId: string | null 
     }
   }, [item, usingExisting, existing, settings, paper, copies, theme, language]);
 
+  const shareLayout = shareable && coarse && usingExisting && preview?.ok ? preview : null;
+  useEffect(() => {
+    setPrepared(null);
+    const layout = shareLayout?.composed;
+    const first = layout?.pages[0];
+    if (!shareLayout || !layout || !first) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      paperToPng(layout.svg, first)
+        .then((png) => {
+          const stem = `return-card-${fileStem(shareLayout.tag.label)}-${paper}${layout.proof ? "-proof" : ""}`;
+          if (!cancelled)
+            setPrepared({ for: layout, file: new File([png], `${stem}.png`, { type: "image/png" }) });
+        })
+        .catch(() => undefined);
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [shareLayout, paper]);
+
+  /** Share from the tap itself: no await before navigator.share, so the user activation is still alive. */
+  async function shareNow(file: File, label: string) {
+    setBusy("share");
+    setError(null);
+    const result = await shareFile(file, `RETURN ${label}`);
+    if (result === "failed") {
+      downloadBlob(file, file.name);
+      toast(t("qc.shareFallback"));
+    }
+    if (result !== "cancelled") setReadyLabel(label);
+    setBusy(null);
+  }
+
   async function createTag(forItem: Item): Promise<Tag> {
     setPhase("tag");
     const res = await api.post<{ tags: Tag[] }>("/tags", { itemId: forItem.id, count: 1 });
@@ -178,6 +205,10 @@ export function QuickCardFlow({ initialItemId }: { initialItemId: string | null 
 
   async function exportAs(kind: Exclude<Busy, null>) {
     if (!item || !preview?.ok) return;
+    if (kind === "share" && prepared && shareLayout && prepared.for === shareLayout.composed) {
+      await shareNow(prepared.file, shareLayout.tag.label);
+      return;
+    }
     setBusy(kind);
     setError(null);
     setReadyLabel(null);
@@ -208,13 +239,11 @@ export function QuickCardFlow({ initialItemId }: { initialItemId: string | null 
         const png = await paperToPng(composed.svg, first);
         const file = new File([png], `${stem}.png`, { type: "image/png" });
         if (kind === "share" && canShareFiles()) {
-          try {
-            await navigator.share({ files: [file], title: `RETURN ${tag.label}` });
-          } catch (e) {
-            if (e instanceof DOMException && e.name === "AbortError") return;
-            downloadBlob(png, file.name);
-            toast(t("qc.shareFallback"));
-          }
+          // The tag and the render took real time, so the tap's activation is probably gone: try once, and if
+          // the browser refuses, the card is ready (created above) and the next tap shares it instantly.
+          const result = await shareFile(file, `RETURN ${tag.label}`);
+          if (result === "cancelled") return;
+          if (result === "failed") toast(t("qc.shareTapAgain"));
         } else {
           downloadBlob(png, file.name);
           if (kind === "share") toast(t("qc.shareFallback"));
@@ -396,8 +425,8 @@ export function QuickCardFlow({ initialItemId }: { initialItemId: string | null 
             <Button
               variant="primary"
               icon="share"
-              disabled={!ready || busy !== null}
-              loading={busy === "share"}
+              disabled={!ready || busy !== null || (usingExisting && !prepared)}
+              loading={busy === "share" || (usingExisting && ready && !prepared)}
               onClick={() => void exportAs("share")}
             >
               {t("qc.share")}

@@ -19,7 +19,7 @@ import { FieldGroup, SectionCard, type SectionProps } from "./shared";
 
 const CHANNELS = ["email", "phone", "whatsapp", "trustedContacts"] as const;
 
-export function ContactSection({ draft, update, errors }: SectionProps) {
+export function ContactSection({ draft, update, instant, errors }: SectionProps) {
   const t = useT();
   const c = draft.contact;
   return (
@@ -70,7 +70,7 @@ export function ContactSection({ draft, update, errors }: SectionProps) {
               label={t(`visibility.${ch}` as const)}
               checked={c.visibility[ch]}
               onChange={(on) =>
-                update((d) => {
+                instant((d) => {
                   d.contact.visibility[ch] = on;
                 })
               }

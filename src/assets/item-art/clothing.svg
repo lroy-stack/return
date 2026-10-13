@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <defs>
+    <linearGradient id="lit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".34"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".18"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".3"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".08"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="shadow">
+      <stop offset="0" stop-color="#000" stop-opacity=".32"/>
+      <stop offset=".6" stop-color="#000" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <path id="f" d="M38.79 22.39L47.11 26.55A2 2 0 0 0 48.89 26.55L57.21 22.39A2 2 0 0 1 58.82 22.32L68.35 25.98A5 5 0 0 1 71.48 29.8L76.53 59.26A3 3 0 0 1 74.3 62.67L71.12 63.47A2 2 0 0 1 68.66 61.84L67.5 54.5A0.75 0.75 0 0 0 66 54.62L66 73A3 3 0 0 1 63 76L33 76A3 3 0 0 1 30 73L30 54.62A0.75 0.75 0 0 0 28.5 54.5L27.34 61.84A2 2 0 0 1 24.88 63.47L21.7 62.67A3 3 0 0 1 19.47 59.26L24.52 29.8A5 5 0 0 1 27.65 25.98L37.18 22.32A2 2 0 0 1 38.79 22.39Z"/>
+  </defs>
+  <ellipse cx="48" cy="80" rx="30" ry="4.5" fill="url(#shadow)"/>
+  <path d="M48 23v-5a4 4 0 1 1 4-4" class="ia-s-metal-side" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 23v-5a4 4 0 1 1 4-4" class="ia-s-metal" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <use href="#f" class="ia-side" transform="translate(3.5 -2.5)"/>
+  <use href="#f" class="ia-body"/>
+  <use href="#f" fill="url(#lit)"/>
+  <path d="M38 22l10 5 10-5 2 4-12 12-12-12z" class="ia-top"/>
+  <path d="M48 38l-12-12 2-4 10 5z" class="ia-deep" fill-opacity=".35"/>
+  <path d="M48 38v38" class="ia-s-metal" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 38v38" class="ia-seam" fill="none" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M35 58h7M54 58h7" class="ia-seam" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M20.5 58.5l7.6 1.6M67.9 60.1l7.6-1.6" class="ia-seam" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M33 70V44l-2.4-12" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

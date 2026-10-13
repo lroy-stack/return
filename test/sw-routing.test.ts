@@ -97,7 +97,7 @@ describe("strategyFor", () => {
 });
 
 describe("isStorable", () => {
-  it.each(["/", "/assets/index-abc.js", "/icons/icon-512.png", "/manifest.webmanifest"])(
+  it.each(["/", "/assets/index-abc.js", "/icons/icon-512.png", "/manifest.webmanifest", "/theme-init.js"])(
     "allows %s",
     (path) => {
       expect(isStorable(path)).toBe(true);

@@ -56,6 +56,7 @@ export function swPlugin(): Plugin {
       const emitted = Object.keys(bundle).filter((f) => f.startsWith("assets/") && !f.endsWith(".map"));
       const publicFiles = [
         "manifest.webmanifest",
+        "theme-init.js",
         ...readdirSync(path.join(root, "public/icons")).map((f) => `icons/${f}`),
       ].sort();
       const hash = createHash("sha256");

@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import {
   type ConversationSummary,
   type Item,
@@ -8,12 +8,15 @@ import {
   type RecoveryEvent,
 } from "../../../shared/schemas";
 import { ItemFormSheet } from "../../components/ItemFormSheet";
+import { UseMyLocation } from "../../components/UseMyLocation";
 import { ApiRequestError, api } from "../../lib/api";
 import { useDataChanged } from "../../lib/data-events";
 import { useDirty } from "../../lib/forms";
+import type { Fix } from "../../lib/geolocation";
 import { useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
 import { useOverview } from "../../lib/overview-context";
+import { coordsText, reverseLookup } from "../../lib/places";
 import { Link, navigate } from "../../lib/router";
 import { useFormat } from "../../lib/settings-context";
 import { Badge, StatusPill } from "../../ui/Badge";
@@ -411,12 +414,43 @@ function LocationForm({ item, onClose, onSaved }: { item: Item; onClose: () => v
   const t = useT();
   const toast = useToast();
   const [value, setValue] = useState(item.lastKnownLocation ?? "");
+  // The position behind the text; typed-only locations have none.
+  const [fix, setFix] = useState<Fix | null>(
+    item.lastKnownLat != null && item.lastKnownLng != null
+      ? { lat: item.lastKnownLat, lng: item.lastKnownLng, accuracyM: item.lastKnownAccuracyM }
+      : null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const cancel = useSheetGuard(useDirty({ value }));
+  const cancel = useSheetGuard(useDirty({ value, fix }));
+  const lookup = useRef(0);
+  const autoName = useRef("");
+  const useFix = (found: Fix) => {
+    const run = ++lookup.current;
+    setFix(found);
+    const fallback = coordsText(found);
+    setValue((v) => {
+      if (v && v !== autoName.current) return v;
+      autoName.current = fallback;
+      return fallback;
+    });
+    void reverseLookup(found).then((place) => {
+      if (run !== lookup.current || !place) return;
+      setValue((v) => {
+        if (v !== autoName.current) return v;
+        autoName.current = place.name;
+        return place.name;
+      });
+    });
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const body = { lastKnownLocation: value.trim() || null };
+    const body = {
+      lastKnownLocation: value.trim() || null,
+      ...(fix
+        ? { lastKnownLat: fix.lat, lastKnownLng: fix.lng, lastKnownAccuracyM: fix.accuracyM }
+        : { lastKnownLat: null, lastKnownLng: null, lastKnownAccuracyM: null }),
+    };
     const v = itemPatchSchema.safeParse(body);
     if (!v.success) return setError(v.error.issues[0]?.message ?? t("error.generic"));
     setPending(true);
@@ -442,6 +476,18 @@ function LocationForm({ item, onClose, onSaved }: { item: Item; onClose: () => v
           autoFocus
           hint={t("item.locationHint")}
         />
+        <UseMyLocation onFix={useFix} />
+        {fix ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-control bg-primary-tint/60 px-3 py-2">
+            <p className="font-mono text-footnote tabular-nums">
+              {coordsText(fix)}
+              {fix.accuracyM != null ? ` · ±${Math.round(fix.accuracyM)} m` : ""}
+            </p>
+            <Button size="sm" variant="ghost" icon="close" onClick={() => setFix(null)}>
+              {t("place.removeCoords")}
+            </Button>
+          </div>
+        ) : null}
         <FormError message={error} />
       </SheetBody>
       <SheetFooter>
@@ -568,7 +614,7 @@ function RecoveriesTimeline({
                 <div className="rounded-control bg-sunken px-3 py-2">
                   <p className="text-footnote font-semibold text-muted">{t("recovery.currentNotes")}</p>
                   <p className="text-subhead whitespace-pre-wrap" dir="auto">
-                    {r.notes}
+                    {format.noteStamps(r.notes)}
                   </p>
                 </div>
               ) : null}

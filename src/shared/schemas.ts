@@ -38,6 +38,28 @@ export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 export const ITEM_STATUSES = ["normal", "lost"] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 
+const latitude = z.number().min(-90).max(90);
+const longitude = z.number().min(-180).max(180);
+
+/**
+ * Accuracy of a position fix, in metres. A poor fix never rejects a message or a form: it is stored
+ * and flagged approximate. Values above LOCATION_MAX_ACCURACY_M are clamped to it (backups cap at the
+ * same number), negative or non-finite values are treated as "unknown".
+ */
+export const LOCATION_APPROXIMATE_ABOVE_M = 1000;
+export const LOCATION_MAX_ACCURACY_M = 100_000;
+export const accuracyMeters = z
+  .number()
+  .nullable()
+  .optional()
+  .transform((v) =>
+    v == null || !Number.isFinite(v) || v < 0 ? null : Math.min(v, LOCATION_MAX_ACCURACY_M),
+  );
+
+/** True when a fix is too coarse to point at a spot (shown as "approximate area"). */
+export const isApproximate = (accuracyM: number | null | undefined): boolean =>
+  accuracyM != null && accuracyM > LOCATION_APPROXIMATE_ABOVE_M;
+
 /** Item fields without defaults: updates must only touch the keys they send (zod 4 keeps defaults in `.partial()`). */
 const itemFields = z.object({
   name: str(120).min(1),
@@ -55,6 +77,10 @@ const itemFields = z.object({
   acquiredOn: isoDate.nullable().optional(),
   privateNotes: nullableStr(5000),
   lastKnownLocation: nullableStr(300),
+  // Position behind the text above ("Use my location"); owner-only. lat and lng go together.
+  lastKnownLat: latitude.nullable().optional(),
+  lastKnownLng: longitude.nullable().optional(),
+  lastKnownAccuracyM: accuracyMeters,
   parentId: z.string().max(64).nullable().optional(),
   publicTitle: nullableStr(120),
   publicMessage: nullableStr(600),
@@ -93,6 +119,10 @@ export interface Item {
   acquiredOn: string | null;
   privateNotes: string | null;
   lastKnownLocation: string | null;
+  /** Coordinates of the last known position; null when the location was typed by hand. Never public. */
+  lastKnownLat: number | null;
+  lastKnownLng: number | null;
+  lastKnownAccuracyM: number | null;
   lastKnownAt: string | null;
   status: ItemStatus;
   publicTitle: string | null;
@@ -300,6 +330,8 @@ export interface SharedLocation {
   lat: number | null;
   lng: number | null;
   accuracyM: number | null;
+  /** The fix is coarser than LOCATION_APPROXIMATE_ABOVE_M: show it as an area, not a spot. */
+  approximate: boolean;
   /** Readable place resolved from the coordinates (OpenStreetMap); null if unresolved. */
   place: ResolvedPlace | null;
   createdAt: string;
@@ -371,6 +403,18 @@ export interface GeocodeSearchResponse {
 
 export const geocodeSearchQuerySchema = z.object({ q: str(200).min(3) });
 
+/** Query of `GET /geocode/reverse` ("Use my location": coordinates in, place name out). */
+export const geocodeReverseQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+});
+
+/** `place` is null when the point has no name or OpenStreetMap could not be asked; keep the coordinates then. */
+export interface GeocodeReverseResponse {
+  place: ResolvedPlace | null;
+  attribution: string;
+}
+
 export const BLOCK_DURATIONS = ["7d", "30d", "90d", "permanent"] as const;
 export type BlockDuration = (typeof BLOCK_DURATIONS)[number];
 
@@ -405,9 +449,6 @@ export interface ConversationDetail {
 
 export const messageInputSchema = z.object({ body: str(4000).min(1) });
 
-const latitude = z.number().min(-90).max(90);
-const longitude = z.number().min(-180).max(180);
-
 export const proposalInputSchema = z
   .object({
     kind: z.enum(PROPOSAL_KINDS),
@@ -431,7 +472,7 @@ export const locationInputSchema = z
     label: nullableStr(300),
     lat: latitude.nullable().optional(),
     lng: longitude.nullable().optional(),
-    accuracyM: z.number().min(0).max(100_000).nullable().optional(),
+    accuracyM: accuracyMeters,
   })
   .refine((l) => (l.lat == null) === (l.lng == null), { message: "lat and lng go together" })
   .refine((l) => l.source === "manual" || l.lat != null, { message: "gps locations need coordinates" })

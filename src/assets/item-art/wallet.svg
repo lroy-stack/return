@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <defs>
+    <linearGradient id="lit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".34"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".18"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".3"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".08"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="shadow">
+      <stop offset="0" stop-color="#000" stop-opacity=".32"/>
+      <stop offset=".6" stop-color="#000" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <path id="f" d="M27 36H67A7 7 0 0 1 74 43V67A7 7 0 0 1 67 74H27A7 7 0 0 1 20 67V43A7 7 0 0 1 27 36Z"/>
+  </defs>
+  <ellipse cx="48" cy="79" rx="32" ry="5" fill="url(#shadow)"/>
+  <path d="M22.8 37.4L28.8 32.9A7 7 0 0 1 33 31.5H73A7 7 0 0 1 80 38.5V62.5A7 7 0 0 1 77.2 68.1L71.2 72.6A7 7 0 0 1 67 74H27A7 7 0 0 1 20 67V43A7 7 0 0 1 22.8 37.4Z" class="ia-side"/>
+  <path d="M22.8 37.4L28.8 32.9A7 7 0 0 1 33 31.5H73A7 7 0 0 1 77.07 32.8L71.07 37.3Z" class="ia-top"/>
+  <path d="M31 26.5h28a2.5 2.5 0 0 1 2.5 2.5V40h-33V29a2.5 2.5 0 0 1 2.5-2.5z" class="ia-paper-side"/>
+  <path d="M30 27h28a2.5 2.5 0 0 1 2.5 2.5V40H27.5V29.5A2.5 2.5 0 0 1 30 27z" class="ia-paper"/>
+  <path d="M27.5 31h33v3.5h-33z" class="ia-wall"/>
+  <use href="#f" class="ia-body"/>
+  <use href="#f" fill="url(#lit)"/>
+  <path d="M25 41h44a0 0 0 0 1 0 0v28H25z" class="ia-stitch" fill="none" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 2"/>
+  <path d="M56 47.5h18v13H56a6.5 6.5 0 0 1 0-13z" class="ia-accent-side"/>
+  <path d="M56 46.5h18v12H56a6 6 0 0 1 0-12z" class="ia-accent"/>
+  <circle cx="57" cy="52.5" r="2.6" class="ia-metal"/>
+  <path d="M23.5 66V44a5 5 0 0 1 3.5-4.8" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

@@ -3,12 +3,9 @@
 import { type PaperPage, paperPixelSize } from "../../../shared/card";
 import { setPngDpi } from "../../../shared/card/png";
 import type { CardSide } from "../../../shared/card/types";
+import { svgDataUrl } from "../../lib/files";
 
 export const PRINT_DPI = 300;
-
-export function svgDataUrl(svg: string): string {
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
 
 /** Pixel size of a face including bleed at `dpi`. */
 export function pixelSize(side: CardSide, dpi = PRINT_DPI): { width: number; height: number } {
@@ -45,28 +42,4 @@ export function svgToPng(svg: string, side: CardSide, dpi = PRINT_DPI): Promise<
 export function paperToPng(svg: string, page: PaperPage, dpi = PRINT_DPI): Promise<Blob> {
   const { width, height } = paperPixelSize(page, dpi);
   return rasterise(svg, width, height, dpi);
-}
-
-export function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.rel = "noopener";
-  document.body.append(a);
-  a.click();
-  a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
-
-/** File-name-safe label, e.g. "RT-001" → "rt-001". */
-export function fileStem(label: string): string {
-  return (
-    label
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || "card"
-  );
 }

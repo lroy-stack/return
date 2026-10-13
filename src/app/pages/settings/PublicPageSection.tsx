@@ -10,7 +10,7 @@ import { Icon } from "../../ui/Icon";
 import { Combobox } from "../../ui/Select";
 import { FieldGroup, LANGUAGE_NAMES, SectionCard, type SectionProps } from "./shared";
 
-export function PublicPageSection({ draft, update, errors }: SectionProps) {
+export function PublicPageSection({ draft, update, instant, errors }: SectionProps) {
   const t = useT();
   const pp = draft.publicPage;
   const tags = useResource<Tag[]>(
@@ -29,7 +29,7 @@ export function PublicPageSection({ draft, update, errors }: SectionProps) {
           description={t("public.showOwnerHint")}
           checked={pp.showOwnerName}
           onChange={(on) =>
-            update((d) => {
+            instant((d) => {
               d.publicPage.showOwnerName = on;
             })
           }
@@ -39,7 +39,7 @@ export function PublicPageSection({ draft, update, errors }: SectionProps) {
           description={t("public.showPhotoHint")}
           checked={pp.showItemPhoto}
           onChange={(on) =>
-            update((d) => {
+            instant((d) => {
               d.publicPage.showItemPhoto = on;
             })
           }

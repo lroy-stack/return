@@ -59,7 +59,7 @@ export type SelectVariant = "field" | "chip";
 
 const TRIGGER: Record<SelectVariant, string> = {
   field: cx(CONTROL, "relative rounded-full pr-10 pl-4 text-left"),
-  chip: "relative block w-full min-h-9 rounded-full bg-fill pr-9 pl-3.5 text-left text-subhead font-semibold text-fg transition-colors duration-150 hover:bg-fill-hover disabled:opacity-55 pointer-coarse:min-h-11 aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-danger",
+  chip: "relative block w-full min-h-9 rounded-full bg-fill pr-9 pl-3.5 text-left text-subhead font-semibold text-fg transition-colors duration-150 hover:bg-fill-hover pointer-coarse:text-body disabled:opacity-55 pointer-coarse:min-h-11 aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-danger",
 };
 
 const CHEVRON = "pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted";

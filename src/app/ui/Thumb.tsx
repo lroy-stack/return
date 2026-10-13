@@ -1,7 +1,6 @@
 import type { ItemCategory } from "../../shared/schemas";
-import { categoryIcon } from "../lib/categories";
 import { cx } from "./cx";
-import { Icon } from "./Icon";
+import { ItemArt } from "./ItemArt";
 
 export type ThumbSize = "xs" | "sm" | "md" | "lg" | "xl" | "fill";
 
@@ -13,18 +12,19 @@ const SIZES: Record<ThumbSize, string> = {
   xl: "size-24 rounded-card",
   fill: "size-full",
 };
-const ICONS: Record<ThumbSize, string> = {
-  xs: "size-4",
-  sm: "size-5",
-  md: "size-6",
-  lg: "size-7",
-  xl: "size-10",
-  fill: "size-1/4 min-h-8 min-w-8",
+/** Illustration size inside the tile: the art carries its own margin, so small tiles use all of it. */
+const ART: Record<ThumbSize, string> = {
+  xs: "size-full",
+  sm: "size-full",
+  md: "size-full",
+  lg: "size-full",
+  xl: "size-full",
+  fill: "aspect-square h-[88%] max-h-64",
 };
 
 /**
- * Item photo or its category fallback (soft tinted gradient + line icon). Decorative by default (alt="");
- * pass `alt` when the image carries information not in adjacent text.
+ * Item photo or its category illustration (ItemArt on a soft studio backdrop). Decorative by default (alt="");
+ * pass `alt` when the image carries information not in adjacent text (it also names the illustration).
  */
 export function Thumb({
   src,
@@ -53,14 +53,10 @@ export function Thumb({
     <span
       className={cx(
         base,
-        "flex items-center justify-center bg-[radial-gradient(120%_120%_at_20%_10%,var(--raised),var(--primary-tint))] text-primary-text",
+        "flex items-center justify-center bg-[radial-gradient(120%_120%_at_30%_15%,var(--raised),var(--sunken))]",
       )}
     >
-      <Icon
-        name={categoryIcon(category)}
-        className={ICONS[size]}
-        strokeWidth={size === "fill" ? 1.25 : 1.6}
-      />
+      <ItemArt category={category} label={alt || undefined} className={ART[size]} />
     </span>
   );
 }

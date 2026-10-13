@@ -1,4 +1,4 @@
-import { expect, newFinderContext, openCreateMenu, test, unique } from "./fixtures";
+import { expect, newFinderContext, ORIGIN, openCreateMenu, test, unique } from "./fixtures";
 
 /**
  * Scenario 1. The owner builds an item and a tag in the panel; the finder page built from it shows
@@ -47,10 +47,15 @@ test("1. owner creates an item and a tag in the panel; the tag page exposes only
   // Create the tag from the item page and read its URL from the tag sheet.
   const tags = page.locator("#sec-tags");
   await tags.getByRole("button", { name: "Add tag" }).click();
+  // Adding a tag now asks first (spec 004, P2): confirm in the dialog.
+  await page
+    .getByRole("dialog", { name: "Add another tag?" })
+    .getByRole("button", { name: "Add tag" })
+    .click();
   await tags.getByRole("listitem").getByRole("button").click();
   const tagDialog = page.getByRole("dialog", { name: /^Tag / });
   const tagUrl = await tagDialog.getByLabel("Tag URL").inputValue();
-  expect(tagUrl).toMatch(/^http:\/\/localhost:5199\/t\/[0-9a-z]{26}$/);
+  expect(tagUrl).toMatch(new RegExp(`^${ORIGIN}/t/[0-9a-z]{26}$`));
 
   // The finder (a different browser, no cookies) sees the public title only.
   const finderContext = await newFinderContext(browser);

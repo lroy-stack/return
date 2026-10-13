@@ -1,5 +1,13 @@
 import { LANGUAGES, type Language } from "../../shared/settings";
-import { EMPTY_FORM, Field, FormErrorSummary, type FormState, fieldAria, LocationFields } from "./components";
+import {
+  EMPTY_FORM,
+  Field,
+  FormErrorSummary,
+  type FormState,
+  fieldAria,
+  LocationFields,
+  SpriteIcon,
+} from "./components";
 import { dict, fmt, LANGUAGE_NAMES } from "./i18n";
 import { Layout } from "./layout";
 
@@ -145,7 +153,7 @@ export function TagPage({
   const t = dict(lang);
   const v = form.values;
   return (
-    <Layout lang={lang} title={view.title} turnstile>
+    <Layout lang={lang} title={view.title} turnstile scripts={["/p/location.js"]}>
       {view.continueUrl ? (
         <a class="btn btn-primary btn-block" href={view.continueUrl}>
           {t.tag.continueConversation}
@@ -156,7 +164,10 @@ export function TagPage({
         <h1>{view.title}</h1>
         {view.lost ? (
           <div class="banner-lost" role="status">
-            <strong>{t.tag.lostBadge}</strong>
+            <strong>
+              <SpriteIcon name="lost" size={16} />
+              {t.tag.lostBadge}
+            </strong>
             <p>{view.lost.message}</p>
             {view.lost.reward ? (
               <p>
@@ -235,19 +246,13 @@ export function TagPage({
           <LocationFields lang={lang} state={form} idPrefix="loc" />
           <div class="turnstile">
             <p class="hint">{t.form.verify}</p>
-            <div class="cf-turnstile" data-sitekey={view.siteKey} data-language={lang} />
+            <div class="cf-turnstile" data-sitekey={view.siteKey} data-language={lang} data-size="flexible" />
           </div>
           <button type="submit" class="btn btn-primary btn-block">
             {t.form.send}
           </button>
         </form>
       </section>
-
-      <nav class="action-bar" aria-label={t.tag.writeHeading}>
-        <a class="btn btn-primary btn-block" href="#write">
-          {t.tag.writeHeading}
-        </a>
-      </nav>
 
       {view.contacts.length > 0 ? (
         <section class="card" aria-labelledby="other">

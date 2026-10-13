@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <defs>
+    <linearGradient id="lit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".34"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".18"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".3"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".08"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="shadow">
+      <stop offset="0" stop-color="#000" stop-opacity=".32"/>
+      <stop offset=".6" stop-color="#000" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <path id="f" d="M27 22H58A6 6 0 0 1 64 28V70A6 6 0 0 1 58 76H27A3 3 0 0 1 24 73V25A3 3 0 0 1 27 22Z"/>
+  </defs>
+  <ellipse cx="49" cy="80" rx="28" ry="4.5" fill="url(#shadow)"/>
+  <g transform="rotate(12 60 40)">
+      <path d="M47 14h26a2 2 0 0 1 2 2v44a2 2 0 0 1-2 2H47a2 2 0 0 1-2-2V16a2 2 0 0 1 2-2z" class="ia-paper-side" transform="translate(.8 -.5)"/>
+      <path d="M47 14h26a2 2 0 0 1 2 2v44a2 2 0 0 1-2 2H47a2 2 0 0 1-2-2V16a2 2 0 0 1 2-2z" class="ia-paper"/>
+      <path d="M45 16a2 2 0 0 1 2-2h26a2 2 0 0 1 2 2v5H45z" class="ia-wall-accent"/>
+      <path d="M50 27h10M50 31h16M50 35h6" class="ia-s-dark" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+    </g>
+  <path d="M25.28 22.54L30.28 19.04A3 3 0 0 1 32 18.5H63A6 6 0 0 1 69 24.5V66.5A6 6 0 0 1 66.44 71.42L61.44 74.92A6 6 0 0 1 58 76H27A3 3 0 0 1 24 73V25A3 3 0 0 1 25.28 22.54Z" class="ia-paper-side"/>
+  <path d="M25.28 22.54L30.28 19.04A3 3 0 0 1 32 18.5H63A6 6 0 0 1 66.49 19.62L61.49 23.12Z" class="ia-paper"/>
+  <use href="#f" class="ia-body"/>
+  <use href="#f" fill="url(#lit)"/>
+  <circle cx="44" cy="42" r="8" fill="none" class="ia-s-accent" stroke-width="1.6"/>
+  <path d="M36 42h16M44 34c-3 2.5-4 5.5-4 8s1 5.5 4 8c3-2.5 4-5.5 4-8s-1-5.5-4-8z" class="ia-s-accent" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M37 59h14M39.5 64h9" class="ia-s-accent" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27 71V26a3 3 0 0 1 2-2.8" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="1.4" stroke-linecap="round"/>
+</svg>

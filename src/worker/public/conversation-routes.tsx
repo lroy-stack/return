@@ -19,11 +19,12 @@ import { allowPublicWrite } from "../lib/ratelimit";
 import { resolveAndStorePlace } from "../services/geocode";
 import { notifyOwner, type OwnerEvent } from "../services/notify";
 import type { FormState } from "./components";
-import { ConversationPage, type FormName } from "./conversation-view";
+import { ConversationPage, type FormName, renderTimelineHtml } from "./conversation-view";
 import { parseLocation, parseMessage, parseProposal, toFormValues } from "./forms";
 import { dict } from "./i18n";
 import { explicitLanguage } from "./lang";
 import { assertSmallForm, defer, htmlPage, publicWrites, readBudget } from "./support";
+import { itemAnchor } from "./timeline";
 
 type Ctx = Context<AppEnv>;
 
@@ -89,7 +90,30 @@ function tellOwner(c: Ctx, conv: ConversationRow, kind: OwnerEvent["kind"], prev
   );
 }
 
-const done = (c: Ctx, token: string) => c.redirect(`/c/${token}`, 303);
+/**
+ * What the timeline looks like now. Scripts ask for this (`Accept: application/json`) after a write
+ * and while polling; `cursor` is the conversation's activity clock.
+ */
+async function timelineJson(c: Ctx, loaded: Loaded) {
+  const detail = await getConversationDetail(c.env.DB, loaded.conv);
+  const open = loaded.conv.status === "open";
+  return c.json({
+    cursor: detail.conversation.lastMessageAt,
+    open,
+    html: await renderTimelineHtml({ lang: loaded.lang, token: loaded.token, detail, open }),
+  });
+}
+
+const wantsJson = (c: Ctx) => (c.req.header("Accept") ?? "").includes("application/json");
+
+/**
+ * After a write: scripts get the fresh timeline; plain form posts are redirected to the new item,
+ * so the browser lands on it instead of the top of the page.
+ */
+function done(c: Ctx, loaded: Loaded, createdId: string) {
+  if (wantsJson(c)) return timelineJson(c, loaded);
+  return c.redirect(`/c/${loaded.token}#${itemAnchor(createdId)}`, 303);
+}
 
 /** Over the daily cap: a friendly page that keeps what the finder typed. */
 async function withCap(
@@ -121,9 +145,19 @@ conversationRoutes.get("/:token", async (c) => {
   return renderConversation(c, loaded);
 });
 
-conversationRoutes.get("/:token/state.json", async (c) => {
-  const { conv } = await load(c);
-  return c.json({ lastActivityAt: conv.last_message_at });
+/**
+ * Polling endpoint. The conversation row (already read to check the capability) carries the activity
+ * clock, so an unchanged conversation costs one query and no HTML.
+ */
+conversationRoutes.get("/:token/timeline", async (c) => {
+  const loaded = await load(c);
+  const { conv } = loaded;
+  const after = c.req.query("after");
+  if (after && after === conv.last_message_at) {
+    return c.json({ cursor: conv.last_message_at, open: conv.status === "open", html: null });
+  }
+  defer(c, markRead(c.env.DB, conv, "finder"));
+  return timelineJson(c, loaded);
 });
 
 conversationRoutes.post("/:token/messages", async (c) => {
@@ -132,9 +166,9 @@ conversationRoutes.post("/:token/messages", async (c) => {
   const parsed = parseMessage(values, dict(loaded.lang));
   if (!parsed.ok) return renderConversation(c, loaded, "reply", { values, errors: parsed.errors }, 422);
   return withCap(c, loaded, "reply", values, async () => {
-    await addMessage(c.env.DB, loaded.conv, "finder", parsed.data);
+    const message = await addMessage(c.env.DB, loaded.conv, "finder", parsed.data);
     tellOwner(c, loaded.conv, "new_message", parsed.data);
-    return done(c, loaded.token);
+    return done(c, loaded, message.id);
   });
 });
 
@@ -160,7 +194,7 @@ conversationRoutes.post("/:token/location", async (c) => {
       ),
     );
     tellOwner(c, loaded.conv, "location_shared", location.label ?? "");
-    return done(c, loaded.token);
+    return done(c, loaded, location.id);
   });
 });
 
@@ -186,7 +220,7 @@ conversationRoutes.post("/:token/proposals", async (c) => {
       resolveAndStorePlace(c.env, loaded.conv.owner_id, { table: "proposals", id: proposal.id }, proposal),
     );
     tellOwner(c, loaded.conv, "proposal", proposal.place);
-    return done(c, loaded.token);
+    return done(c, loaded, proposal.id);
   });
 });
 
@@ -205,5 +239,5 @@ conversationRoutes.post("/:token/proposals/:id/respond", async (c) => {
     parsed.data.action,
   );
   tellOwner(c, loaded.conv, "proposal", `${parsed.data.action}: ${proposal.place}`);
-  return done(c, loaded.token);
+  return done(c, loaded, proposal.id);
 });

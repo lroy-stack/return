@@ -27,7 +27,7 @@ import type {
   Tag,
 } from "../src/shared/schemas";
 
-export const ORIGIN = "http://localhost:5199";
+export const ORIGIN = `http://localhost:${process.env.E2E_PORT ?? 5199}`;
 const TURNSTILE_SCRIPT = "https://challenges.cloudflare.com/turnstile/v0/api.js";
 /** Any non-empty value passes against Cloudflare's always-pass test secret used in `.dev.vars`. */
 const TURNSTILE_DUMMY_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";

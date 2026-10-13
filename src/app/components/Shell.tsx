@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useMediaQuery } from "../lib/hooks";
 import { useT } from "../lib/i18n";
 import { useOverview } from "../lib/overview-context";
 import { Link, useLocation } from "../lib/router";
@@ -6,6 +7,7 @@ import { CountBadge } from "../ui/Badge";
 import { cx } from "../ui/cx";
 import { Icon, type IconName } from "../ui/Icon";
 import { AlertsBanner } from "./AlertsBanner";
+import { InstallHint } from "./InstallApp";
 import { OfflineBanner } from "./OfflineBanner";
 import { AppearanceControl, AppearanceSheet, QuickActionsSheet } from "./QuickActions";
 import { QuickCardHost } from "./QuickCardHost";
@@ -82,18 +84,25 @@ export function Shell({ children }: { children: ReactNode }) {
   const unread = overview.state.status === "ready" ? overview.state.data.unreadConversations.length : 0;
   const [quickOpen, setQuickOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
-  const [railExpanded, setRailExpanded] = useState(readRailExpanded);
+  const [railPref, setRailPref] = useState(readRailExpanded);
+  // Landscape phones are too short for the expanded rail (its last rows would clip): it stays compact there.
+  const tall = useMediaQuery("(min-height: 40rem)");
+  const railExpanded = railPref && tall;
   const chrome = useScrollChrome(pathname);
 
-  // Refresh the attention data whenever the user moves to another screen.
+  // Refresh the attention data whenever the user moves to another screen. Not on the first render: the provider
+  // has just fetched it, and a second request would abort the first (a duplicate on every load).
+  const shownPath = useRef(pathname);
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload is stable
   useEffect(() => {
+    if (shownPath.current === pathname) return;
+    shownPath.current = pathname;
     overview.reload(true);
   }, [pathname]);
 
   const toggleRail = () => {
-    const next = !railExpanded;
-    setRailExpanded(next);
+    const next = !railPref;
+    setRailPref(next);
     try {
       window.localStorage.setItem(RAIL_KEY, next ? "expanded" : "collapsed");
     } catch {
@@ -118,7 +127,7 @@ export function Shell({ children }: { children: ReactNode }) {
           active ? "bg-primary-tint text-on-glass-primary" : "text-fg hover:bg-fill",
         )}
       >
-        <Icon name={n.icon} className="size-5.5" />
+        <Icon name={n.icon} variant={active ? "fill" : "outline"} className="size-5.5" />
         <span className="min-w-0 flex-1 truncate">{t(n.labelKey)}</span>
         {n.to === "/conversations" ? <CountBadge count={unread} label={unreadLabel} /> : null}
       </Link>
@@ -137,12 +146,12 @@ export function Shell({ children }: { children: ReactNode }) {
           "pressable relative flex flex-col items-center justify-center gap-0.5 font-semibold",
           variant === "tab"
             ? "min-h-11 flex-1 rounded-full text-[0.6875rem]"
-            : "min-h-15 w-full rounded-[1.25rem] text-caption",
+            : "min-h-15 w-full rounded-[1.25rem] text-caption short:min-h-11",
           active ? "bg-primary-tint/90 text-on-glass-primary" : "text-on-glass-muted hover:text-fg",
         )}
       >
         <span className="relative">
-          <Icon name={n.icon} className="size-6" strokeWidth={active ? 2 : 1.75} />
+          <Icon name={n.icon} variant={active ? "fill" : "outline"} className="size-6" />
           {n.to === "/conversations" ? (
             <CountBadge
               count={unread}
@@ -151,7 +160,7 @@ export function Shell({ children }: { children: ReactNode }) {
             />
           ) : null}
         </span>
-        <span>{t(n.labelKey)}</span>
+        <span className={variant === "rail" ? "short:sr-only" : undefined}>{t(n.labelKey)}</span>
       </Link>
     );
   };
@@ -202,13 +211,15 @@ export function Shell({ children }: { children: ReactNode }) {
       {/* Tablet: floating glass nav rail (collapsible) */}
       <aside
         className={cx(
-          "glass no-print fixed top-3 bottom-3 z-40 hidden w-[var(--rail-w)] flex-col gap-4 rounded-sheet p-2.5 sm:flex lg:hidden",
+          "glass no-print fixed top-3 bottom-3 z-40 hidden w-[var(--rail-w)] flex-col gap-4 rounded-sheet p-2.5 short:gap-2 sm:flex lg:hidden",
           // Short viewports (landscape phones): the rail scrolls instead of clipping its last rows.
           "overflow-y-auto overscroll-contain [scrollbar-width:none]",
           "left-[max(0.75rem,env(safe-area-inset-left))]",
         )}
       >
-        <div className={cx("flex", railExpanded ? "px-1.5" : "justify-center")}>{logo(railExpanded)}</div>
+        <div className={cx("flex short:hidden", railExpanded ? "px-1.5" : "justify-center")}>
+          {logo(railExpanded)}
+        </div>
         <button
           type="button"
           onClick={() => setQuickOpen(true)}
@@ -250,6 +261,7 @@ export function Shell({ children }: { children: ReactNode }) {
             className={cx(
               "pressable inline-flex min-h-11 items-center gap-3 rounded-full text-subhead font-semibold text-on-glass-muted hover:bg-fill hover:text-fg",
               railExpanded ? "px-3.5" : "mx-auto size-11 justify-center",
+              "short:hidden",
             )}
           >
             <Icon name="sidebar" />
@@ -315,6 +327,7 @@ export function Shell({ children }: { children: ReactNode }) {
           className="mx-auto w-full max-w-page flex-1 px-page-x pt-3 pb-[calc(var(--shell-bottom)+2rem)] outline-none sm:pt-10 sm:pb-16 lg:pt-12"
         >
           <OfflineBanner />
+          <InstallHint />
           <AlertsBanner />
           {children}
         </main>

@@ -1,7 +1,6 @@
-import { useState } from "react";
 import { useT } from "../lib/i18n";
 import { matchPath, navigate, useLocation } from "../lib/router";
-import { applyTheme, readTheme, type ThemeChoice } from "../lib/theme";
+import { type ThemeChoice, useThemeChoice } from "../lib/theme";
 import { SegmentedControl } from "../ui/Field";
 import { Icon } from "../ui/Icon";
 import { IconTile, List, ListRow } from "../ui/List";
@@ -65,17 +64,14 @@ const THEMES: ThemeChoice[] = ["system", "light", "dark"];
 /** Auto / Light / Dark as a segmented control. State is the stored choice (lib/theme). */
 export function AppearanceControl({ block }: { block?: boolean }) {
   const t = useT();
-  const [choice, setChoice] = useState<ThemeChoice>(readTheme);
+  const [choice, setChoice] = useThemeChoice();
   return (
     <SegmentedControl
       label={t("theme.appearance")}
       size="sm"
       block={block}
       value={choice}
-      onChange={(next) => {
-        applyTheme(next);
-        setChoice(next);
-      }}
+      onChange={setChoice}
       options={THEMES.map((c) => ({ value: c, label: t(`theme.${c}` as const) }))}
     />
   );

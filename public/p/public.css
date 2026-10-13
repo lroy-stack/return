@@ -140,7 +140,7 @@ html {
   text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   background: var(--surface);
-  scroll-padding-block: 5rem 7rem;
+  scroll-padding-block: calc(3.5rem + env(safe-area-inset-top) + 0.75rem) 1rem;
 }
 
 body {
@@ -324,27 +324,6 @@ time {
   }
 }
 
-/* "New reply" banner sits under the sticky top bar. */
-.banner-new {
-  position: sticky;
-  top: calc(3.75rem + env(safe-area-inset-top));
-  z-index: 5;
-  margin-bottom: 0.75rem;
-  border-radius: 999px;
-  background: var(--primary);
-  box-shadow: var(--shadow-2);
-}
-
-.banner-new a {
-  display: block;
-  min-height: 44px;
-  padding: 0.75rem 1rem;
-  color: var(--primary-fg);
-  font-weight: 650;
-  text-align: center;
-  text-decoration: none;
-}
-
 /* ------------------------------------------------------------------ Layout --------------------------------- */
 .page,
 .footer {
@@ -470,14 +449,6 @@ time {
   font-size: 0.875rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-
-.banner-lost strong::before {
-  content: "";
-  inline-size: 0.5rem;
-  block-size: 0.5rem;
-  border-radius: 50%;
-  background: currentcolor;
 }
 
 .banner-lost p {
@@ -692,42 +663,9 @@ textarea {
   margin-top: 0.75rem;
 }
 
-.check {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  min-height: 44px;
-  margin-top: 0.75rem;
-  cursor: pointer;
-}
-
-.check input {
-  flex: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  margin: 0.1rem 0 0;
-  accent-color: var(--primary);
-}
-
-.panel {
-  margin: 0.75rem 0;
-  padding: 0.9rem 1rem;
-  border-radius: var(--radius-control);
-  background: var(--sunken);
-}
-
-.panel dl {
-  margin: 0 0 0.75rem;
-}
-
-.panel dt {
-  color: var(--muted);
-  font-size: 0.875rem;
-}
-
-.panel dd {
-  margin: 0 0 0.4rem;
-  font-variant-numeric: tabular-nums;
+.notice-warn {
+  background: var(--lost-tint);
+  color: var(--fg);
 }
 
 .status {
@@ -740,6 +678,35 @@ textarea {
 /* Turnstile widget is 65 px tall: reserve it so the submit button does not jump (CLS). */
 .turnstile {
   min-height: calc(65px + 1.75rem);
+}
+
+/*
+ * The "flexible" widget fills its box but never gets narrower than 300 px. The form box is the viewport
+ * minus about 71 px, so below ~372 px it would overflow: zoom the widget down in steps (zoom changes the
+ * layout size too, unlike transform) so it always fits, down to 280 px wide screens.
+ */
+@media (max-width: 371px) {
+  .cf-turnstile {
+    zoom: 0.95;
+  }
+}
+
+@media (max-width: 350px) {
+  .cf-turnstile {
+    zoom: 0.88;
+  }
+}
+
+@media (max-width: 330px) {
+  .cf-turnstile {
+    zoom: 0.82;
+  }
+}
+
+@media (max-width: 310px) {
+  .cf-turnstile {
+    zoom: 0.76;
+  }
 }
 
 /* ------------------------------------------------------------------ Contacts ------------------------------- */
@@ -762,18 +729,28 @@ textarea {
 }
 
 /* ------------------------------------------------------------------ Conversation --------------------------- */
-.thread,
-.places,
-.proposals {
-  margin: 0;
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: auto 0 0;
   padding: 0;
   list-style: none;
 }
 
-.thread {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+/* Day separators (chat.js regroups them by the reader's own day). */
+.day {
+  align-self: center;
+  margin-block: 0.4rem 0.1rem;
+  padding: 0.1rem 0.8rem;
+  border-radius: 999px;
+  background: var(--fill);
+}
+
+.day time {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 650;
 }
 
 /* Bubbles: mine (finder) right in petrol, owner left on a raised surface, system centred. */
@@ -788,6 +765,9 @@ textarea {
 .bubble.from-finder {
   align-self: flex-end;
   border-radius: 20px 20px 6px 20px;
+}
+
+.bubble.from-finder.kind-message {
   background: var(--primary);
   color: var(--primary-fg);
 }
@@ -805,10 +785,18 @@ textarea {
 }
 
 .bubble .who {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   margin: 0;
   font-size: 0.8125rem;
   font-weight: 700;
   color: var(--accent-text);
+}
+
+.bubble time {
+  display: block;
+  text-align: end;
 }
 
 .bubble .body {
@@ -816,8 +804,8 @@ textarea {
   white-space: pre-wrap;
 }
 
-.bubble.from-finder .who,
-.bubble.from-finder time {
+.bubble.from-finder.kind-message .who,
+.bubble.from-finder.kind-message time {
   color: inherit;
   opacity: 0.85;
 }
@@ -885,23 +873,26 @@ textarea {
   background: var(--fill-hover);
 }
 
-.proposal {
-  margin-bottom: 0.75rem;
-  padding: 1rem;
+/* Places and plans are cards inside the chat: neutral surface for both sides, aligned by sender. */
+.bubble.kind-place,
+.bubble.kind-plan {
+  width: 90%;
+  max-width: 90%;
   border-radius: var(--radius-card);
   background: var(--card-glass);
+  color: var(--fg);
   border: 1px solid var(--glass-edge);
   box-shadow: var(--specular), var(--shadow-1);
 }
 
-.proposal.status-accepted {
+.bubble.kind-plan.status-accepted {
   border: 2px solid var(--success);
 }
 
-/* Answered proposals: dashed edge and the pill say so; text keeps full contrast. */
-.proposal.status-declined,
-.proposal.status-cancelled,
-.proposal.status-superseded {
+/* Answered plans: dashed edge and the pill say so; text keeps full contrast. */
+.bubble.kind-plan.status-declined,
+.bubble.kind-plan.status-cancelled,
+.bubble.kind-plan.status-superseded {
   border-style: dashed;
   border-color: var(--line-strong);
   box-shadow: none;
@@ -909,6 +900,7 @@ textarea {
 
 .proposal-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -951,47 +943,268 @@ details.card[open] summary::after {
   transform: rotate(-135deg) translateY(-2px);
 }
 
-/* Floating glass action bar at the bottom (phones): the one primary action stays in thumb reach. */
-.action-bar {
-  position: fixed;
-  inset-inline: 0.75rem;
-  bottom: max(0.75rem, env(safe-area-inset-bottom));
-  z-index: 10;
-  max-width: calc(var(--column) - 1rem);
+/* ------------------------------------------------------------------ Chat (conversation page) ------------- */
+/* The page is exactly one screen: the thread scrolls, the composer stays in flow at the bottom. */
+.is-chat {
+  display: flex;
+  flex-direction: column;
+  height: var(--app-h, 100dvh);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.is-chat .topbar {
+  flex: none;
+}
+
+.is-chat .page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding-block: 0.25rem 0;
+}
+
+.chat {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-head {
+  flex: none;
+}
+
+.chat-head h1 {
+  margin: 0.25rem 0 0;
+  overflow: hidden;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-info-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--primary-text);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-info-body {
+  margin-bottom: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-control);
+  background: var(--accent-tint);
+}
+
+.chat-info-body p {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.thread-wrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.thread-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.5rem 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.new-pill {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0.75rem;
+  width: max-content;
+  min-height: 44px;
   margin-inline: auto;
-  padding: 0.4rem;
+  padding: 0.5rem 1.25rem;
+  border: 0;
   border-radius: 999px;
-  background: var(--glass);
-  -webkit-backdrop-filter: var(--glass-filter);
-  backdrop-filter: var(--glass-filter);
+  background: var(--primary);
+  color: var(--primary-fg);
+  box-shadow: var(--shadow-2);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.composer-wrap {
+  flex: none;
+  padding-block: 0.5rem max(0.5rem, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+
+.composer-wrap .notice {
+  margin-block: 0 0.5rem;
+}
+
+.composer {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.plus-btn,
+.send-btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  list-style: none;
+  cursor: pointer;
+}
+
+.plus-btn {
+  background: var(--fill);
+  color: var(--primary-text);
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.plus-btn::-webkit-details-marker {
+  display: none;
+}
+
+.plus[open] .plus-btn {
+  background: var(--primary);
+  color: var(--primary-fg);
+}
+
+.plus-panel {
+  position: absolute;
+  inset-inline: 0;
+  bottom: calc(100% + 0.5rem);
+  z-index: 6;
+  max-height: min(60dvh, calc(var(--app-h, 100dvh) - 10rem));
+  padding: 0.5rem;
+  overflow-y: auto;
   border: 1px solid var(--glass-edge);
-  box-shadow: var(--specular), var(--shadow-glass);
+  border-radius: var(--radius-card);
+  background: var(--glass-solid);
+  box-shadow: var(--shadow-glass);
 }
 
-.action-bar .btn {
+.plus-panel .card {
+  margin: 0.25rem 0;
+  box-shadow: none;
+  background: var(--sunken);
+}
+
+.reply {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.reply textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  max-height: calc(5 * 1.5em + 1.4rem);
+  padding: 0.6rem 1rem;
+  overflow-y: auto;
+  border-radius: 22px;
+  field-sizing: content;
+  resize: none;
+}
+
+/* Landscape phones: give the thread the height. */
+@media (max-height: 30rem) {
+  .topbar {
+    min-height: 2.75rem;
+  }
+
+  .chat-head h1 {
+    font-size: 1.0625rem;
+  }
+
+  .chat-info-toggle {
+    min-height: 36px;
+  }
+}
+
+/* Position card (finder forms). */
+.fix-card {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--success);
+  border-radius: var(--radius-control);
+  background: var(--success-tint);
+}
+
+.fix-text {
   margin: 0;
+  font-variant-numeric: tabular-nums;
 }
 
-body:has(.action-bar) .footer {
-  padding-bottom: 7rem;
+.fix-coords {
+  display: block;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
 }
 
-@media (min-width: 40rem) {
-  .action-bar {
-    display: none;
-  }
+.fix-card .actions {
+  margin-top: 0.5rem;
+}
 
-  body:has(.action-bar) .footer {
-    padding-bottom: 2.5rem;
-  }
+.gps-consent {
+  margin: 0.5rem 0 0;
+}
+
+[data-gps-error] .actions {
+  margin-top: 0.5rem;
+}
+
+[data-gps-error] p {
+  margin: 0 0 0.4rem;
+  font-weight: 600;
+}
+
+[data-gps-error] [data-gps-guide] {
+  font-weight: 400;
+}
+
+.icon {
+  flex: none;
+  vertical-align: -0.2em;
+}
+
+/* Privacy links: 44 px touch target. */
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 0.5rem;
 }
 
 /* ------------------------------------------------------------------ Preferences ---------------------------- */
 @media (forced-colors: active) {
   .card,
   .proposal,
+  .bubble,
   .topbar,
-  .action-bar,
+  .fix-card,
   .langs a[aria-current="true"] {
     border: 1px solid CanvasText;
   }
@@ -1014,8 +1227,7 @@ body:has(.action-bar) .footer {
 @media print {
   body::before,
   .topbar,
-  .action-bar,
-  .banner-new {
+  .composer-wrap {
     display: none;
   }
 }

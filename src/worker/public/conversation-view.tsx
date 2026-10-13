@@ -1,15 +1,17 @@
-import { OSM_ATTRIBUTION, OSM_COPYRIGHT_URL } from "../../shared/osm";
-import {
-  type ConversationDetail,
-  PROPOSAL_KINDS,
-  type Proposal,
-  type ResolvedPlace,
-} from "../../shared/schemas";
+import { type ConversationDetail, PROPOSAL_KINDS } from "../../shared/schemas";
 import type { Language } from "../../shared/settings";
-import { EMPTY_FORM, Field, FormErrorSummary, type FormState, fieldAria, LocationFields } from "./components";
-import { formatCoordinate, formatInstant, formatWallClock } from "./format";
-import { dict, fmt, proposalKindName, proposalStatusName } from "./i18n";
+import {
+  EMPTY_FORM,
+  Field,
+  FormErrorSummary,
+  type FormState,
+  fieldAria,
+  LocationFields,
+  SpriteIcon,
+} from "./components";
+import { dict, proposalKindName } from "./i18n";
 import { Layout } from "./layout";
+import { TimelineItems } from "./timeline";
 
 export type FormName = "reply" | "location" | "proposal";
 
@@ -24,124 +26,14 @@ export interface ConversationViewProps {
   form?: FormState;
 }
 
-/** Resolved place name with its context line and the attribution the OSM licence requires. */
-function ResolvedPlaceInfo({ place }: { place: ResolvedPlace }) {
-  return (
-    <>
-      <p class="place-name">{place.name}</p>
-      {place.detail ? <p class="place-detail">{place.detail}</p> : null}
-    </>
-  );
-}
-
-function OsmAttribution() {
-  return (
-    <p class="place-attrib">
-      <a href={OSM_COPYRIGHT_URL} rel="noreferrer noopener" target="_blank">
-        {OSM_ATTRIBUTION}
-      </a>
-    </p>
-  );
-}
-
-function Coordinates({
-  lang,
-  lat,
-  lng,
-  accuracyM,
-}: {
-  lang: Language;
-  lat: number;
-  lng: number;
-  accuracyM: number | null;
-}) {
-  const t = dict(lang);
-  return (
-    <p class="place-coords">
-      {formatCoordinate(lat)}, {formatCoordinate(lng)}
-      {accuracyM != null ? ` (${fmt(t.conv.approx, { n: Math.round(accuracyM) })})` : ""}
-    </p>
-  );
-}
-
-function MapLinks({ lang, links }: { lang: Language; links: { google: string; apple: string } }) {
-  const t = dict(lang);
-  return (
-    <p class="map-links">
-      <a href={links.google} rel="noreferrer noopener" target="_blank" aria-label={t.conv.openGoogle}>
-        {t.conv.mapGoogle}
-      </a>
-      <a href={links.apple} rel="noreferrer noopener" target="_blank" aria-label={t.conv.openApple}>
-        {t.conv.mapApple}
-      </a>
-    </p>
-  );
-}
-
-function ProposalCard({
-  lang,
-  token,
-  proposal,
-  open,
-}: {
+/** The timeline list items as an HTML string (page body and polling responses share it). */
+export async function renderTimelineHtml(props: {
   lang: Language;
   token: string;
-  proposal: Proposal;
+  detail: ConversationDetail;
   open: boolean;
-}) {
-  const t = dict(lang);
-  const byFinder = proposal.proposedBy === "finder";
-  const pending = proposal.status === "proposed" && open;
-  const action = `/c/${token}/proposals/${proposal.id}/respond`;
-  return (
-    <li class={`proposal status-${proposal.status}`}>
-      <p class="proposal-head">
-        <strong>{proposalKindName(lang, proposal.kind)}</strong>
-        <span class={`pill pill-${proposal.status}`}>
-          {proposal.status === "accepted" ? t.conv.agreed : proposalStatusName(lang, proposal.status)}
-        </span>
-      </p>
-      <p class="muted">{byFinder ? t.conv.proposedByYou : t.conv.proposedByOwner}</p>
-      <p class="place-label">{proposal.place}</p>
-      {proposal.resolvedPlace ? (
-        <>
-          <ResolvedPlaceInfo place={proposal.resolvedPlace} />
-          <OsmAttribution />
-        </>
-      ) : null}
-      {proposal.meetAt ? (
-        <p>
-          <strong>{t.conv.when}:</strong> {formatWallClock(proposal.meetAt, proposal.meetTz, lang)}
-        </p>
-      ) : null}
-      {proposal.instructions ? (
-        <p>
-          <strong>{t.conv.instructions}:</strong> {proposal.instructions}
-        </p>
-      ) : null}
-      {proposal.status === "accepted" && proposal.maps ? (
-        <MapLinks lang={lang} links={proposal.maps} />
-      ) : null}
-      {pending ? (
-        <form method="post" action={action} class="actions">
-          {byFinder ? (
-            <button type="submit" name="action" value="cancel" class="btn btn-secondary">
-              {t.conv.cancel}
-            </button>
-          ) : (
-            <>
-              <button type="submit" name="action" value="accept" class="btn btn-primary">
-                {t.conv.accept}
-              </button>
-              <button type="submit" name="action" value="decline" class="btn btn-secondary">
-                {t.conv.decline}
-              </button>
-            </>
-          )}
-        </form>
-      ) : null}
-    </li>
-  );
+}): Promise<string> {
+  return String(await (<TimelineItems {...props} />).toString());
 }
 
 export function ConversationPage({
@@ -153,198 +45,215 @@ export function ConversationPage({
   form = EMPTY_FORM,
 }: ConversationViewProps) {
   const t = dict(lang);
-  const { conversation, messages, locations, proposals } = detail;
+  const { conversation } = detail;
   const stateFor = (name: FormName): FormState => (active === name ? form : EMPTY_FORM);
   const reply = stateFor("reply");
   const locationState = stateFor("location");
   const proposal = stateFor("proposal");
   const base = `/c/${token}`;
+  const empty = detail.messages.length + detail.locations.length + detail.proposals.length === 0;
+  const messages = JSON.stringify({
+    newMessage: t.conv.newMessage,
+    copied: t.conv.copied,
+    sendFailed: t.form.sendFailed,
+    shareTitle: t.conv.shareTitle,
+  });
   return (
-    <Layout lang={lang} title={conversation.subject}>
-      <div data-poll-url={`${base}/state.json`} data-last-activity={conversation.lastMessageAt}>
-        <h1>{conversation.subject}</h1>
-        <div class="banner-new" data-new-banner hidden>
-          <a href={base}>{t.conv.newReply}</a>
+    <Layout
+      lang={lang}
+      title={conversation.subject}
+      variant="chat"
+      scripts={["/p/location.js", "/p/chat.js"]}
+    >
+      <div
+        class="chat"
+        data-chat
+        data-timeline-url={`${base}/timeline`}
+        data-cursor={conversation.lastMessageAt}
+        data-open={open ? "1" : "0"}
+        data-messages={messages}
+      >
+        <div class="chat-head">
+          <h1>{conversation.subject}</h1>
+          <details class="chat-info">
+            <summary class="chat-info-toggle">{t.conv.info}</summary>
+            <div class="chat-info-body" data-copy-section>
+              <strong>{t.conv.saveTitle}</strong>
+              <p>{t.conv.saveBody}</p>
+              <div class="actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  data-copy
+                  data-copied={t.conv.copied}
+                  hidden
+                >
+                  <SpriteIcon name="copy" size={16} />
+                  {t.conv.copy}
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" data-share hidden>
+                  <SpriteIcon name="share" size={16} />
+                  {t.conv.share}
+                </button>
+              </div>
+              <p>
+                <a class="footer-link" href={`/privacy?lang=${lang}`}>
+                  {t.conv.privacyNote}
+                </a>
+              </p>
+            </div>
+          </details>
         </div>
-
-        <section class="notice save-link" data-copy-section>
-          <strong>{t.conv.saveTitle}</strong>
-          <p>{t.conv.saveBody}</p>
-          <button type="button" class="btn btn-secondary" data-copy data-copied={t.conv.copied} hidden>
-            {t.conv.copy}
-          </button>
-        </section>
 
         {open ? null : (
           <div class="notice notice-closed" role="status">
+            <SpriteIcon name="closed" />
             {t.conv.closedNotice}
           </div>
         )}
 
-        <section aria-labelledby="thread">
-          <h2 id="thread">{t.conv.thread}</h2>
-          {messages.length === 0 ? <p class="muted">{t.conv.emptyThread}</p> : null}
-          <ol class="thread">
-            {messages.map((m) => (
-              <li key={m.id} class={`bubble from-${m.sender}`}>
-                <p class="who">
-                  {m.sender === "finder" ? t.conv.you : m.sender === "owner" ? t.conv.owner : t.conv.system}
-                </p>
-                <p class="body" dir="auto">
-                  {m.body}
-                </p>
-                <time datetime={m.createdAt} data-local-time>
-                  {formatInstant(m.createdAt, lang)}
-                </time>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {locations.length > 0 ? (
-          <section aria-labelledby="places">
-            <h2 id="places">{t.conv.locations}</h2>
-            <ul class="places">
-              {locations.map((l) => (
-                <li key={l.id} class="card">
-                  <p class="muted">{l.sharedBy === "finder" ? t.conv.sharedByYou : t.conv.sharedByOwner}</p>
-                  {l.label ? <p class="place-label">“{l.label}”</p> : null}
-                  {l.place ? <ResolvedPlaceInfo place={l.place} /> : null}
-                  {l.lat != null && l.lng != null ? (
-                    l.place ? (
-                      <Coordinates lang={lang} lat={l.lat} lng={l.lng} accuracyM={l.accuracyM} />
-                    ) : (
-                      <p class="place-coords">
-                        {formatCoordinate(l.lat)}, {formatCoordinate(l.lng)}
-                        {l.accuracyM != null
-                          ? ` (${fmt(t.conv.approx, { n: Math.round(l.accuracyM) })})`
-                          : ""}
-                      </p>
-                    )
-                  ) : null}
-                  {l.place ? <OsmAttribution /> : null}
-                  <time datetime={l.createdAt} data-local-time>
-                    {formatInstant(l.createdAt, lang)}
-                  </time>
-                  {l.maps ? <MapLinks lang={lang} links={l.maps} /> : null}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {proposals.length > 0 ? (
-          <section aria-labelledby="props">
-            <h2 id="props">{t.conv.proposals}</h2>
-            <ul class="proposals">
-              {proposals.map((p) => (
-                <ProposalCard key={p.id} lang={lang} token={token} proposal={p} open={open} />
-              ))}
-            </ul>
-          </section>
-        ) : null}
+        <div class="thread-wrap">
+          <div
+            class="thread-scroll"
+            data-thread
+            tabindex={0}
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-label={t.conv.thread}
+          >
+            {empty ? <p class="muted">{t.conv.emptyThread}</p> : null}
+            <ol class="timeline" data-timeline>
+              <TimelineItems lang={lang} token={token} detail={detail} open={open} />
+            </ol>
+          </div>
+          <button type="button" class="new-pill" data-new-pill hidden>
+            {t.conv.newMessage}
+          </button>
+        </div>
 
         {open ? (
-          <>
-            <section class="card" aria-labelledby="reply">
-              <h2 id="reply">{t.form.reply}</h2>
-              <FormErrorSummary state={reply} t={t} />
-              <form method="post" action={`${base}/messages`} class="stack">
-                <Field id="reply-body" label={t.form.reply} labelHidden error={reply.errors.message}>
-                  <textarea
-                    id="reply-body"
-                    name="message"
-                    rows={4}
-                    maxlength={4000}
-                    required
-                    {...fieldAria("reply-body", { error: reply.errors.message })}
-                  >
-                    {reply.values.message ?? ""}
-                  </textarea>
-                </Field>
-                <button type="submit" class="btn btn-primary btn-block">
-                  {t.form.sendReply}
-                </button>
-              </form>
-            </section>
-
-            <details class="card" open={active === "location"}>
-              <summary>{t.form.shareLocation}</summary>
-              <FormErrorSummary state={locationState} t={t} />
-              <form method="post" action={`${base}/location`} class="stack">
-                <LocationFields lang={lang} state={locationState} idPrefix="cloc" />
-                <button type="submit" class="btn btn-primary btn-block">
-                  {t.form.shareLocationSend}
-                </button>
-              </form>
-            </details>
-
-            <details class="card" open={active === "proposal"}>
-              <summary>{t.form.proposeHeading}</summary>
-              <FormErrorSummary state={proposal} t={t} />
-              <form method="post" action={`${base}/proposals`} class="stack">
-                <Field id="p-kind" label={t.form.proposeKind} error={proposal.errors.kind}>
-                  <select
-                    id="p-kind"
-                    name="kind"
-                    required
-                    {...fieldAria("p-kind", { error: proposal.errors.kind })}
-                  >
-                    {PROPOSAL_KINDS.map((k) => (
-                      <option key={k} value={k} selected={proposal.values.kind === k}>
-                        {proposalKindName(lang, k)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field id="p-place" label={t.form.proposePlace} error={proposal.errors.place}>
-                  <input
-                    id="p-place"
-                    name="place"
-                    type="text"
-                    maxlength={300}
-                    required
-                    value={proposal.values.place ?? ""}
-                    {...fieldAria("p-place", { error: proposal.errors.place })}
-                  />
-                </Field>
-                <Field
-                  id="p-when"
-                  label={t.form.proposeWhen}
-                  optionalLabel={t.form.optional}
-                  error={proposal.errors.meetAt}
+          <div class="composer-wrap">
+            <FormErrorSummary state={reply} t={t} />
+            {reply.errors.message ? (
+              <p class="field-error" id="reply-body-error">
+                {reply.errors.message}
+              </p>
+            ) : null}
+            <FormErrorSummary state={locationState} t={t} />
+            <FormErrorSummary state={proposal} t={t} />
+            <p class="field-error" role="alert" data-compose-error hidden />
+            <div class="composer">
+              <details class="plus" open={active === "location" || active === "proposal"}>
+                <summary class="plus-btn" aria-label={t.conv.more} title={t.conv.more}>
+                  <SpriteIcon name="plus" size={24} />
+                </summary>
+                <div class="plus-panel">
+                  <details class="card" open={active === "location"}>
+                    <summary>{t.form.shareLocation}</summary>
+                    <form method="post" action={`${base}/location`} class="stack" data-async>
+                      <LocationFields lang={lang} state={locationState} idPrefix="cloc" />
+                      <button type="submit" class="btn btn-primary btn-block">
+                        {t.form.shareLocationSend}
+                      </button>
+                    </form>
+                  </details>
+                  <details class="card" open={active === "proposal"}>
+                    <summary>{t.form.proposeHeading}</summary>
+                    <form method="post" action={`${base}/proposals`} class="stack" data-async>
+                      <Field id="p-kind" label={t.form.proposeKind} error={proposal.errors.kind}>
+                        <select
+                          id="p-kind"
+                          name="kind"
+                          required
+                          {...fieldAria("p-kind", { error: proposal.errors.kind })}
+                        >
+                          {PROPOSAL_KINDS.map((k) => (
+                            <option key={k} value={k} selected={proposal.values.kind === k}>
+                              {proposalKindName(lang, k)}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field id="p-place" label={t.form.proposePlace} error={proposal.errors.place}>
+                        <input
+                          id="p-place"
+                          name="place"
+                          type="text"
+                          maxlength={300}
+                          required
+                          value={proposal.values.place ?? ""}
+                          {...fieldAria("p-place", { error: proposal.errors.place })}
+                        />
+                      </Field>
+                      <Field
+                        id="p-when"
+                        label={t.form.proposeWhen}
+                        optionalLabel={t.form.optional}
+                        error={proposal.errors.meetAt}
+                      >
+                        <input
+                          id="p-when"
+                          name="meet_at"
+                          type="datetime-local"
+                          value={proposal.values.meet_at ?? ""}
+                          {...fieldAria("p-when", { error: proposal.errors.meetAt })}
+                        />
+                        <input
+                          type="hidden"
+                          name="meet_tz"
+                          value={proposal.values.meet_tz ?? ""}
+                          data-browser-tz
+                        />
+                      </Field>
+                      <Field
+                        id="p-instr"
+                        label={t.form.proposeInstructions}
+                        optionalLabel={t.form.optional}
+                        error={proposal.errors.instructions}
+                      >
+                        <textarea
+                          id="p-instr"
+                          name="instructions"
+                          rows={3}
+                          maxlength={1000}
+                          {...fieldAria("p-instr", { error: proposal.errors.instructions })}
+                        >
+                          {proposal.values.instructions ?? ""}
+                        </textarea>
+                      </Field>
+                      <button type="submit" class="btn btn-primary btn-block">
+                        {t.form.proposeSend}
+                      </button>
+                    </form>
+                  </details>
+                </div>
+              </details>
+              <form method="post" action={`${base}/messages`} class="reply" data-async data-compose>
+                <label for="reply-body" class="visually-hidden">
+                  {t.form.reply}
+                </label>
+                <textarea
+                  id="reply-body"
+                  name="message"
+                  rows={1}
+                  maxlength={4000}
+                  required
+                  enterkeyhint="send"
+                  autocomplete="off"
+                  dir="auto"
+                  placeholder={t.form.reply}
+                  {...fieldAria("reply-body", { error: reply.errors.message })}
                 >
-                  <input
-                    id="p-when"
-                    name="meet_at"
-                    type="datetime-local"
-                    value={proposal.values.meet_at ?? ""}
-                    {...fieldAria("p-when", { error: proposal.errors.meetAt })}
-                  />
-                  <input type="hidden" name="meet_tz" value={proposal.values.meet_tz ?? ""} data-browser-tz />
-                </Field>
-                <Field
-                  id="p-instr"
-                  label={t.form.proposeInstructions}
-                  optionalLabel={t.form.optional}
-                  error={proposal.errors.instructions}
-                >
-                  <textarea
-                    id="p-instr"
-                    name="instructions"
-                    rows={3}
-                    maxlength={1000}
-                    {...fieldAria("p-instr", { error: proposal.errors.instructions })}
-                  >
-                    {proposal.values.instructions ?? ""}
-                  </textarea>
-                </Field>
-                <button type="submit" class="btn btn-primary btn-block">
-                  {t.form.proposeSend}
+                  {reply.values.message ?? ""}
+                </textarea>
+                <button type="submit" class="btn btn-primary send-btn">
+                  <SpriteIcon name="send" size={24} />
+                  <span class="visually-hidden">{t.form.sendReply}</span>
                 </button>
               </form>
-            </details>
-          </>
+            </div>
+          </div>
         ) : null}
       </div>
     </Layout>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   type ItemSummary,
   NFC_STATUSES,
@@ -8,10 +8,12 @@ import {
 } from "../../shared/schemas";
 import { api } from "../lib/api";
 import { copyText } from "../lib/clipboard";
-import { useResource } from "../lib/hooks";
+import { downloadBlob, fileStem, qrToPng } from "../lib/files";
+import { useMediaQuery, useResource } from "../lib/hooks";
 import { useT } from "../lib/i18n";
 import { Link } from "../lib/router";
 import { useFormat } from "../lib/settings-context";
+import { canShareFiles, shareFile } from "../lib/share";
 import { Badge } from "../ui/Badge";
 import { Button, ButtonLink } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -118,6 +120,33 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
           ? `${base} ${t("tag.openConvs", { n: openConvs })}`
           : base;
 
+  // The PNG is built as soon as the sheet opens, so "Share" can call navigator.share straight from the tap
+  // (iOS drops the user activation after real async work).
+  const [png, setPng] = useState<File | null>(null);
+  const touch = useMediaQuery("(pointer: coarse)");
+  useEffect(() => {
+    let cancelled = false;
+    setPng(null);
+    fetch(`/api/tags/${tag.id}/qr.svg`, { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(String(res.status)))))
+      .then((svg) => qrToPng(svg))
+      .then((blob) => {
+        if (!cancelled) setPng(new File([blob], `${fileStem(tag.label)}.png`, { type: "image/png" }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [tag.id, tag.label]);
+  const sharePng = async () => {
+    if (!png) return;
+    const result = await shareFile(png, tag.label);
+    if (result === "failed") {
+      downloadBlob(png, png.name);
+      toast(t("tag.shareFallback"));
+    }
+  };
+
   const copy = async () => {
     const ok = await copyText(tag.url);
     toast(ok ? t("tag.copied") : t("tag.copyFailed"), ok ? "success" : "error");
@@ -155,6 +184,21 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
             >
               {t("tag.downloadQr")}
             </ButtonLink>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button
+                size="sm"
+                icon="photo"
+                disabled={!png}
+                onClick={() => png && downloadBlob(png, png.name)}
+              >
+                {t("tag.downloadQrPng")}
+              </Button>
+              {touch && png && canShareFiles(png) ? (
+                <Button size="sm" variant="tinted" icon="share" onClick={() => void sharePng()}>
+                  {t("tag.shareQr")}
+                </Button>
+              ) : null}
+            </div>
           </div>
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1.5">
@@ -167,7 +211,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
                   value={tag.url}
                   aria-labelledby="tag-url-l"
                   onFocus={(e) => e.currentTarget.select()}
-                  className="min-h-11 min-w-0 flex-1 rounded-control border border-line-strong bg-sunken px-3 text-subhead"
+                  className="min-h-11 min-w-0 flex-1 rounded-control border border-line-strong bg-sunken px-3 text-body"
                 />
                 <Button icon="copy" onClick={copy}>
                   {t("tag.copy")}

@@ -112,3 +112,29 @@ export function useAction<A extends unknown[]>(fn: (...args: A) => Promise<void>
   );
   return { run, pending, error, clearError: () => setError(null) };
 }
+
+/**
+ * Where the visible part of the page is while the on-screen keyboard is open. iOS Safari keeps the layout viewport
+ * (and `100dvh`) unchanged and pans the visual viewport instead, which would hide a bottom-anchored composer behind
+ * the keyboard; Android Chrome resizes the layout viewport itself. Null when no keyboard covers the page.
+ */
+export function useKeyboardBox(): { top: number; height: number } | null {
+  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const covered = window.innerHeight - vv.height;
+      const next = covered > 120 ? { top: Math.round(vv.offsetTop), height: Math.round(vv.height) } : null;
+      setBox((prev) => (prev?.top === next?.top && prev?.height === next?.height ? prev : next));
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
+  return box;
+}

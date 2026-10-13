@@ -182,7 +182,7 @@ describe("tag page", () => {
     expect(await (await finderGet(`/t/${noted.token}?lang=es`)).text()).toContain("Nota del propietario");
   });
 
-  it("renders the hero, the lost banner under the title and a floating action bar to the form", async () => {
+  it("renders the hero and the lost banner under the title, with no floating bar over the form", async () => {
     const seeded = await seedTag({ item: { status: "lost" } });
     const html = await (await finderGet(`/t/${seeded.token}`)).text();
     expect(html).toContain("viewport-fit=cover");
@@ -190,8 +190,8 @@ describe("tag page", () => {
     expect(html).toContain('name="theme-color" content="#0F1719" media="(prefers-color-scheme: dark)"');
     expect(html).toContain('<section class="hero">');
     expect(html.indexOf("<h1>")).toBeLessThan(html.indexOf('class="banner-lost"'));
-    expect(html).toContain('<nav class="action-bar" aria-label="Write to the owner">');
-    expect(html).toContain('href="#write"');
+    expect(html).not.toContain("action-bar");
+    expect(html).toContain('data-size="flexible"');
     expect(html).toContain('<h2 id="write">');
     expect(html).toContain('<div class="turnstile">');
   });
@@ -735,32 +735,29 @@ describe("starting a conversation", () => {
     });
   });
 
-  it("requires explicit confirmation before storing a location", async () => {
+  it("stores a described place or a tapped position without a separate consent field", async () => {
     const seeded = await seedTag();
-    const unconfirmed = await finderPost(`/t/${seeded.token}/contact`, {
+    const described = await finderPost(`/t/${seeded.token}/contact`, {
       message: "hello",
       location_label: "Central station",
       ...TURNSTILE_FIELD,
     });
-    expect(unconfirmed.status).toBe(422);
-    expect(await unconfirmed.text()).toContain("agree to share it");
-    expect(await count("SELECT COUNT(*) AS n FROM conversations WHERE tag_id = ?", seeded.tagId)).toBe(0);
+    expect(described.status).toBe(303);
 
-    const gpsUnconfirmed = await finderPost(`/t/${seeded.token}/contact`, {
+    const halfPosition = await finderPost(`/t/${seeded.token}/contact`, {
       message: "hello",
       location_source: "gps",
       location_lat: "52.52",
-      location_lng: "13.405",
       ...TURNSTILE_FIELD,
     });
-    expect(gpsUnconfirmed.status).toBe(422);
+    expect(halfPosition.status).toBe(422);
+    expect(await halfPosition.text()).toContain("Please describe the place or use your position.");
 
     const conv = await openConversation(seeded, {
       location_source: "gps",
       location_lat: "52.52",
       location_lng: "13.405",
       location_accuracy: "12.4",
-      location_confirmed: "yes",
     });
     const stored = await env.DB.prepare("SELECT * FROM shared_locations WHERE conversation_id = ?")
       .bind(conv.id)
@@ -778,10 +775,7 @@ describe("starting a conversation", () => {
     expect(html).toContain("google.com/maps/dir/");
     expect(html).not.toContain("<iframe");
 
-    const manual = await openConversation(seeded, {
-      location_label: "Platform 3",
-      location_confirmed: "yes",
-    });
+    const manual = await openConversation(seeded, { location_label: "Platform 3" });
     expect(
       await count(
         "SELECT COUNT(*) AS n FROM shared_locations WHERE conversation_id = ? AND source = 'manual' AND label = 'Platform 3'",
@@ -818,7 +812,7 @@ describe("conversation page", () => {
     expect(proposal.status).toBe(303);
 
     const html = await (await finderGet(`${path}?lang=${lang}`)).text();
-    expect(html).toContain(`<h2 id="props">${term}</h2>`);
+    expect(html).toContain(`${term} · `);
     expect(html).toContain('class="pill pill-proposed"');
     expect(html).toContain('<label for="reply-body" class="visually-hidden">');
   });
@@ -852,7 +846,7 @@ describe("conversation page", () => {
 
     const reply = await finderPost(`${path}/messages`, { message: "Are you still there?" });
     expect(reply.status).toBe(303);
-    expect(reply.headers.get("Location")).toBe(path);
+    expect(reply.headers.get("Location")).toMatch(new RegExp(`^${path}#i-[0-9a-f-]{36}$`));
     expect(
       await count(
         "SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ? AND sender = 'finder'",
@@ -864,18 +858,16 @@ describe("conversation page", () => {
     expect(empty.status).toBe(422);
     expect(await empty.text()).toContain("Please write a message");
 
-    const noConsent = await finderPost(`${path}/location`, { location_label: "Near the fountain" });
-    expect(noConsent.status).toBe(422);
-    const nothing = await finderPost(`${path}/location`, { location_confirmed: "yes" });
+    const nothing = await finderPost(`${path}/location`, {});
     expect(nothing.status).toBe(422);
     const shared = await finderPost(`${path}/location`, {
       location_source: "gps",
       location_lat: "41.38",
       location_lng: "2.17",
       location_accuracy: "30",
-      location_confirmed: "yes",
     });
     expect(shared.status).toBe(303);
+    expect(shared.headers.get("Location")).toMatch(new RegExp(`^${path}#i-[0-9a-f-]{36}$`));
 
     const badProposal = await finderPost(`${path}/proposals`, { kind: "teleport", place: "" });
     expect(badProposal.status).toBe(422);
@@ -899,19 +891,64 @@ describe("conversation page", () => {
     });
   });
 
-  it("exposes only lastActivityAt for polling and moves it on new activity", async () => {
+  it("serves the timeline for polling: nothing when unchanged, the items when something happened", async () => {
     const conv = await openConversation(await seedTag());
-    const first = (await (await finderGet(`/c/${conv.token}/state.json`)).json()) as Record<string, unknown>;
-    expect(Object.keys(first)).toEqual(["lastActivityAt"]);
-    await apiJson("POST", `/conversations/${conv.id}/messages`, { body: "Hello from the owner" });
-    const second = (await (await finderGet(`/c/${conv.token}/state.json`)).json()) as {
-      lastActivityAt: string;
+    const json = { headers: { Accept: "application/json" } };
+    const first = (await (await finderGet(`/c/${conv.token}/timeline`, json)).json()) as {
+      cursor: string;
+      open: boolean;
+      html: string;
     };
-    expect(second.lastActivityAt > String(first.lastActivityAt)).toBe(true);
+    expect(first.open).toBe(true);
+    expect(first.html).toContain("data-id=");
+
+    const unchanged = (await (
+      await finderGet(`/c/${conv.token}/timeline?after=${encodeURIComponent(first.cursor)}`, json)
+    ).json()) as { html: string | null; cursor: string };
+    expect(unchanged).toEqual({ cursor: first.cursor, open: true, html: null });
+
+    await apiJson("POST", `/conversations/${conv.id}/messages`, { body: "Hello from the owner" });
+    const changed = (await (
+      await finderGet(`/c/${conv.token}/timeline?after=${encodeURIComponent(first.cursor)}`, json)
+    ).json()) as { html: string; cursor: string };
+    expect(changed.cursor > first.cursor).toBe(true);
+    expect(changed.html).toContain("Hello from the owner");
+    expect(changed.html).toContain("from-owner");
+
+    const page = await (await finderGet(`/c/${conv.token}`)).text();
+    expect(page).toContain(`data-cursor="${changed.cursor}"`);
+    expect(page).toContain('role="log"');
+    expect((await finderGet(`/c/${"A".repeat(43)}/timeline`, json)).status).toBe(404);
+  });
+
+  it("answers a script's write with the fresh timeline instead of a redirect", async () => {
+    const conv = await openConversation(await seedTag());
+    const res = await finderPost(
+      `/c/${conv.token}/messages`,
+      { message: "From the chat box" },
+      { headers: { Accept: "application/json" } },
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("application/json");
+    const body = (await res.json()) as { html: string };
+    expect(body.html).toContain("From the chat box");
+    expect(body.html).toContain("from-finder");
+  });
+
+  it("merges messages, places and plans into one chronological timeline with day separators", async () => {
+    const seeded = await seedTag();
+    const conv = await openConversation(seeded);
+    await finderPost(`/c/${conv.token}/location`, { location_label: "By the clock" });
+    await apiJson("POST", `/conversations/${conv.id}/messages`, { body: "Owner here" });
+    await apiJson("POST", `/conversations/${conv.id}/proposals`, { kind: "other", place: "Main hall" });
     const html = await (await finderGet(`/c/${conv.token}`)).text();
-    expect(html).toContain(`data-last-activity="${second.lastActivityAt}"`);
-    expect(html).toContain("Hello from the owner");
-    expect((await finderGet(`/c/${"A".repeat(43)}/state.json`)).status).toBe(404);
+    const order = ["I found your backpack.", "By the clock", "Owner here", "Main hall"].map((t) =>
+      html.indexOf(t),
+    );
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect(html).toContain('class="day"');
+    expect(html).toContain('dir="auto"');
   });
 
   it("applies the capability headers to conversation pages", async () => {
@@ -1107,7 +1144,7 @@ describe("degraded mode", () => {
     trackSpy(vi.spyOn(env.DB, "prepare")).mockImplementation(() => {
       throw new Error("D1 is down");
     });
-    for (const path of [`/c/${conv.token}`, `/c/${conv.token}/state.json`]) {
+    for (const path of [`/c/${conv.token}`, `/c/${conv.token}/timeline`]) {
       const res = await finderGet(path);
       expect(res.status, path).toBe(503);
       expect(await res.text()).toContain("backup@example.test");

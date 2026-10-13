@@ -16,8 +16,8 @@ export interface SwRequestInfo {
 /** The app shell is stored under this key; every panel route is served the same `index.html`. */
 export const SHELL_PATH = "/";
 
-/** Build-time static files that may be stored: hashed bundles, icons, the manifest. */
-const STATIC_PATH = /^\/(?:assets\/[^/]+|icons\/[^/]+|manifest\.webmanifest)$/;
+/** Build-time static files that may be stored: hashed bundles, icons, the manifest, the theme head script. */
+const STATIC_PATH = /^\/(?:assets\/[^/]+|icons\/[^/]+|manifest\.webmanifest|theme-init\.js)$/;
 
 /** Server-owned paths: owner API and Cloudflare Access endpoints (login, logout, identity). */
 const PRIVATE_PATH = /^\/(?:api|cdn-cgi)(?:\/|$)/;

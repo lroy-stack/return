@@ -69,6 +69,7 @@ test("4a. the finder proposes a meeting point, the owner accepts it in the inbox
   const finderContext = await newFinderContext(browser);
   const finder = await finderContext.newPage();
   await finder.goto(conversation.path);
+  await finder.getByLabel("Share a place or propose a return plan").click();
   await finder.getByText("Propose a return plan").click();
   await finder.getByLabel("Place", { exact: true }).fill(place);
   await finder.getByLabel(/^Date and time/).fill(`${new Date().getFullYear() + 1}-10-14T18:30`);
@@ -122,7 +123,8 @@ test("4b. the owner proposes exact coordinates, the finder accepts, directions p
   const conversation = await startConversation(tagged);
 
   await ownerPage.goto(`/conversations/${conversation.id}`);
-  await ownerPage.getByRole("button", { name: "Propose a return plan" }).click();
+  await ownerPage.getByRole("button", { name: "Add to the conversation" }).click();
+  await ownerPage.getByRole("menuitem", { name: "Propose a return plan" }).click();
   const dialog = ownerPage.getByRole("dialog", { name: "Propose a return plan" });
   await chooseOption(dialog, "Type of place", "Hotel reception");
   await dialog.getByRole("textbox", { name: "Place", exact: true }).fill(place);

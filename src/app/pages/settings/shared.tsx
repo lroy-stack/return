@@ -5,7 +5,10 @@ import { Card, Section } from "../../ui/Card";
 
 export interface SectionProps {
   draft: Settings;
+  /** Text fields: edits stay in the draft until "Save". */
   update: (mutate: (d: Settings) => void) => void;
+  /** Toggles, selects and presets: applied and saved at once (iOS Settings style), rolled back on error. */
+  instant: (mutate: (d: Settings) => void) => void;
   errors: FieldErrors;
 }
 

@@ -22,6 +22,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "cf-typegen": "wrangler types --config wrangler.example.jsonc --strict-vars=false src/worker/worker-configuration.d.ts",
     "icons:pwa": "node scripts/generate-pwa-icons.mjs",
+    "icons:build": "node scripts/build-icons.ts",
     "backup:offsite": "bash scripts/backup-offsite.sh",
     "restore:drill": "bash scripts/restore-drill.sh"
   },

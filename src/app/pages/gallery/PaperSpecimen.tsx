@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import { buildPaperSheet, type CardInput, type PaperSize, renderPaperSvg } from "../../../shared/card";
 import { CARD_PALETTES } from "../../../shared/card/themes";
 import { CARD_THEMES, LANGUAGES, type Language } from "../../../shared/settings";
+import { svgDataUrl } from "../../lib/files";
 import { StatusPill } from "../../ui/Badge";
 import { SegmentedControl } from "../../ui/Field";
 import { Select } from "../../ui/Select";
-import { svgDataUrl } from "../print/export";
 import { Row } from "./parts";
 
 type CardTheme = (typeof CARD_THEMES)[number];

@@ -8,5 +8,15 @@
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx"
   },
-  "include": ["src/worker", "src/shared", "src/app/lib/format.ts", "src/app/ui/select-logic.ts", "test"]
+  "include": [
+    "src/worker",
+    "src/shared",
+    "src/app/lib/format.ts",
+    "src/app/lib/settings-patch.ts",
+    "src/app/ui/select-logic.ts",
+    "src/app/ui/icons.generated.ts",
+    "src/app/ui/item-art.generated.ts",
+    "vite/icons.ts",
+    "test"
+  ]
 }

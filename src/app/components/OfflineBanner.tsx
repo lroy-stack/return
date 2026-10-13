@@ -2,7 +2,7 @@ import { useConnectivity } from "../lib/connectivity";
 import { notifyDataChanged } from "../lib/data-events";
 import { useT } from "../lib/i18n";
 import { Button } from "../ui/Button";
-import { Icon } from "../ui/Icon";
+import { EmptyArt, Icon } from "../ui/Icon";
 
 /**
  * Shown on every screen while the browser reports no connection, or while the browser is online but the API cannot be
@@ -18,7 +18,11 @@ export function OfflineBanner() {
       aria-label={t(offline ? "offline.title" : "offline.unreachableTitle")}
       className="mb-5 flex flex-wrap items-center gap-3 rounded-card bg-warning-tint px-4 py-3 text-warning ring-1 ring-warning/30"
     >
-      <Icon name="alert" className="size-5 shrink-0" />
+      {offline ? (
+        <EmptyArt name="offline" className="size-14 shrink-0" />
+      ) : (
+        <Icon name="alert" className="size-5 shrink-0" />
+      )}
       <div role="status" className="min-w-0 flex-1 basis-56">
         <p className="font-semibold">{t(offline ? "offline.title" : "offline.unreachableTitle")}</p>
         <p className="text-subhead">{t(offline ? "offline.body" : "offline.unreachableBody")}</p>

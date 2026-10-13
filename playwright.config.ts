@@ -1,14 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 5199;
+/** `E2E_PORT` / `E2E_STATE_DIR` let a second run (another agent, CI shard) use its own server and database. */
+const PORT = Number(process.env.E2E_PORT ?? 5199);
 /** Production build served by `vite preview` for the PWA spec, with its own database (see e2e/pwa.spec.ts). */
-const PWA_PORT = 5198;
-const PWA_STATE_DIR = ".wrangler/e2e-pwa";
+const PWA_PORT = Number(process.env.E2E_PWA_PORT ?? 5198);
+/** Wiped on every run so each suite starts from an empty database, as in CI (and never touches `pnpm dev` data). */
+const STATE_DIR = process.env.E2E_STATE_DIR ?? ".wrangler/e2e";
+const PWA_STATE_DIR = `${STATE_DIR}-pwa`;
 /** E2E always runs on the committed template, never on a deployment's real wrangler.jsonc. */
 const CONFIG = "wrangler.example.jsonc";
 const PWA = /pwa.*\.spec\.ts/;
-/** Wiped on every run so each suite starts from an empty database, as in CI (and never touches `pnpm dev` data). */
-const STATE_DIR = ".wrangler/e2e";
 /**
  * Opt-in README screenshots (`pnpm screenshots`): own server, port and wiped state dir, fictional demo data.
  * With SCREENSHOTS=1 only that project and server exist, so the regular suite can never run or start them.

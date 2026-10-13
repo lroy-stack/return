@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { isPastMeeting, nowInZone, zoneLabel } from "../../../shared/datetime";
 import {
   type GeocodeResult,
@@ -7,9 +7,12 @@ import {
   proposalInputSchema,
 } from "../../../shared/schemas";
 import { PlaceSearch } from "../../components/PlaceSearch";
+import { UseMyLocation } from "../../components/UseMyLocation";
 import { ApiRequestError, api } from "../../lib/api";
 import { emptyToNull, type FieldErrors, useDirty, validate } from "../../lib/forms";
+import type { Fix } from "../../lib/geolocation";
 import { useT } from "../../lib/i18n";
+import { coordsText, reverseLookup } from "../../lib/places";
 import { useSettings } from "../../lib/settings-context";
 import { Button } from "../../ui/Button";
 import { FormError, TextArea, TextInput } from "../../ui/Field";
@@ -69,6 +72,31 @@ function ProposalForm({
     setLat(String(r.lat));
     setLng(String(r.lng));
     setErrors({});
+  };
+  // "Use my location": coordinates first, then the place name when it arrives. A name the owner typed is kept.
+  const lookup = useRef(0);
+  const autoName = useRef("");
+  const useFix = (fix: Fix) => {
+    const run = ++lookup.current;
+    setLat(fix.lat.toFixed(6));
+    setLng(fix.lng.toFixed(6));
+    setPicked(null);
+    setErrors({});
+    const fallback = coordsText(fix);
+    setPlace((p) => {
+      if (p && p !== autoName.current) return p;
+      autoName.current = fallback;
+      return fallback;
+    });
+    void reverseLookup(fix).then((found) => {
+      if (run !== lookup.current || !found) return;
+      setPlace((p) => {
+        if (p !== autoName.current) return p;
+        autoName.current = found.name;
+        return found.name;
+      });
+      setPicked({ ...found, lat: fix.lat, lng: fix.lng });
+    });
   };
   const dropCoords = () => {
     setPicked(null);
@@ -133,6 +161,7 @@ function ProposalForm({
           value={kind}
           onChange={setKind}
         />
+        <UseMyLocation onFix={useFix} />
         <PlaceSearch onPick={pick} />
         <TextInput
           label={t("proposal.place")}

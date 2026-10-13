@@ -278,6 +278,25 @@ export async function reverseGeocode(
   return place;
 }
 
+export type ReverseOutcome = { status: "ok"; place: ResolvedPlace | null } | { status: "budget_exceeded" };
+
+/**
+ * Place name for a point the owner picked ("Use my location"). A cached point is free; one that has to
+ * leave for OpenStreetMap is charged to the same hourly owner budget as place searches.
+ */
+export async function reversePlaceForOwner(
+  env: Env,
+  ownerId: string,
+  lat: number,
+  lng: number,
+  lang: Language,
+): Promise<ReverseOutcome> {
+  const hit = await readCache(env, reverseKey(lat, lng, lang), cachedReverse);
+  if (hit !== undefined) return { status: "ok", place: hit };
+  if (!(await consumeSearchBudget(env, ownerId))) return { status: "budget_exceeded" };
+  return { status: "ok", place: await reverseGeocode(env, lat, lng, lang) };
+}
+
 const normalizeQuery = (q: string) => q.trim().toLowerCase().replace(/\s+/g, " ");
 
 export type SearchOutcome =

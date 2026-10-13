@@ -12,11 +12,13 @@ import { Icon } from "../../ui/Icon";
 import { IconTile, List, ListRow } from "../../ui/List";
 import { PageHeader, Toolbar } from "../../ui/Page";
 import { SplitView } from "../../ui/SplitView";
-import { ErrorState, LoadingBlock } from "../../ui/States";
+import { ErrorState, errorMessage, LoadingBlock } from "../../ui/States";
 import { useToast } from "../../ui/Toast";
+import { NotFoundPage } from "../NotFoundPage";
 import { ActivitySection } from "./ActivitySection";
 import { ContactSection } from "./ContactSection";
 import { IdentitySection } from "./IdentitySection";
+import { InstallSection } from "./InstallSection";
 import { MessagesSection } from "./MessagesSection";
 import { NotificationsSection } from "./NotificationsSection";
 import { PrivacySection } from "./PrivacySection";
@@ -36,6 +38,7 @@ const SECTIONS: { key: string; label: MessageKey; icon: IconName; editable: bool
   { key: "public", label: "settings.public", icon: "external", editable: true },
   { key: "activity", label: "settings.activity", icon: "refresh", editable: false },
   { key: "system", label: "settings.system", icon: "settings", editable: false },
+  { key: "install", label: "settings.install", icon: "download", editable: false },
   { key: "session", label: "settings.session", icon: "external", editable: false },
 ];
 
@@ -43,7 +46,7 @@ export function SettingsPage({ section }: { section?: string }) {
   const t = useT();
   const toast = useToast();
   const split = useMediaQuery("(min-width: 768px)");
-  const { state, settings, save, draft, setDraft, reload } = useSettings();
+  const { state, settings, save, patch, draft, setDraft, reload } = useSettings();
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -63,6 +66,13 @@ export function SettingsPage({ section }: { section?: string }) {
     const next = structuredClone(current);
     mutate(next);
     setDraft(next);
+  };
+
+  const instant = (mutate: (d: Settings) => void) => {
+    patch(mutate).then(
+      () => toast(t("settings.saved")),
+      (e: unknown) => toast(errorMessage(e, t), "error"),
+    );
   };
 
   const onSave = async () => {
@@ -87,6 +97,8 @@ export function SettingsPage({ section }: { section?: string }) {
       setSaving(false);
     }
   };
+
+  if (section && !SECTIONS.some((s) => s.key === section)) return <NotFoundPage />;
 
   const pageTitle = !split && active ? t(active.label) : t("nav.settings");
   const header = (
@@ -113,7 +125,7 @@ export function SettingsPage({ section }: { section?: string }) {
     );
   }
 
-  const props = { draft: current, update, errors };
+  const props = { draft: current, update, instant, errors };
   // Sticky at the bottom of the detail column (phone index: of the list): centred on the form, and it takes
   // space only while shown, so there is no permanent bottom padding under the last card.
   const unsavedBar = dirty ? (
@@ -192,6 +204,7 @@ export function SettingsPage({ section }: { section?: string }) {
                 {active.key === "public" ? <PublicPageSection {...props} /> : null}
                 {active.key === "activity" ? <ActivitySection /> : null}
                 {active.key === "system" ? <SystemSection /> : null}
+                {active.key === "install" ? <InstallSection /> : null}
                 {active.key === "session" ? <SessionSection /> : null}
               </div>
               {unsavedBar}

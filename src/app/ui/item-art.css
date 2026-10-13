@@ -1,0 +1,120 @@
+/*
+ * Item illustrations (ItemArt.tsx, sources in src/assets/item-art). Component-layer tokens: every colour of an
+ * illustration comes from these custom properties, so one drawing works in light and dark and can be tinted.
+ *
+ * Public API (set on the illustration or any ancestor):
+ *   --illo-body        main material (default: petrol mixed toward the canvas, follows the theme)
+ *   --illo-body-shade  side faces            (default: body + 30 % black)
+ *   --illo-body-light  top faces             (default: body + 28 % white)
+ *   --illo-accent      leather, straps, foil (default: warm tan)
+ *   --illo-metal       zips, rings, wheels   (default: light steel)
+ *   --illo-dark        screens, rubber       (default: ink)
+ *   --illo-paper       cards, labels, pages  (default: warm paper)
+ * A future per-item colour only needs to set --illo-body; shade and light are derived with color-mix().
+ * Light and shadow are fixed white/black overlays inside the SVG (top-left key light), so they work on any tint.
+ */
+.item-art {
+  --_body: var(--illo-body, color-mix(in oklch, var(--primary) 78%, var(--surface)));
+  --_side: var(--illo-body-shade, color-mix(in oklch, var(--_body) 70%, black));
+  --_top: var(--illo-body-light, color-mix(in oklch, var(--_body) 72%, white));
+  --_deep: color-mix(in oklch, var(--_body) 82%, black);
+  --_accent: var(--illo-accent, oklch(0.74 0.075 68));
+  --_accent-side: color-mix(in oklch, var(--_accent) 72%, black);
+  --_metal: var(--illo-metal, oklch(0.88 0.008 230));
+  --_metal-side: color-mix(in oklch, var(--_metal) 68%, black);
+  --_dark: var(--illo-dark, oklch(0.26 0.015 230));
+  --_paper: var(--illo-paper, oklch(0.975 0.008 85));
+  --_paper-side: color-mix(in oklch, var(--_paper) 84%, black);
+}
+
+/* Fills */
+.item-art .ia-body {
+  fill: var(--_body);
+}
+.item-art .ia-side {
+  fill: var(--_side);
+}
+.item-art .ia-top {
+  fill: var(--_top);
+}
+.item-art .ia-deep {
+  fill: var(--_deep);
+}
+.item-art .ia-accent {
+  fill: var(--_accent);
+}
+.item-art .ia-accent-side {
+  fill: var(--_accent-side);
+}
+.item-art .ia-metal {
+  fill: var(--_metal);
+}
+.item-art .ia-metal-side {
+  fill: var(--_metal-side);
+}
+.item-art .ia-dark {
+  fill: var(--_dark);
+}
+.item-art .ia-paper {
+  fill: var(--_paper);
+}
+.item-art .ia-paper-side {
+  fill: var(--_paper-side);
+}
+/* Screen wallpaper: the body tint glowing on dark glass. */
+.item-art .ia-wall {
+  fill: var(--_body);
+  fill-opacity: 0.55;
+}
+.item-art .ia-wall-2 {
+  fill: var(--_top);
+  fill-opacity: 0.45;
+}
+.item-art .ia-wall-accent {
+  fill: var(--_body);
+}
+
+/* Strokes (elements also carry fill="none") */
+.item-art .ia-s-body {
+  stroke: var(--_body);
+}
+.item-art .ia-s-side,
+.item-art .ia-seam {
+  stroke: var(--_side);
+}
+.item-art .ia-s-accent {
+  stroke: var(--_accent);
+}
+.item-art .ia-s-accent-side {
+  stroke: var(--_accent-side);
+}
+.item-art .ia-s-metal {
+  stroke: var(--_metal);
+}
+.item-art .ia-s-metal-side {
+  stroke: var(--_metal-side);
+}
+.item-art .ia-s-dark {
+  stroke: var(--_dark);
+}
+.item-art .ia-stitch {
+  stroke: var(--_top);
+  stroke-opacity: 0.7;
+}
+
+/* Windows High Contrast: keep the silhouette legible with system colours. */
+@media (forced-colors: active) {
+  .item-art {
+    --_body: CanvasText;
+    --_side: CanvasText;
+    --_top: Canvas;
+    --_deep: CanvasText;
+    --_accent: GrayText;
+    --_accent-side: GrayText;
+    --_metal: GrayText;
+    --_metal-side: GrayText;
+    --_dark: CanvasText;
+    --_paper: Canvas;
+    --_paper-side: GrayText;
+  }
+}

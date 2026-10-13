@@ -22,7 +22,9 @@ const GalleryPage = lazy(() =>
 );
 
 function Routes() {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  // "/settings/" is "/settings"; anything unknown falls through to the 404 page.
+  const pathname = location.pathname.length > 1 ? location.pathname.replace(/\/+$/, "") : "/";
   if (pathname === "/") return <InventoryPage />;
   const item = matchPath("/items/:id", pathname);
   if (item) return <ItemDetailPage key={item.id} id={item.id ?? ""} />;

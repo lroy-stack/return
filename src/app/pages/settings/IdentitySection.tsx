@@ -8,7 +8,7 @@ import { TextInput } from "../../ui/Field";
 import { Combobox, Select } from "../../ui/Select";
 import { SectionCard, type SectionProps } from "./shared";
 
-export function IdentitySection({ draft, update, errors }: SectionProps) {
+export function IdentitySection({ draft, update, instant, errors }: SectionProps) {
   const t = useT();
   const { lang } = useI18n();
   const id = draft.identity;
@@ -44,7 +44,7 @@ export function IdentitySection({ draft, update, errors }: SectionProps) {
             options={LANGUAGE_OPTIONS}
             value={id.panelLanguage}
             onChange={(v) =>
-              update((d) => {
+              instant((d) => {
                 d.identity.panelLanguage = v;
               })
             }
@@ -55,7 +55,7 @@ export function IdentitySection({ draft, update, errors }: SectionProps) {
             options={LANGUAGE_OPTIONS}
             value={id.defaultPublicLanguage}
             onChange={(v) =>
-              update((d) => {
+              instant((d) => {
                 d.identity.defaultPublicLanguage = v;
               })
             }
@@ -69,7 +69,7 @@ export function IdentitySection({ draft, update, errors }: SectionProps) {
             options={zones}
             value={id.timezone}
             onChange={(v) =>
-              update((d) => {
+              instant((d) => {
                 d.identity.timezone = v;
               })
             }
@@ -81,7 +81,7 @@ export function IdentitySection({ draft, update, errors }: SectionProps) {
             options={locales}
             value={id.locale}
             onChange={(v) =>
-              update((d) => {
+              instant((d) => {
                 d.identity.locale = v;
               })
             }

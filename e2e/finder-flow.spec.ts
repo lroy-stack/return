@@ -1,6 +1,7 @@
 import {
   expect,
   newFinderContext,
+  ORIGIN,
   openTagPage,
   requireTurnstileNetwork,
   submitContactForm,
@@ -34,30 +35,29 @@ test("2a. the tag page switches between English, German and Spanish", async ({ p
   await expect(page.getByRole("heading", { level: 1, name: tagged.publicTitle })).toBeVisible();
 });
 
-test("2b. a manual location is refused until the finder agrees to share it", async ({
+test("2b. a described place needs no extra consent step and is stored as typed", async ({
   page,
   owner,
   tagged,
 }) => {
+  await requireTurnstileNetwork();
   const message = unique("Left at the cafe");
   const place = unique("Cafe Central, Vienna");
   await openTagPage(page, tagged.tag.url);
   await page.getByLabel("Your message").fill(message);
   await page.getByLabel(/^Place or description/).fill(place);
+  // One privacy statement, no redundant checkbox.
+  await expect(page.getByText("shared only with the owner of this item")).toBeVisible();
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
   await waitForTurnstile(page);
-  expect(await submitContactForm(page, "Send message")).toBe(422);
+  expect(await submitContactForm(page, "Send message")).toBe(303);
 
-  // Same page again with an explanation; the typed text is preserved and nothing was stored.
-  await expect(page).toHaveURL(new RegExp(`/t/${tagged.token}/contact$`));
-  await expect(page.getByRole("alert").first()).toContainText("Please check the highlighted fields.");
-  await expect(page.getByText("agree to share it")).toBeVisible();
-  await expect(page.getByLabel("Your message")).toHaveValue(message);
-  await expect(page.getByLabel(/^Place or description/)).toHaveValue(place);
-  const stored = (await owner.listConversations()).filter((c) => c.lastMessagePreview === message);
-  expect(stored, "no conversation may be created without consent").toHaveLength(0);
+  const summary = (await owner.listConversations()).find((c) => c.lastMessagePreview === message);
+  const detail = await owner.conversation(summary?.id ?? "");
+  expect(detail.locations[0]).toMatchObject({ source: "manual", label: place, lat: null, lng: null });
 });
 
-test("2c. a finder writes in German with a confirmed manual location and lands on a private page", async ({
+test("2c. a finder writes in German with a described place and lands on a private page", async ({
   page,
   context,
   owner,
@@ -69,7 +69,6 @@ test("2c. a finder writes in German with a confirmed manual location and lands o
   await openTagPage(page, `${tagged.tag.url}?lang=de`);
   await page.getByLabel("Ihre Nachricht").fill(message);
   await page.getByLabel(/^Ort oder Beschreibung/).fill(place);
-  await page.getByRole("checkbox", { name: /Ich bin einverstanden/ }).check();
   await waitForTurnstile(page);
   expect(await submitContactForm(page, "Nachricht senden")).toBe(303);
 
@@ -134,7 +133,7 @@ test("2e. a submission without a Turnstile token is rejected and stores nothing"
   const message = unique("Bot message");
   const res = await request.post(`/t/${tagged.token}/contact`, {
     form: { message, lang: "en" },
-    headers: { Origin: "http://localhost:5199" },
+    headers: { Origin: ORIGIN },
     maxRedirects: 0,
   });
   expect(res.status()).toBe(403);

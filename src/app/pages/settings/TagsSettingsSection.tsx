@@ -23,7 +23,7 @@ function ThemeDot({ theme }: { theme: CardTheme }) {
   );
 }
 
-export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
+export function TagsSettingsSection({ draft, update, instant, errors }: SectionProps) {
   const t = useT();
   const tg = draft.tags;
   const example = `${tg.labelPrefix}${"1".padStart(tg.labelDigits, "0")}`;
@@ -66,7 +66,7 @@ export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
           }))}
           value={tg.cardTheme}
           onChange={(v) =>
-            update((d) => {
+            instant((d) => {
               d.tags.cardTheme = v;
             })
           }
@@ -76,7 +76,7 @@ export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
           options={LANGUAGE_OPTIONS}
           value={tg.cardLanguage}
           onChange={(v) =>
-            update((d) => {
+            instant((d) => {
               d.tags.cardLanguage = v;
             })
           }
@@ -87,7 +87,7 @@ export function TagsSettingsSection({ draft, update, errors }: SectionProps) {
         description={t("tagsCfg.showNameHint")}
         checked={tg.showNameOnCard}
         onChange={(on) =>
-          update((d) => {
+          instant((d) => {
             d.tags.showNameOnCard = on;
           })
         }

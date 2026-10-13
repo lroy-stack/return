@@ -58,6 +58,8 @@ export function ItemTrackers({
                 rel="noopener noreferrer"
               >
                 {t("trackers.lostMode")}
+                <Icon name="external" className="mb-0.5 ml-1 inline size-3.5" />
+                <span className="sr-only"> ({t("common.opensNewTab")})</span>
               </a>
               {" · "}
               <a
@@ -67,6 +69,8 @@ export function ItemTrackers({
                 rel="noopener noreferrer"
               >
                 {t("trackers.shareLocation")}
+                <Icon name="external" className="mb-0.5 ml-1 inline size-3.5" />
+                <span className="sr-only"> ({t("common.opensNewTab")})</span>
               </a>
             </span>
           </span>

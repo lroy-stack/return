@@ -3,19 +3,22 @@ import { ApiRequestError } from "../lib/api";
 import { useT } from "../lib/i18n";
 import { Button } from "./Button";
 import { cx } from "./cx";
-import { Icon, type IconName } from "./Icon";
+import { EmptyArt, type EmptyArtName, Icon, type IconName } from "./Icon";
 
 /**
  * Nothing to show yet. Always say why and offer the next step. `compact` for empty sections inside a page.
  */
 export function EmptyState({
   icon = "box_open",
+  art,
   title,
   children,
   action,
   compact,
 }: {
   icon?: IconName;
+  /** Illustration instead of the circled icon (first-run states: no items, conversations, tags). */
+  art?: EmptyArtName;
   title: string;
   children?: ReactNode;
   action?: ReactNode;
@@ -29,14 +32,18 @@ export function EmptyState({
         compact ? "gap-2 rounded-card bg-sunken px-5 py-6" : "gap-3 px-6 py-12",
       )}
     >
-      <span
-        className={cx(
-          "flex items-center justify-center rounded-full bg-primary-tint text-primary-text",
-          compact ? "size-11" : "size-16",
-        )}
-      >
-        <Icon name={icon} className={compact ? "size-5" : "size-8"} strokeWidth={1.5} />
-      </span>
+      {art ? (
+        <EmptyArt name={art} className={cx("text-primary-text", compact ? "size-16" : "size-24")} />
+      ) : (
+        <span
+          className={cx(
+            "flex items-center justify-center rounded-full bg-primary-tint text-primary-text",
+            compact ? "size-11" : "size-16",
+          )}
+        >
+          <Icon name={icon} className={compact ? "size-5" : "size-8"} strokeWidth={1.5} />
+        </span>
+      )}
       <H className={compact ? "text-headline font-semibold" : "text-title3 font-semibold"}>{title}</H>
       {children ? <p className="max-w-sm text-subhead text-muted">{children}</p> : null}
       {action ? <div className="mt-1 flex flex-wrap justify-center gap-2">{action}</div> : null}

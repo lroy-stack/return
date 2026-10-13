@@ -165,6 +165,9 @@ press. `prefers-reduced-motion: reduce` disables all animation and transitions (
 | Tablet 640–1023 | Floating glass rail, collapsed (icons over labels, 84 px) or expanded (icon + label rows, 232 px), choice remembered (`return.rail`); scrolls on short viewports (landscape phones) | "+" at the top of the rail | Glass title bar appears only when the large title has scrolled away |
 | Desktop ≥ 1024 | Floating `glass-strong` sidebar (256 px): wordmark, "New", nav with counts, Appearance segmented control | "New" button | Same as tablet |
 
+Landscape phones (height < 640 px, `short:` variant) fit the rail instead of clipping it: icon-only items, no wordmark
+and no expand toggle (the expanded state is ignored there), so logo-less rail + theme control fit 375 px of height.
+
 The "+"/"New" opens **Create** (sheet): Quick card, Add item, New tags. Actions are URLs pages handle:
 `/?new=item`, `/?quick-card=1`, `/items/:id?quick-card=1` (from an item page), `/tags?new=1`.
 
@@ -192,7 +195,7 @@ All components: typed props, no `any`, semantic HTML first, visible `:focus-visi
 | `Badge` | Badge.tsx | tones `neutral · info · success · warning · lost · danger`; `solid` | — | A property. |
 | `StatusPill` | Badge.tsx | tones; `pulse`; `solid` | — | The state of a thing (dot + word). |
 | `CountBadge` | Badge.tsx | `count`, spoken `label` | hidden at 0, "99+" | Navigation counts only. |
-| `Thumb`, `Avatar` | Thumb.tsx | Thumb `xs · sm · md · lg · xl · fill`, photo or category fallback | lazy | Decorative alt by default. Avatar = initial only (never a stranger's photo). |
+| `Thumb`, `Avatar` | Thumb.tsx | Thumb `xs · sm · md · lg · xl · fill`, photo or category illustration (`ItemArt`, §10.3) | lazy | Decorative alt by default (`alt` also names the illustration). Avatar = initial only (never a stranger's photo). |
 | `Sheet`, `SheetBody`, `SheetFooter` | Sheet.tsx | `size md · lg`; `placement auto · compact · center` | open (spring), dragging, closed | Phone: bottom sheet + grabber + drag/scrim/Esc to close. ≥ 640: `auto` = floating side panel (forms), `compact` = small centred panel (short menus such as Create), `center` = alert on every size. Footer: Cancel then primary; solid so scrolled content never shows through. Escape = native `cancel` (prevented; the parent closes via `open`); a `close` the parent did not ask for is reported once, a late `close` after a programmatic close never is. Controls that own Escape (Select, Combobox, Menu) cancel the keydown so the sheet stays open. |
 | `ConfirmDialog` | ConfirmDialog.tsx | `tone danger · primary`, `typed` | pending, error (stays open) | Centred alert. Typed confirmation for irreversible actions. |
 | `ToastProvider`, `useToast` | Toast.tsx | tones `success · error · info`; options `action`, `sticky` | auto-dismiss 4.5 s / 8 s; `sticky` stays until closed | Glass capsule above the tab bar; errors are alerts. `sticky` is for decisions the user must not miss ("Update ready"). |
@@ -253,10 +256,73 @@ language). "More" buttons that open action sheets → `Menu`: `pages/item/ItemDe
 (`pages/item/ItemTrackers.tsx:59` "Lost Mode", "Share Item Location"), inbox item links (`Thread.tsx:173`), finder footer "Privacy" (finder CSS).
 `ItemCard` (+ `CategoryTile`, now a `Thumb` wrapper) stays in `components/`.
 
-## 10. Iconography
-One set: inline 24 × 24 stroke icons in `ui/Icon.tsx` (1.75 stroke; 2 for selected tabs; 1.25–1.6 for large
-fallbacks). Sizes 16 (inline/meta), 20 (buttons, rows), 24 (tabs, rail), 28–40 (empty states). Decorative by default
-(`aria-hidden`); the parent carries the name. Add icons to the same map; never emoji, never a second icon set.
+## 10. Iconography and illustration
+One original RETURN set (no SF Symbols, Lucide, Heroicons or Phosphor artwork; Apple's SF Symbols licence limits them
+to apps on Apple platforms). Inspired by the HIG principles — optical sizing, one consistent stroke, rounded joins,
+clear silhouettes — not by any file. Never emoji, never a second set.
+
+**Pipeline.** Sources are plain SVG files (open them in any editor): `src/assets/icons/<name>.svg` (+ `<name>-fill.svg`),
+`src/assets/empty/<name>.svg`, `src/assets/item-art/<category>.svg`. `pnpm icons:build` (`scripts/build-icons.ts`, pure
+compiler in `vite/icons.ts`) validates the grammar, minifies path data (0.1-unit precision) and writes
+`src/app/ui/icons.generated.ts`, `src/app/ui/item-art.generated.ts` and the finder sprite `public/p/icons.svg`.
+`test/icons.test.ts` fails when outputs are stale, when a name used in `src/app` (or a `/p/icons.svg#id` in the finder
+templates) does not exist, when a line leaves the live area, or when a navigation icon lacks its filled variant.
+Biome's `noSvgWithoutTitle` is off for `src/assets/**/*.svg` only (see `biome.jsonc`): sources are building blocks; the
+accessible name is applied where they are used.
+
+### 10.1 Line icon grammar (24-unit grid)
+| Rule | Value |
+|---|---|
+| Grid | `viewBox="0 0 24 24"`, live area 20 × 20 (2-unit padding: centre lines stay inside 2.9–21.1) |
+| Keylines | circle Ø 18 · square 16 × 16 (r 4) · portrait 14 × 18 · landscape 18 × 14 |
+| Stroke | one weight, set by the host by **rendered size**: 16 px → 2 · 20 px → 1.85 · 24 px → 1.75 · 32 px → 1.6 · ≥ 40 px → 1.5 units (≈ 1.3–2.4 px). Never per element. `opticalStroke()` in `Icon.tsx` reads the `size-*` class; an explicit `strokeWidth` wins. |
+| Caps / joins | round / round |
+| Corners | containers r 2.5–3.5 (≥ 12 units), small parts r 1–2, polygon corners filleted 0.6–1.8; no sharp outer corner except arrow tips |
+| Gaps | ≥ 2.5 units between parallel strokes so 16 px stays open |
+| Accent | the solid dot (Ø 2.2–2.5): keyholes, flash, pin centre, QR modules, "i" and "!" — the set's signature detail |
+| Paint | `currentColor` only. `fill="currentColor" stroke="none"` = solid part; `fill="currentColor"` + stroke = solid with the outline's footprint (`evenodd`, holes stay open) |
+| Filled variant | `<name>-fill.svg`, same silhouette as the outline (fill offset by half a stroke), details knocked out as holes, never painted in a background colour. Only for navigation: inventory, inbox, tag, settings, plus (create), bell. |
+
+API: `<Icon name="pin" className="size-5" />` (unchanged; decorative, `aria-hidden`), `variant="fill"` for the selected
+tab. Sizes: 16 inline/meta, 20 buttons and rows, 24 tabs and rail, 32 large rows; illustrations above that.
+
+Set (68): navigation `inventory inbox tag settings plus sidebar back chevron chevron_down close more search`; actions
+`edit trash copy share download external print send refresh link scissors eye camera photo qr card map pin location
+globe clock sun moon star user chat`; belongings `suitcase backpack bag laptop tablet phone headphones wallet keys
+documents passport clothing umbrella bike box box_open` (`other` → `box`); states `lost found returning recovered
+closed blocked offline update bell shield lock alert info check`.
+
+### 10.2 Empty-state art (64-unit grid)
+`<EmptyArt name="items | conversations | tags | offline" className="size-24 text-primary-text" />`: same language,
+stroke scaled to ≈ 2 px, plus one tonal fill (`currentColor` at 14 %). Colour from the parent; decorative (the
+heading says it). Adoption in `EmptyState` is a follow-up (an `art` prop next to `icon`).
+
+### 10.3 Item illustrations (96-unit grid)
+`<ItemArt category="suitcase" />` — the no-photo placeholder rendered by `Thumb` (so ItemCard, item hero, pickers,
+contents rows). One drawing per `ITEM_CATEGORIES` value (test-enforced). Grammar: 3/4 front view with one depth
+vector (back = right/up), key light top-left (top faces light, right faces shade, white/black overlay gradient on
+fronts, one specular stroke on the upper-left edge), soft radial contact shadow, rounded geometry; details ≥ 2.5 units
+so 40 px thumbs stay legible; tested at 40 / 96 / 200 px.
+
+Colour only through classes (`ia-body`, `ia-side`, `ia-accent`, `ia-metal`, `ia-dark`, `ia-paper`, …) mapped in
+`src/app/ui/item-art.css` to the tint API: `--illo-body` (default `color-mix(primary 78 %, surface)`, follows the
+theme), `--illo-body-shade`, `--illo-body-light` (derived with `color-mix` when unset), `--illo-accent`, `--illo-metal`,
+`--illo-dark`, `--illo-paper`. A future per-item colour sets only `--illo-body`. Literal colours in sources are limited
+to the white/black light overlays (compiler-enforced); no `style=""`. Gradient and `<use>` ids are prefixed per
+instance (`useId`), so copies never collide or resolve into a hidden duplicate. Accessibility: decorative by default;
+`label` (Thumb's `alt`) makes it `role="img"`. Weight: the data is a lazy chunk (~4.7 KB gz for all 13), requested on
+first render; if that fails offline the category line icon is shown. `forced-colors` maps the tokens to system colours.
+
+### 10.4 Finder pages (sprite)
+Finder pages are server-rendered with `style-src 'self'`, so they reference the sprite (same origin, `img-src 'self'`
+not involved for `<use>`): paint attributes live on the host `<svg>` and inherit into the symbol; solid parts carry
+their own `fill`.
+```html
+<svg class="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85"
+  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="/p/icons.svg#pin"/></svg>
+```
+Empty art: `viewBox="0 0 64 64"`, `#empty-offline`, `stroke-width` ≈ `128 / px`. Item illustrations are panel-only
+(the finder shows the owner's chosen photo or nothing).
 
 ## 10a. Installed app (PWA)
 Manifest `public/manifest.webmanifest`: `display: standalone`, `theme_color`/`background_color` `#FAF7F2` (`warmWhite`;
@@ -265,6 +331,44 @@ Icons are generated from the brand mark by `pnpm icons:pwa`: 192 and 512 `any` (
 corners), 512 `maskable` and the 180 apple-touch icon (full-bleed petrol, glyph at 120 % inside the 80 % safe zone).
 iOS: `apple-mobile-web-app-capable`, title `RETURN`, status bar style `default` (`black-translucent` would draw white
 text over the warm-white canvas); `--header-h` and the tab bar already use `env(safe-area-inset-*)`.
+
+Theme and browser chrome (M-12): `public/theme-init.js` is a blocking classic script in the `<head>` (same origin,
+because the panel CSP is `script-src 'self'`; it is precached by the service worker) that applies the stored
+Light/Dark choice before first paint. `lib/theme.ts` keeps `<meta name="theme-color">` equal to the choice (each meta
+carries `data-scheme`; "Auto" restores the per-scheme pair) and exposes `useThemeChoice()`, so the rail, header sheet
+and Settings controls always show the same value (also across tabs). Colours: `THEME_COLORS` = `--surface`.
+
+Install (M-03, `lib/install.ts`, `components/InstallApp.tsx`): Chromium's `beforeinstallprompt` is captured at start-up
+(`watchInstall()` in `main.tsx`), kept, and `prompt()` runs from our "Install RETURN" button; it hides on
+`appinstalled`/acceptance. iOS has no prompt: Settings > Install app lists Share > Add to Home Screen (and "Open as Web
+App" on iOS 26). A dismissible one-time hint (banner in the content flow, `return.installHint`) shows on touch devices
+only, never in standalone mode. Inside the installed app the section only says it is installed.
+
+## 11a. Mobile patterns (spec 004)
+- **No focus zoom.** Every text input, textarea and native select is >= 16 px computed on coarse pointers; one
+  unlayered rule in `styles.css` enforces it, so a utility class can never undo it. Never add `maximum-scale` or
+  `user-scalable=no` (iOS ignores them and they harm low-vision users). e2e: `no focus zoom`.
+- **Chat layout** (`pages/inbox/Thread.tsx`). Below xl the thread owns the viewport under the glass header
+  (`position: fixed`, header-h to the bottom): header (back, finder name or subject, item link, status, menu), a
+  scrolling `role="log"`, then the composer in flow with `padding-bottom: --shell-bottom` so it sits above the floating
+  tab bar and its own surface fills the strip below (nothing shows through). With the iOS keyboard open
+  (`useKeyboardBox`, VisualViewport) the box follows the visible area. Composer: one compact line that grows to five
+  (`TextArea autoGrow`, native `field-sizing: content` with a script fallback), `enterkeyhint="send"`: on every device Enter
+  sends and Shift+Enter inserts a newline (Ctrl/Cmd+Enter sends too; IME composition and key repeat never send). "+" holds secondary actions (return plan, share my
+  location). Auto-scroll only while the reader is at the bottom or just sent; otherwise a "New messages" pill.
+- **Settings apply instantly.** Toggles, selects, comboboxes and presets save the moment they change (iOS Settings
+  style): optimistic, sends only the changed keys (`PATCH /api/settings`), toast on success, rollback plus error toast
+  on failure (`useSettings().patch`, sections receive `instant`). Text fields keep the explicit draft and the Save bar
+  (`update`); the bar is sticky above the tab bar and "+" and appears only for text edits. A new setting picks
+  `instant` unless it is free text.
+- **Geolocation** (`lib/geolocation.ts`, `components/UseMyLocation.tsx`): started from a tap only; quick coarse fix, then
+  one precise attempt; the error callback is the truth; denied/timeout/unavailable each explain how to fix it per
+  platform (iOS Settings > Privacy & Security > Location Services > Safari Websites, Android site permissions).
+  Fixes coarser than 1 km are shown and stored as an approximate area, never rejected. Sharing needs a preview and a
+  press of "Share location" (consent).
+- **Share / download from a tap.** `navigator.share` must be called from the click with a file that is already built
+  (tag QR PNG and Quick card PNG are prepared in the background; `lib/share.ts`), because iOS drops the activation after
+  an `await` of real work.
 
 ## 11. Voice and copy
 - **Voice**: calm, short, warm, specific. Say what happened and what to do next. No blame, no exclamation marks in

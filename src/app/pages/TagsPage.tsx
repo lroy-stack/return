@@ -107,6 +107,7 @@ export function TagsPage() {
         <ErrorState error={res.state.error} onRetry={() => res.reload()} />
       ) : tags.length === 0 ? (
         <EmptyState
+          art="tags"
           icon="tag"
           title={t("tags.emptyTitle")}
           action={

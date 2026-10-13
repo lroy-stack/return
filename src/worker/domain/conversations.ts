@@ -52,6 +52,9 @@ function assertOpen(conv: ConversationRow): void {
 const DAY_MS = 86_400_000;
 /** Per-conversation daily ceilings for the finder side (the owner is never capped). */
 export const FINDER_DAILY_CAPS = { messages: 50, proposals: 20, locations: 10 } as const;
+/** The owner is not capped on messages and plans, but "share my location" has an hourly ceiling per conversation. */
+export const OWNER_LOCATIONS_PER_HOUR = 20;
+const HOUR_MS = 3_600_000;
 /** New conversations: per client and per tag (distinct sources), per rolling day. */
 export const MAX_NEW_PER_CLIENT_PER_DAY = 3;
 export const MAX_SOURCES_PER_TAG_PER_DAY = 5;
@@ -97,7 +100,13 @@ function locationInsert(
   capped: boolean,
 ): { id: string; statement: D1PreparedStatement } {
   const id = newId();
-  const cap = underCap(LOCATIONS_CAP, conversationId, sharedBy);
+  const cap =
+    sharedBy === "owner"
+      ? {
+          sql: `(SELECT COUNT(*) FROM shared_locations WHERE conversation_id = ? AND shared_by = 'owner' AND created_at > ?) < ?`,
+          binds: [conversationId, new Date(Date.now() - HOUR_MS).toISOString(), OWNER_LOCATIONS_PER_HOUR],
+        }
+      : underCap(LOCATIONS_CAP, conversationId, sharedBy);
   const statement = db
     .prepare(
       `INSERT INTO shared_locations (id, conversation_id, shared_by, source, label, lat, lng, accuracy_m, created_at)

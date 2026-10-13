@@ -327,9 +327,6 @@ test("README screenshots", async ({ browser, playwright }) => {
     const page = await context.newPage();
     await page.goto(seeded.conversation.path);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await page
-      .getByRole("heading", { name: "Messages" })
-      .evaluate((el) => el.scrollIntoView({ block: "start" }));
     await capture(browser, page, "finder-conversation-dark");
     await context.close();
   }

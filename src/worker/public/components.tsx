@@ -1,6 +1,29 @@
 import type { Child } from "hono/jsx";
+import type { IconName } from "../../app/ui/icons.generated";
 import type { Language } from "../../shared/settings";
 import { type Dict, dict } from "./i18n";
+
+/** Icon from the shared sprite (public/p/icons.svg). Attributes only: the strict CSP forbids inline styles. */
+export function SpriteIcon({ name, size = 20 }: { name: IconName; size?: 16 | 20 | 24 }) {
+  const strokeWidth = size <= 16 ? 2 : size <= 20 ? 1.85 : 1.75;
+  return (
+    <svg
+      class="icon"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      stroke-width={strokeWidth}
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <use href={`/p/icons.svg#${name}`} />
+    </svg>
+  );
+}
 
 export type FormValues = Record<string, string>;
 export type FormErrors = Record<string, string>;
@@ -70,8 +93,9 @@ export function FormErrorSummary({ state, t }: { state: FormState; t: Dict }) {
 }
 
 /**
- * Optional "where did you find it" block. Works without JavaScript (describe the place and tick
- * the consent box); public.js adds a GPS button with an explicit preview-and-confirm step.
+ * Optional "where did you find it" block. Works without JavaScript (describe the place);
+ * location.js adds a GPS button that applies the fix to the form at once (the tap is the consent)
+ * and shows it as a compact card with Remove / Update.
  */
 export function LocationFields({
   lang,
@@ -85,17 +109,24 @@ export function LocationFields({
   const t = dict(lang);
   const v = state.values;
   const id = (name: string) => `${idPrefix}-${name}`;
+  const messages = {
+    locating: t.form.locationLocating,
+    refining: t.form.locationRefining,
+    attached: t.form.locationAttached,
+    removed: t.form.locationRemoved,
+    waiting: t.form.locationWaiting,
+    denied: t.form.locationDenied,
+    unavailable: t.form.locationUnavailable,
+    timeout: t.form.locationTimeout,
+    guideIos: t.form.locationGuideIos,
+    guideAndroid: t.form.locationGuideAndroid,
+    guideOther: t.form.locationGuideOther,
+    webviewIos: t.form.locationWebviewIos,
+    webviewAndroid: t.form.locationWebviewAndroid,
+    webviewOther: t.form.locationWebviewOther,
+  };
   return (
-    <fieldset
-      class="location"
-      data-location
-      data-msg-denied={t.form.locationDenied}
-      data-msg-unavailable={t.form.locationUnavailable}
-      data-msg-timeout={t.form.locationTimeout}
-      data-msg-locating={t.form.locationLocating}
-      data-msg-attached={t.form.locationAttached}
-      data-unit={t.form.locationMeters}
-    >
+    <fieldset class="location" data-location data-messages={JSON.stringify(messages)}>
       <legend>{t.form.locationHeading}</legend>
       <p class="hint">{t.form.locationIntro}</p>
       <Field
@@ -114,43 +145,47 @@ export function LocationFields({
           {...fieldAria(id("label"), { error: state.errors.location })}
         />
       </Field>
-      <button type="button" class="btn btn-secondary" data-gps-start hidden>
-        {t.form.locationUse}
-      </button>
-      <p class="status" data-gps-status role="status" />
-      <div class="panel" data-gps-preview hidden>
-        <h3>{t.form.locationPreview}</h3>
-        <dl>
-          <dt>{t.form.locationCoordinates}</dt>
-          <dd data-gps-coords />
-          <dt>{t.form.locationAccuracy}</dt>
-          <dd>
-            <span data-gps-accuracy /> {t.form.locationMeters}
-          </dd>
-        </dl>
-        <p>{t.form.locationWillShare}</p>
-        <div class="actions">
-          <button type="button" class="btn btn-primary" data-gps-confirm>
-            {t.form.locationConfirm}
-          </button>
-          <button type="button" class="btn btn-secondary" data-gps-cancel>
-            {t.form.locationCancel}
-          </button>
+      <div data-gps-ui hidden>
+        <p class="notice notice-warn" data-gps-webview hidden />
+        <button type="button" class="btn btn-secondary" data-gps-start>
+          <SpriteIcon name="location" />
+          {t.form.locationUse}
+        </button>
+        <p class="hint gps-consent">{t.form.locationConsent}</p>
+        <p class="status" data-gps-status role="status" />
+        <div class="notice notice-error" data-gps-error role="alert" hidden>
+          <p data-gps-error-text />
+          <p data-gps-guide />
+          <div class="actions">
+            <button type="button" class="btn btn-secondary btn-sm" data-gps-retry>
+              {t.form.locationRetry}
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" data-gps-describe>
+              {t.form.locationDescribe}
+            </button>
+          </div>
+        </div>
+        <div class="fix-card" data-gps-card hidden>
+          <p class="fix-text">
+            <strong>{t.form.locationPreview}</strong>
+            <span aria-hidden="true"> · </span>
+            <span data-gps-accuracy />
+            <span class="fix-coords" data-gps-coords />
+          </p>
+          <div class="actions">
+            <button type="button" class="btn btn-secondary btn-sm" data-gps-remove>
+              {t.form.locationRemove}
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" data-gps-update>
+              {t.form.locationUpdate}
+            </button>
+          </div>
         </div>
       </div>
       <input type="hidden" name="location_source" value={v.location_source === "gps" ? "gps" : "manual"} />
       <input type="hidden" name="location_lat" value={v.location_lat ?? ""} />
       <input type="hidden" name="location_lng" value={v.location_lng ?? ""} />
       <input type="hidden" name="location_accuracy" value={v.location_accuracy ?? ""} />
-      <label class="check">
-        <input
-          type="checkbox"
-          name="location_confirmed"
-          value="yes"
-          checked={v.location_confirmed === "yes"}
-        />
-        <span>{t.form.locationAgree}</span>
-      </label>
     </fieldset>
   );
 }

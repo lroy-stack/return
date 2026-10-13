@@ -40,7 +40,7 @@ function Notice({ ok, children }: { ok: boolean; children: string }) {
 }
 
 /** Settings > Notifications: this device's push opt-in, preferences, the owner's devices and a test button. */
-export function PushDevices({ draft, update }: Pick<SectionProps, "draft" | "update">) {
+export function PushDevices({ draft, instant }: Pick<SectionProps, "draft" | "instant">) {
   const t = useT();
   const format = useFormat();
   const list = useResource<PushSubscriptionView[]>(
@@ -159,7 +159,7 @@ export function PushDevices({ draft, update }: Pick<SectionProps, "draft" | "upd
             description={t("push.prefEnabledHint")}
             checked={n.enabled}
             onChange={(on) =>
-              update((d) => {
+              instant((d) => {
                 d.notifications.push.enabled = on;
               })
             }
@@ -169,7 +169,7 @@ export function PushDevices({ draft, update }: Pick<SectionProps, "draft" | "upd
             description={t("push.prefItemNameHint")}
             checked={n.showItemName}
             onChange={(on) =>
-              update((d) => {
+              instant((d) => {
                 d.notifications.push.showItemName = on;
               })
             }

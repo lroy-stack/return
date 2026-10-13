@@ -16,6 +16,7 @@ import {
 import type { Tag } from "../../../shared/schemas";
 import { CARD_THEMES, type Language, type Settings } from "../../../shared/settings";
 import { copyText } from "../../lib/clipboard";
+import { downloadBlob, fileStem, svgDataUrl } from "../../lib/files";
 import { useI18n, useT } from "../../lib/i18n";
 import { LANGUAGE_OPTIONS } from "../../lib/locale-options";
 import { Badge } from "../../ui/Badge";
@@ -27,7 +28,7 @@ import { IconTile, List, ListRow } from "../../ui/List";
 import { PageHeader, Toolbar } from "../../ui/Page";
 import { Select } from "../../ui/Select";
 import { useToast } from "../../ui/Toast";
-import { downloadBlob, fileStem, svgDataUrl, svgToPng } from "./export";
+import { svgToPng } from "./export";
 import { type PrintKey, type PrintT, printTranslator } from "./strings";
 
 /** NTAG213 has 144 bytes of user memory; leave room for NDEF/TLV overhead and future query strings. */

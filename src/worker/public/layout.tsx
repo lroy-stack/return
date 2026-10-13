@@ -10,9 +10,21 @@ export interface LayoutProps {
   switcher?: boolean;
   /** Load the Turnstile widget script (pages with the contact form). */
   turnstile?: boolean;
+  /** Page-specific scripts (served from /p/), loaded after the shared public.js. */
+  scripts?: string[];
+  /** "chat": the page fills the viewport (thread scrolls, composer stays at the bottom) and drops the footer. */
+  variant?: "chat";
 }
 
-export function Layout({ lang, title, children, switcher = true, turnstile = false }: LayoutProps) {
+export function Layout({
+  lang,
+  title,
+  children,
+  switcher = true,
+  turnstile = false,
+  scripts = [],
+  variant,
+}: LayoutProps) {
   const t = dict(lang);
   return (
     <html lang={lang}>
@@ -26,11 +38,14 @@ export function Layout({ lang, title, children, switcher = true, turnstile = fal
         <title>{title}</title>
         <link rel="stylesheet" href="/p/public.css" />
         <script src="/p/public.js" defer />
+        {scripts.map((src) => (
+          <script key={src} src={src} defer />
+        ))}
         {turnstile ? (
           <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
         ) : null}
       </head>
-      <body>
+      <body class={variant === "chat" ? "is-chat" : undefined}>
         <a class="skip" href="#content">
           {t.common.skipLink}
         </a>
@@ -55,12 +70,16 @@ export function Layout({ lang, title, children, switcher = true, turnstile = fal
         <main id="content" class="page">
           {children}
         </main>
-        <footer class="footer">
-          <p>{t.common.tagline}</p>
-          <p>
-            <a href={`/privacy?lang=${lang}`}>{t.common.privacy}</a>
-          </p>
-        </footer>
+        {variant === "chat" ? null : (
+          <footer class="footer">
+            <p>{t.common.tagline}</p>
+            <p>
+              <a class="footer-link" href={`/privacy?lang=${lang}`}>
+                {t.common.privacy}
+              </a>
+            </p>
+          </footer>
+        )}
       </body>
     </html>
   );

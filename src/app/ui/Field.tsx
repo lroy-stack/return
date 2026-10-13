@@ -1,4 +1,11 @@
-import { type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes, useId, useRef } from "react";
+import {
+  type InputHTMLAttributes,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+  useId,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { cx } from "./cx";
 import { Icon, type IconName } from "./Icon";
 
@@ -165,6 +172,13 @@ export function TextInput({
   );
 }
 
+/** `field-sizing: content` sizes a textarea to its text without script (Chromium 123+, Safari 26.2+). */
+const NATIVE_AUTOGROW = typeof CSS !== "undefined" && CSS.supports("field-sizing", "content");
+
+/**
+ * Multi-line field. `autoGrow` makes it a chat-style input: one compact line by default that grows with the text
+ * up to `autoGrow` lines (native `field-sizing: content`, script fallback elsewhere), then scrolls. Not resizable.
+ */
 export function TextArea({
   label,
   labelHidden,
@@ -174,27 +188,55 @@ export function TextArea({
   className,
   rows = 3,
   showCount,
+  autoGrow,
   ...rest
-}: FieldProps & { showCount?: boolean } & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "className">) {
+}: FieldProps & { showCount?: boolean; autoGrow?: 3 | 4 | 5 | 6 } & Omit<
+    TextareaHTMLAttributes<HTMLTextAreaElement>,
+    "className"
+  >) {
   const ids = useFieldIds(rest.id);
+  const ref = useRef<HTMLTextAreaElement>(null);
   const counter =
     showCount && rest.maxLength
       ? { length: String(rest.value ?? "").length, max: rest.maxLength }
       : undefined;
+  // Fallback for browsers without field-sizing: measure after every change.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-measure when the text changes
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!autoGrow || NATIVE_AUTOGROW || !el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [autoGrow, rest.value]);
   return (
     <FieldShell ids={ids} {...{ label, labelHidden, hint, error, required, className, counter }}>
       <textarea
         {...rest}
-        rows={rows}
+        ref={ref}
+        rows={autoGrow ? 1 : rows}
         id={ids.id}
         required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(ids, hint, error, Boolean(counter))}
-        className={cx(CONTROL, "max-h-80 resize-y py-2.5 leading-relaxed")}
+        className={cx(
+          CONTROL,
+          "py-2.5 leading-relaxed",
+          autoGrow
+            ? cx("resize-none overflow-y-auto [field-sizing:content]", AUTOGROW_MAX[autoGrow])
+            : "max-h-80 resize-y",
+        )}
       />
     </FieldShell>
   );
 }
+
+/** Max height = lines x 1.625rem line + 1.25rem padding + borders. */
+const AUTOGROW_MAX = {
+  3: "max-h-[calc(3*1.625rem+1.25rem+2px)]",
+  4: "max-h-[calc(4*1.625rem+1.25rem+2px)]",
+  5: "max-h-[calc(5*1.625rem+1.25rem+2px)]",
+  6: "max-h-[calc(6*1.625rem+1.25rem+2px)]",
+} as const;
 
 /** Search input with icon and clear button. The label is visually hidden. */
 export function SearchField({

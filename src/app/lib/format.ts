@@ -7,6 +7,8 @@ export interface Formatter {
   relative: (iso: string | null | undefined) => string;
   /** A meeting time as typed plus its zone: "14 Oct 2026, 18:30 (Madrid)". Never converted to another zone. */
   meeting: (local: string | null | undefined, zone: string | null | undefined) => string;
+  /** Recovery notes carry "[2026-10-14T18:30:00.000Z] text" stamps from the server: show them in the owner's locale and zone. */
+  noteStamps: (notes: string) => string;
 }
 
 function safeIntl<T>(make: () => T, fallback: () => T): T {
@@ -36,7 +38,13 @@ export function createFormatter(locale: string, timeZone: string): Formatter {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? null : d;
   };
+  const NOTE_STAMP = /^\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\]/gm;
   return {
+    noteStamps: (notes) =>
+      notes.replace(NOTE_STAMP, (whole, iso: string) => {
+        const d = parse(iso);
+        return d ? `[${dateTimeFmt.format(d)}]` : whole;
+      }),
     meeting: (local, zone) =>
       local
         ? safeIntl(

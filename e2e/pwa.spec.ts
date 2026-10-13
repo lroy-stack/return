@@ -176,7 +176,7 @@ test("after browsing the panel, Cache Storage holds no /api/ or /cdn-cgi/ URL", 
   expect(urls.some((u) => u.includes("/assets/"))).toBe(true);
   for (const url of urls) {
     expect(new URL(url).pathname, url).toMatch(
-      /^\/(?:$|assets\/[^/]+$|icons\/[^/]+$|manifest\.webmanifest$)/,
+      /^\/(?:$|assets\/[^/]+$|icons\/[^/]+$|manifest\.webmanifest$|theme-init\.js$)/,
     );
   }
   expect(urls.filter((u) => u.includes("/api/") || u.includes("/cdn-cgi/"))).toEqual([]);

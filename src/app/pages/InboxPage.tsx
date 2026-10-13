@@ -50,7 +50,7 @@ export function InboxPage({ activeId }: { activeId?: string }) {
       ) : list.state.status === "error" ? (
         <ErrorState error={list.state.error} onRetry={() => list.reload()} />
       ) : list.state.data.length === 0 ? (
-        <EmptyState compact icon="inbox" title={t("inbox.emptyTitle")}>
+        <EmptyState compact art="conversations" icon="inbox" title={t("inbox.emptyTitle")}>
           {t("inbox.emptyBody")}
         </EmptyState>
       ) : (

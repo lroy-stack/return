@@ -15,7 +15,13 @@ import { FieldGroup, SectionCard, type SectionProps } from "./shared";
 
 const EVENTS = ["newConversation", "newMessage", "locationShared", "proposal", "lostItemScanned"] as const;
 
-export function NotificationsSection({ draft, update, errors, dirty }: SectionProps & { dirty: boolean }) {
+export function NotificationsSection({
+  draft,
+  update,
+  instant,
+  errors,
+  dirty,
+}: SectionProps & { dirty: boolean }) {
   const t = useT();
   const format = useFormat();
   const { settings } = useSettings();
@@ -48,7 +54,7 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
   };
 
   const muteFor = (hours: number | null) =>
-    update((d) => {
+    instant((d) => {
       d.notifications.mutedUntil =
         hours === null ? null : new Date(Date.now() + hours * 3600_000).toISOString();
     });
@@ -56,13 +62,13 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
 
   return (
     <div className="flex flex-col gap-5">
-      <PushDevices draft={draft} update={update} />
+      <PushDevices draft={draft} instant={instant} />
       <SectionCard title={t("settings.notifications")} description={t("settings.notificationsDesc")}>
         <Toggle
           label={t("notif.enable")}
           checked={n.emailEnabled}
           onChange={(on) =>
-            update((d) => {
+            instant((d) => {
               d.notifications.emailEnabled = on;
             })
           }
@@ -87,7 +93,7 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
               label={t(`notif.event.${ev}` as const)}
               checked={n.events[ev]}
               onChange={(on) =>
-                update((d) => {
+                instant((d) => {
                   d.notifications.events[ev] = on;
                 })
               }
@@ -131,7 +137,7 @@ export function NotificationsSection({ draft, update, errors, dirty }: SectionPr
           description={t("notif.notifyFindersHint")}
           checked={n.notifyFinders}
           onChange={(on) =>
-            update((d) => {
+            instant((d) => {
               d.notifications.notifyFinders = on;
             })
           }

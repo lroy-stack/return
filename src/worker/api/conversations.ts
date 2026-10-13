@@ -4,9 +4,11 @@ import {
   blockInputSchema,
   CONVERSATION_STATUSES,
   type ConversationDetail,
+  locationInputSchema,
   messageInputSchema,
   proposalInputSchema,
   proposalResponseSchema,
+  type SharedLocation,
 } from "../../shared/schemas";
 import { languageSchema } from "../../shared/settings";
 import {
@@ -24,6 +26,7 @@ import {
   markRead,
   reopenConversation,
   respondToProposal,
+  shareLocation,
   unblockConversation,
 } from "../domain/conversations";
 import type { AppContext, AppEnv } from "../env";
@@ -92,6 +95,22 @@ conversationsApi.post("/:id/messages", async (c) => {
   const message = await addMessage(c.env.DB, conv, "owner", input.body);
   tellFinder(c, conv);
   return c.json(message, 201);
+});
+
+/**
+ * The owner shares their current position ("Share my location"). Stored like the finder's, with the
+ * place name resolved afterwards; it never notifies the owner (they just did it) and the finder sees it
+ * on the next refresh of their page. Poor accuracy is stored and flagged `approximate`, not rejected.
+ */
+conversationsApi.post("/:id/locations", async (c) => {
+  const conv = await loadRow(c);
+  const input = await parseJson(c, locationInputSchema);
+  const location = await shareLocation(c.env.DB, conv, "owner", input);
+  c.executionCtx.waitUntil(
+    resolveAndStorePlace(c.env, conv.owner_id, { table: "shared_locations", id: location.id }, location),
+  );
+  tellFinder(c, conv);
+  return c.json<SharedLocation>(location, 201);
 });
 
 conversationsApi.post("/:id/proposals", async (c) => {

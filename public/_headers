@@ -16,3 +16,6 @@
 
 /icons/*
   Cache-Control: public, max-age=86400
+
+/p/icons.svg
+  Cache-Control: public, max-age=86400
