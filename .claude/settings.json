@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git switch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm build *)",
+      "Bash(uv run *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr checks *)"
+    ],
+    "deny": ["Read(./.env)", "Read(./.env.local)", "Read(./.env.*.local)", "Read(./.env.production)"]
+  },
+  "enabledPlugins": {
+    "studio@claude-studio": true,
+    "studio-web@claude-studio": true,
+    "studio-ai@claude-studio": true
+  }
+}
