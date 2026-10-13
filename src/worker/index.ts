@@ -21,7 +21,7 @@ export function hostKind(hostname: string, env: Env): HostKind {
   return "unknown";
 }
 
-const PUBLIC_PATH = /^\/(t|T|c)\/|^\/(robots\.txt|emergency)$/;
+const PUBLIC_PATH = /^\/(t|T|c)\/|^\/(robots\.txt|emergency|privacy)$/;
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH.test(pathname);

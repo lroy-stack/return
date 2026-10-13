@@ -81,7 +81,8 @@ export const capabilityHeaders: MiddlewareHandler = async (c, next) => {
   await next();
   c.header("X-Robots-Tag", "noindex, nofollow, noarchive");
   c.header("Referrer-Policy", "no-referrer");
-  c.header("Cache-Control", "no-store");
+  // Handlers may opt into short private caching (e.g. the public item photo); default is no-store.
+  if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
   c.header("Content-Security-Policy", CSP_PUBLIC);
   c.header("X-Content-Type-Options", "nosniff");
   c.header("Permissions-Policy", "geolocation=(self), camera=(), microphone=()");

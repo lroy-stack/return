@@ -1,0 +1,566 @@
+/* Finder pages. Light and dark, mobile first, no framework. Palette mirrors src/shared/brand.ts. */
+:root {
+  --petrol: #0e4a55;
+  --petrol-deep: #0a363e;
+  --petrol-soft: #1f6b78;
+  --bg: #faf7f2;
+  --paper: #fffdf9;
+  --sage: #8fae96;
+  --sage-text: #4a6b55;
+  --sage-tint: #e4ece5;
+  --ink: #1b2326;
+  --muted: #55656a;
+  --line: #e3ded5;
+  --lost: #a84a27;
+  --lost-tint: #f6e6de;
+  --focus: #0e4a55;
+  --on-primary: #ffffff;
+  --radius: 14px;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --petrol: #7fc3cf;
+    --petrol-deep: #a9dce5;
+    --petrol-soft: #5aa7b5;
+    --bg: #101a1d;
+    --paper: #17242a;
+    --sage: #8fae96;
+    --sage-text: #a8c7b0;
+    --sage-tint: #1f3128;
+    --ink: #eef2f1;
+    --muted: #a7b6ba;
+    --line: #2b3b41;
+    --lost: #f0a27f;
+    --lost-tint: #3a2219;
+    --focus: #9fd6e0;
+    --on-primary: #0a2a31;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    1.0625rem / 1.55 system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+}
+
+.skip {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  background: var(--paper);
+  padding: 0.75rem 1rem;
+  z-index: 10;
+}
+
+.skip:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+}
+
+.topbar,
+.page,
+.footer {
+  width: 100%;
+  max-width: 34rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-block: 0.5rem;
+}
+
+.brand {
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--petrol);
+}
+
+.langs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.langs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 0.6rem;
+  border-radius: 999px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9375rem;
+}
+
+.langs a[aria-current="true"] {
+  background: var(--sage-tint);
+  color: var(--sage-text);
+  font-weight: 600;
+}
+
+.page {
+  padding-block: 0.5rem 2rem;
+}
+
+.footer {
+  padding-block: 1.5rem 2.5rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  border-top: 1px solid var(--line);
+}
+
+.footer a,
+.page a {
+  color: var(--petrol);
+}
+
+h1 {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  margin: 0.25rem 0 0.5rem;
+  color: var(--petrol-deep);
+  overflow-wrap: anywhere;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--petrol-deep);
+}
+
+h3 {
+  font-size: 1.0625rem;
+  margin: 0 0 0.5rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+}
+
+.eyebrow {
+  margin: 1rem 0 0;
+  color: var(--sage-text);
+  font-weight: 600;
+}
+
+.owner,
+.muted,
+.hint,
+.optional {
+  color: var(--muted);
+}
+
+.hint {
+  font-size: 0.9375rem;
+  margin: 0 0 0.35rem;
+}
+
+.lead {
+  font-size: 1.1875rem;
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 22rem;
+  object-fit: cover;
+  border-radius: var(--radius);
+  margin: 0.75rem 0 1rem;
+  background: var(--sage-tint);
+}
+
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin: 1.25rem 0;
+}
+
+.card > h2:first-child {
+  margin-top: 0;
+}
+
+.notice {
+  background: var(--sage-tint);
+  color: var(--ink);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin: 1rem 0;
+}
+
+.notice p {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.notice-error {
+  background: var(--lost-tint);
+  border: 1px solid var(--lost);
+}
+
+.notice-closed {
+  background: var(--paper);
+  border: 1px dashed var(--muted);
+}
+
+.banner-lost {
+  background: var(--lost-tint);
+  border-left: 6px solid var(--lost);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.banner-lost strong {
+  color: var(--lost);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.banner-lost p {
+  margin: 0.25rem 0 0;
+}
+
+.banner-new {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--petrol);
+  border-radius: var(--radius);
+  margin-bottom: 0.75rem;
+}
+
+.banner-new a {
+  display: block;
+  padding: 0.85rem 1rem;
+  min-height: 44px;
+  color: var(--on-primary);
+  font-weight: 600;
+  text-align: center;
+}
+
+.stack > * + * {
+  margin-top: 1rem;
+}
+
+.field label,
+.location legend {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.optional {
+  font-weight: 400;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="datetime-local"],
+select,
+textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.65rem 0.8rem;
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1.5px solid var(--muted);
+  border-radius: 10px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.has-error input,
+.has-error textarea,
+.has-error select {
+  border-color: var(--lost);
+}
+
+.field-error {
+  color: var(--lost);
+  font-weight: 600;
+  margin: 0.35rem 0 0;
+}
+
+.location {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem 1rem;
+  margin: 0;
+}
+
+.location legend {
+  padding-inline: 0.35rem;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: 44px;
+  margin-top: 0.75rem;
+}
+
+.check input {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0.1rem 0 0;
+  flex: none;
+  accent-color: var(--petrol);
+}
+
+.panel {
+  background: var(--sage-tint);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.panel dl {
+  margin: 0 0 0.75rem;
+}
+
+.panel dt {
+  font-weight: 600;
+}
+
+.panel dd {
+  margin: 0 0 0.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.status {
+  min-height: 1.5em;
+  margin: 0.5rem 0 0;
+  color: var(--sage-text);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0.6rem 1.1rem;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: none;
+  border-radius: 999px;
+  border: 2px solid var(--petrol);
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--petrol);
+  color: var(--on-primary);
+}
+
+.page a.btn-primary {
+  color: var(--on-primary);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--petrol);
+}
+
+.btn-block {
+  display: flex;
+  width: 100%;
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.contacts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.contacts li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.contact-label {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.contact-big {
+  font-size: 1.25rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.thread,
+.places,
+.proposals {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.bubble {
+  max-width: 88%;
+  padding: 0.6rem 0.9rem;
+  margin: 0 0 0.6rem;
+  border-radius: 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+
+.bubble.from-finder {
+  margin-left: auto;
+  background: var(--sage-tint);
+  border-color: transparent;
+}
+
+.bubble .who {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--sage-text);
+}
+
+.bubble .body {
+  margin: 0.1rem 0 0.25rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+time {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.map-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0 0;
+}
+
+.map-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.proposal {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.proposal.status-accepted {
+  border: 2px solid var(--sage-text);
+  background: var(--sage-tint);
+}
+
+.proposal.status-declined,
+.proposal.status-cancelled,
+.proposal.status-superseded {
+  opacity: 0.75;
+}
+
+.proposal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.chip {
+  background: var(--line);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.1rem 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.status-accepted .chip {
+  background: var(--sage-text);
+  color: var(--bg);
+}
+
+details.card summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 650;
+  color: var(--petrol-deep);
+  cursor: pointer;
+}
+
+details.card[open] summary {
+  margin-bottom: 0.75rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn {
+    transition: filter 0.15s ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none;
+    transition: none;
+    scroll-behavior: auto;
+  }
+}
+
+/* Must stay last: equal specificity, so it beats the display rules above. */
+[hidden] {
+  display: none;
+}
