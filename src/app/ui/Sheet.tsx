@@ -31,6 +31,11 @@ export function Sheet({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Latest `open` prop. The native `close` event also fires when WE close the dialog because the parent
+  // set open=false (e.g. switching from one sheet to another); only user-initiated closes may call onClose,
+  // otherwise that late event cancels whatever the parent just opened.
+  const openRef = useRef(open);
+  openRef.current = open;
   const drag = useRef<{ y: number; dy: number; id: number } | null>(null);
   const titleId = useId();
   const descId = useId();
@@ -84,7 +89,9 @@ export function Sheet({
       data-placement={placement === "auto" ? undefined : placement}
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
-      onClose={onClose}
+      onClose={() => {
+        if (openRef.current) onClose();
+      }}
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();
       }}

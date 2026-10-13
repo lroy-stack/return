@@ -10,7 +10,7 @@ import {
 } from "./fixtures";
 
 /**
- * Scenario 4. Finder and owner agree on a handover; the agreed place gets directions links that carry
+ * Scenario 4. Finder and owner agree on a return plan; the agreed place gets directions links that carry
  * the destination only, never anybody's starting point.
  */
 
@@ -24,6 +24,8 @@ async function mapHrefs(scope: Page | Locator): Promise<MapHrefs> {
   const apple = scope.getByRole("link", { name: /Open in Apple Maps/ });
   await expect(google).toHaveCount(1);
   await expect(apple).toHaveCount(1);
+  await expect(google).toContainText("Google Maps");
+  await expect(apple).toContainText("Apple Maps");
   for (const link of [google, apple]) {
     await expect(link).toHaveAttribute("target", "_blank");
     await expect(link).toHaveAttribute("rel", /noopener/);
@@ -62,31 +64,31 @@ test("4a. the finder proposes a meeting point, the owner accepts it in the inbox
   await requireTurnstileNetwork();
   const conversation = await startConversation(tagged);
 
-  // The finder opens their private link and suggests a place and time.
+  // The finder opens their private link and proposes a place and time.
   const finderContext = await newFinderContext(browser);
   const finder = await finderContext.newPage();
   await finder.goto(conversation.path);
-  await finder.getByText("Suggest how to return it").click();
+  await finder.getByText("Propose a return plan").click();
   await finder.getByLabel("Place", { exact: true }).fill(place);
   await finder.getByLabel(/^Date and time/).fill("2026-10-14T18:30");
   await finder.getByLabel(/^Instructions/).fill(instructions);
-  await finder.getByRole("button", { name: "Send suggestion" }).click();
+  await finder.getByRole("button", { name: "Send return plan" }).click();
 
   const suggestion = finder.getByRole("listitem").filter({ hasText: place });
   await expect(suggestion).toContainText("Waiting for an answer");
-  await expect(suggestion).toContainText("Suggested by you");
+  await expect(suggestion).toContainText("Proposed by you");
   await expect(suggestion).toContainText(/6:30\s*PM/);
   await expect(suggestion).toContainText(instructions);
-  // Directions only appear once both sides agreed; the finder cannot accept their own suggestion.
+  // Directions only appear once both sides agreed; the finder cannot accept their own plan.
   await expect(suggestion.getByRole("link", { name: /Maps/ })).toHaveCount(0);
   await expect(suggestion.getByRole("button", { name: "Accept" })).toHaveCount(0);
-  await expect(suggestion.getByRole("button", { name: "Cancel suggestion" })).toBeVisible();
+  await expect(suggestion.getByRole("button", { name: "Cancel return plan" })).toBeVisible();
 
   // The owner finds it in the inbox and accepts.
   await ownerPage.goto("/conversations");
   await ownerPage.getByRole("link", { name: new RegExp(tagged.publicTitle) }).click();
   const thread = ownerPage.getByRole("log");
-  await expect(thread).toContainText("Handover proposal: Meeting point");
+  await expect(thread).toContainText("Return plan: Meeting point");
   await expect(thread).toContainText(place);
   await expect(thread).toContainText("18:30");
   await expect(thread).toContainText("Proposed by the finder");
@@ -119,24 +121,26 @@ test("4b. the owner proposes exact coordinates, the finder accepts, directions p
   const conversation = await startConversation(tagged);
 
   await ownerPage.goto(`/conversations/${conversation.id}`);
-  await ownerPage.getByRole("button", { name: "Propose a handover" }).click();
-  const dialog = ownerPage.getByRole("dialog", { name: "Propose a handover" });
+  await ownerPage.getByRole("button", { name: "Propose a return plan" }).click();
+  const dialog = ownerPage.getByRole("dialog", { name: "Propose a return plan" });
   await dialog.getByLabel("Type of place").selectOption("hotel_reception");
-  await dialog.getByLabel(/^Place/).fill(place);
+  await dialog.getByRole("textbox", { name: "Place", exact: true }).fill(place);
+  // Coordinates by hand live in a collapsed disclosure.
+  await dialog.getByText("Enter coordinates by hand").click();
   await dialog.getByLabel(/^Latitude/).fill("38.7223");
   await dialog.getByLabel(/^Longitude/).fill("-9.1393");
   await dialog.getByLabel(/^Date and time/).fill("2026-10-15T09:00");
-  await dialog.getByRole("button", { name: "Send proposal" }).click();
+  await dialog.getByRole("button", { name: "Send return plan" }).click();
   const thread = ownerPage.getByRole("log");
   await expect(thread).toContainText(place);
-  await expect(thread.getByRole("button", { name: "Cancel proposal" })).toBeVisible();
+  await expect(thread.getByRole("button", { name: "Cancel plan" })).toBeVisible();
   await expect(thread.getByRole("button", { name: "Accept" })).toHaveCount(0);
 
   const finderContext = await newFinderContext(browser);
   const finder = await finderContext.newPage();
   await finder.goto(conversation.path);
   const suggestion = finder.getByRole("listitem").filter({ hasText: place });
-  await expect(suggestion).toContainText("Suggested by the owner");
+  await expect(suggestion).toContainText("Proposed by the owner");
   await expect(suggestion).toContainText("Hotel reception");
   await suggestion.getByRole("button", { name: "Accept" }).click();
 

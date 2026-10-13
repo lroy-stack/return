@@ -5,12 +5,14 @@
  * the owner API (dev auth bypass on loopback) and uses unique names. Nothing here relies on test order.
  */
 import { randomBytes, randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import {
   type APIRequestContext,
   type Browser,
   type BrowserContext,
   test as base,
   expect,
+  type Locator,
   type Page,
   type PlaywrightWorkerArgs,
 } from "@playwright/test";
@@ -18,6 +20,7 @@ import type {
   ConversationDetail,
   ConversationSummary,
   Item,
+  ItemDetail,
   ItemInput,
   Proposal,
   ProposalInput,
@@ -49,6 +52,7 @@ export function randomSecretToken(): string {
 
 export interface OwnerApi {
   createItem(overrides?: Partial<ItemInput>): Promise<Item>;
+  item(itemId: string): Promise<ItemDetail>;
   createTag(itemId: string | null): Promise<Tag>;
   markLost(itemId: string): Promise<void>;
   markRecovered(itemId: string): Promise<void>;
@@ -68,6 +72,7 @@ function ownerApi(request: APIRequestContext): OwnerApi {
   return {
     createItem: (overrides = {}) =>
       call<Item>("POST", "/items", { name: unique("Item"), category: "backpack", ...overrides }),
+    item: (itemId) => call<ItemDetail>("GET", `/items/${itemId}`),
     createTag: async (itemId) =>
       (await call<{ tags: Tag[] }>("POST", "/tags", { itemId, count: 1 })).tags[0] as Tag,
     markLost: async (itemId) => void (await call("POST", `/items/${itemId}/lost`, {})),
@@ -106,12 +111,19 @@ export interface FinderConversation {
   id: string;
 }
 
+/** A position the finder confirmed to share. */
+export interface GpsFix {
+  lat: number;
+  lng: number;
+  accuracyM: number;
+}
+
 interface Fixtures {
   owner: OwnerApi;
   /** An item (private fields filled in, public title set) with one active tag. */
   tagged: Tagged;
   /** Starts a conversation for a tag the way a finder's browser would, without driving the UI. */
-  startConversation: (tagged: Tagged, message?: string) => Promise<FinderConversation>;
+  startConversation: (tagged: Tagged, message?: string, gps?: GpsFix) => Promise<FinderConversation>;
 }
 
 /**
@@ -173,7 +185,7 @@ export const test = base.extend<Fixtures>({
   },
 
   startConversation: async ({ playwright, owner }, use) => {
-    await use((tagged, message) => startConversation(playwright, owner, tagged, message));
+    await use((tagged, message, gps) => startConversation(playwright, owner, tagged, message, gps));
   },
 });
 
@@ -182,12 +194,24 @@ async function startConversation(
   owner: OwnerApi,
   tagged: Tagged,
   message = unique("Found it near the station"),
+  gps?: GpsFix,
 ): Promise<FinderConversation> {
   // Fresh cookie jar per finder: the `rc` cookie must not leak between simulated people.
   const finder = await playwright.request.newContext({ baseURL: ORIGIN, extraHTTPHeaders: finderHeaders() });
   try {
     const res = await finder.post(`/t/${tagged.token}/contact`, {
-      form: { message, lang: "en", "cf-turnstile-response": TURNSTILE_DUMMY_TOKEN },
+      form: {
+        message,
+        lang: "en",
+        "cf-turnstile-response": TURNSTILE_DUMMY_TOKEN,
+        ...(gps && {
+          location_source: "gps",
+          location_lat: String(gps.lat),
+          location_lng: String(gps.lng),
+          location_accuracy: String(gps.accuracyM),
+          location_confirmed: "yes",
+        }),
+      },
       headers: { Origin: ORIGIN },
       maxRedirects: 0,
     });
@@ -307,4 +331,56 @@ export async function horizontalOverflow(
     innerWidth: window.innerWidth,
   }));
   return { ...metrics, viewportWidth: page.viewportSize()?.width ?? metrics.innerWidth };
+}
+
+/**
+ * Opens the Create sheet the way a person would: the floating "+" on phones, the rail button on tablets
+ * ("Create something new") or "New" in the desktop sidebar. Only the visible one is in the accessibility tree.
+ */
+export async function openCreateMenu(page: Page): Promise<Locator> {
+  await page.getByRole("button", { name: /^(Create something new|New)$/ }).click();
+  const menu = page.getByRole("dialog", { name: "Create", exact: true });
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
+const JSQR_PATH = createRequire(import.meta.url).resolve("jsqr/dist/jsQR.js");
+
+/**
+ * Decodes the QR code in an image the way a phone camera would: the browser rasterises it onto white paper and
+ * jsQR scans the pixels. `size` draws the image scaled to a square (right for SVGs, which scale); without it
+ * the image is scanned at its natural size (right for a PNG). Runs in an `about:blank` page of its own.
+ */
+export async function decodeQr(page: Page, src: string, size?: number): Promise<string | null> {
+  await page.goto("about:blank");
+  await page.addScriptTag({ path: JSQR_PATH });
+  return page.evaluate(
+    async ({ src, size }) => {
+      const image = new Image();
+      image.src = src;
+      await image.decode();
+      const width = size ?? image.naturalWidth;
+      const height = size ?? image.naturalHeight;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("2d canvas unavailable");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(image, 0, 0, width, height);
+      const pixels = ctx.getImageData(0, 0, width, height);
+      const jsQR = (
+        window as unknown as {
+          jsQR: (d: Uint8ClampedArray, w: number, h: number, o: object) => { data: string } | null;
+        }
+      ).jsQR;
+      return jsQR(pixels.data, width, height, { inversionAttempts: "dontInvert" })?.data ?? null;
+    },
+    { src, size },
+  );
+}
+
+export function svgDataUri(svg: string): string {
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }

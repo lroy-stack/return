@@ -1,4 +1,4 @@
-import { expect, newFinderContext, test, unique } from "./fixtures";
+import { expect, newFinderContext, openCreateMenu, test, unique } from "./fixtures";
 
 /**
  * Scenario 1. The owner builds an item and a tag in the panel; the finder page built from it shows
@@ -21,7 +21,8 @@ test("1. owner creates an item and a tag in the panel; the tag page exposes only
   // Create the item through the form.
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "Inventory" })).toBeVisible();
-  await page.getByRole("button", { name: "Add item" }).first().click();
+  const menu = await openCreateMenu(page);
+  await menu.getByRole("button", { name: /^Add item/ }).click();
   const createDialog = page.getByRole("dialog", { name: "Add item" });
   await createDialog.getByLabel(/^Name\b/).fill(privateValues.name);
   await createDialog.getByLabel("Brand").fill(privateValues.brand);
@@ -34,17 +35,17 @@ test("1. owner creates an item and a tag in the panel; the tag page exposes only
   // The item page opens; give it a public title.
   await expect(page).toHaveURL(/\/items\/[0-9a-f-]{36}$/);
   await expect(page.getByRole("heading", { level: 1, name: privateValues.name })).toBeVisible();
-  await page
-    .getByRole("region", { name: "Public page for this item" })
-    .getByRole("button", { name: "Edit" })
-    .click();
+  // The public page section is a collapsed disclosure; its Edit action appears once it is open.
+  const publicSection = page.locator("#sec-public");
+  await publicSection.getByRole("heading", { name: "Public page for this item" }).click();
+  await publicSection.getByRole("button", { name: "Edit" }).click();
   const publicDialog = page.getByRole("dialog", { name: "Public page for this item" });
   await publicDialog.getByLabel("Public title").fill(publicTitle);
   await publicDialog.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("region", { name: "Public page for this item" })).toContainText(publicTitle);
+  await expect(publicSection).toContainText(publicTitle);
 
   // Create the tag from the item page and read its URL from the tag sheet.
-  const tags = page.getByRole("region", { name: "Tags", exact: true });
+  const tags = page.locator("#sec-tags");
   await tags.getByRole("button", { name: "Add tag" }).click();
   await tags.getByRole("listitem").getByRole("button").click();
   const tagDialog = page.getByRole("dialog", { name: /^Tag / });
@@ -67,4 +68,25 @@ test("1. owner creates an item and a tag in the panel; the tag page exposes only
   }
   expect(await response?.text()).not.toContain(privateValues.serial);
   await finderContext.close();
+});
+
+/** The item header no longer has an Edit button: editing lives in the section actions and in "More". */
+test("1b. owner edits an item from the More sheet", async ({ page, owner }) => {
+  // Regression: the More sheet used to cancel the dialog it opened (late native close event).
+  const item = await owner.createItem({ name: unique("Before edit") });
+  const renamed = unique("After edit");
+
+  await page.goto(`/items/${item.id}`);
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Item actions" })
+    .getByRole("button", { name: /^Edit item/ })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Edit item" });
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  await dialog.getByLabel(/^Name\b/).fill(renamed);
+  await dialog.getByRole("button", { name: "Save" }).click();
+
+  await expect(page.getByRole("heading", { level: 1, name: renamed })).toBeVisible();
+  expect((await owner.item(item.id)).item.name).toBe(renamed);
 });

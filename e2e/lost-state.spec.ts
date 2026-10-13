@@ -31,7 +31,12 @@ test("6. marking an item lost shows the lost banner on its tag page; marking it 
   await lostDialog.getByLabel("Where?").fill("Gate B12, Lisbon airport");
   await lostDialog.getByRole("button", { name: "Mark as lost" }).click();
   await expect(ownerPage.getByText("This item is marked as lost.")).toBeVisible();
-  await expect(ownerPage.getByText("LOST", { exact: true })).toBeVisible();
+  // "Lost" also appears elsewhere (attention strip, filters): scope to the item's own header.
+  const statusPill = ownerPage
+    .locator("#main header")
+    .filter({ has: ownerPage.getByRole("heading", { level: 1 }) })
+    .getByText("Lost", { exact: true });
+  await expect(statusPill).toBeVisible();
 
   // Finders now see the banner, the default lost message and the reward.
   await finder.reload();
@@ -47,6 +52,7 @@ test("6. marking an item lost shows the lost banner on its tag page; marking it 
     .click();
   await expect(ownerPage.getByText("This item is marked as lost.")).toHaveCount(0);
   await expect(ownerPage.getByText("With you")).toBeVisible();
+  await expect(statusPill).toHaveCount(0);
 
   // The banner is gone again, and so is the reward.
   await finder.reload();
