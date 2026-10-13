@@ -114,6 +114,7 @@ export function LocationFields({
     refining: t.form.locationRefining,
     attached: t.form.locationAttached,
     removed: t.form.locationRemoved,
+    skipped: t.form.locationSkipped,
     waiting: t.form.locationWaiting,
     denied: t.form.locationDenied,
     unavailable: t.form.locationUnavailable,
@@ -153,6 +154,9 @@ export function LocationFields({
         </button>
         <p class="hint gps-consent">{t.form.locationConsent}</p>
         <p class="status" data-gps-status role="status" />
+        <button type="button" class="btn btn-secondary btn-sm" data-gps-skip hidden>
+          {t.form.locationSkip}
+        </button>
         <div class="notice notice-error" data-gps-error role="alert" hidden>
           <p data-gps-error-text />
           <p data-gps-guide />

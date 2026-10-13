@@ -935,6 +935,25 @@ describe("conversation page", () => {
     expect(body.html).toContain("from-finder");
   });
 
+  it("marks a re-rendered form with X-Form-State so scripts may show it, and nothing else", async () => {
+    const conv = await openConversation(await seedTag());
+    const invalid = await finderPost(
+      `/c/${conv.token}/messages`,
+      { message: "" },
+      { headers: { Accept: "application/json" } },
+    );
+    expect(invalid.status).toBe(422);
+    expect(invalid.headers.get("X-Form-State")).toBe("1");
+
+    const unknown = await finderPost(
+      `/c/${"A".repeat(43)}/messages`,
+      { message: "x" },
+      { headers: { Accept: "application/json" } },
+    );
+    expect(unknown.status).toBe(404);
+    expect(unknown.headers.get("X-Form-State")).toBeNull();
+  });
+
   it("merges messages, places and plans into one chronological timeline with day separators", async () => {
     const seeded = await seedTag();
     const conv = await openConversation(seeded);

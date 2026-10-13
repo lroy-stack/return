@@ -159,6 +159,8 @@
 
   function setBusy(form, busy) {
     form.toggleAttribute("aria-busy", busy);
+    // Text typed while the request is in flight must survive the reset that follows a success.
+    if (form === composeForm) textarea.readOnly = busy;
     form.querySelectorAll("button").forEach((button) => {
       button.disabled = busy;
     });
@@ -194,13 +196,16 @@
     })
       .then((res) => {
         const json = (res.headers.get("Content-Type") || "").indexOf("application/json") !== -1;
-        if (!res.ok || !json) {
-          // Validation or limits: let the server render the page with its explanation.
+        if (res.ok && json) return res.json();
+        if (res.headers.get("X-Form-State") === "1") {
+          // The server re-rendered the form with its explanation (validation, daily cap): show that page.
           setBusy(form, false);
           nativeSubmit(form, submitter);
           return null;
         }
-        return res.json();
+        // Anything else (rate limit, outage): never repeat the write. Keep the text, say so, and look at the
+        // timeline in case the write did go through.
+        throw new Error(String(res.status));
       })
       .then((result) => {
         if (!result) return;
@@ -219,6 +224,7 @@
       .catch(() => {
         setBusy(form, false);
         showError(text.sendFailed);
+        poll();
       });
   }
 
@@ -278,7 +284,7 @@
       })
       .then((result) => {
         delay = 10000;
-        if (isOpen && result.open === false) {
+        if (result.open !== isOpen) {
           window.location.reload();
           return;
         }

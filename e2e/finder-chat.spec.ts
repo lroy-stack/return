@@ -240,6 +240,109 @@ test.describe("chat layout", () => {
   });
 });
 
+test.describe("chat when a send does not go through", () => {
+  test.use({ viewport: { width: 375, height: 667 } });
+
+  test("14o. a rate-limited send keeps the text and the chat, and is not repeated", async ({
+    page,
+    tagged,
+    startConversation,
+  }) => {
+    await requireTurnstileNetwork();
+    const conversation = await startConversation(tagged);
+    let posts = 0;
+    await page.route("**/messages", (route) => {
+      posts += 1;
+      return route.fulfill({
+        status: 429,
+        contentType: "text/html",
+        body: "<!doctype html><title>We cannot take your request right now.</title>",
+      });
+    });
+    await page.goto(conversation.path);
+    const text = unique("Do not lose me");
+
+    await composer(page).fill(text);
+    await page.getByRole("button", { name: "Send reply" }).click();
+
+    await expect(page.locator("[data-compose-error]")).toContainText("Could not send");
+    await expect(composer(page)).toHaveValue(text);
+    expect(page.url()).toContain(conversation.path);
+    expect(posts, "the write is not repeated by a native submit").toBe(1);
+  });
+
+  test("14p. a failure after the write succeeded does not duplicate the message", async ({
+    page,
+    owner,
+    tagged,
+    startConversation,
+  }) => {
+    await requireTurnstileNetwork();
+    const conversation = await startConversation(tagged);
+    let posts = 0;
+    await page.route("**/messages", async (route) => {
+      posts += 1;
+      await route.fetch();
+      await route.fulfill({ status: 503, contentType: "text/plain", body: "down" });
+    });
+    await page.goto(conversation.path);
+    const text = unique("Written once");
+
+    await composer(page).fill(text);
+    await page.getByRole("button", { name: "Send reply" }).click();
+
+    await expect(page.locator("[data-compose-error]")).toContainText("Could not send");
+    await expect(page.locator("[data-timeline]").getByText(text)).toHaveCount(1, { timeout: 15_000 });
+    expect(posts).toBe(1);
+    const stored = (await owner.conversation(conversation.id)).messages.filter((m) => m.body === text);
+    expect(stored).toHaveLength(1);
+  });
+
+  test("14q. the composer is read-only while sending, so text typed meanwhile is never wiped", async ({
+    page,
+    tagged,
+    startConversation,
+  }) => {
+    await requireTurnstileNetwork();
+    const conversation = await startConversation(tagged);
+    await page.route("**/messages", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await route.continue();
+    });
+    await page.goto(conversation.path);
+
+    await composer(page).fill(unique("Slow send"));
+    await page.getByRole("button", { name: "Send reply" }).click();
+    await expect(composer(page)).toHaveJSProperty("readOnly", true);
+    await expect(composer(page)).toHaveJSProperty("readOnly", false);
+    await expect(composer(page)).toHaveValue("");
+  });
+
+  test("14r. a conversation that is closed and then reopened gets its composer back", async ({
+    page,
+    request,
+    tagged,
+    startConversation,
+  }) => {
+    test.setTimeout(90_000);
+    await requireTurnstileNetwork();
+    const conversation = await startConversation(tagged);
+    await page.goto(conversation.path);
+    const call = (action: string) =>
+      request.post(`/api/conversations/${conversation.id}/${action}`, {
+        data: {},
+        headers: { Origin: ORIGIN },
+      });
+
+    expect((await call("close")).ok()).toBe(true);
+    await expect(page.getByText("This conversation is closed.")).toBeVisible({ timeout: 25_000 });
+    await expect(composer(page)).toHaveCount(0);
+
+    expect((await call("reopen")).ok()).toBe(true);
+    await expect(composer(page)).toBeVisible({ timeout: 25_000 });
+  });
+});
+
 test.describe("chat on small and short screens", () => {
   test("14h. 320x568: neither finder page scrolls sideways", async ({ page, tagged, startConversation }) => {
     await requireTurnstileNetwork();

@@ -64,6 +64,8 @@ async function renderConversation(
   status?: 422 | 429,
 ) {
   const detail = await getConversationDetail(c.env.DB, loaded.conv);
+  // Tells chat.js this page carries the finder's input and an explanation: it may show it by a normal submit.
+  if (form) c.header("X-Form-State", "1");
   return htmlPage(
     c,
     <ConversationPage

@@ -107,6 +107,8 @@ docs/specs/004-mobile-ux, docs/architecture/next-phases.md, ADRs 0002–0006, co
 ### J7 · Operations and repository (lead)
 - ☐ Push pending local commits to GitHub (last push failed on a network timeout).
 - ☐ CI: nightly E2E job green on the public repo; consider Dependabot security updates.
+- ☐ Flaky E2E: `pwa-push.spec.ts` "content-free notification" (CDP synthetic push) fails occasionally in the full run
+  under load; passes 3/3 alone. Stabilise (e.g. wait for the SW to be idle before deliverPushMessage).
 - ☐ Record the D1 Time Travel bookmark before each migration (done for 0003–0005; keep the habit).
 
 ### J8 · Owner actions (only you can do these)

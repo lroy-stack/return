@@ -720,6 +720,33 @@ test.describe("owner location", () => {
     expect(plan?.lng).toBeCloseTo(FIX.longitude, 3);
   });
 
+  test("editing the location text by hand drops the position instead of saving it under new text", async ({
+    page,
+    context,
+    owner,
+  }) => {
+    await context.grantPermissions(["geolocation"]);
+    await context.setGeolocation(FIX);
+    const item = await owner.createItem();
+    await page.goto(`/items/${item.id}`);
+    await page
+      .getByRole("button", { name: /Last known location|Not set/ })
+      .first()
+      .click();
+    const sheet = page.getByRole("dialog", { name: "Last known location" });
+    await sheet.getByRole("button", { name: "Use my location" }).click();
+    const field = sheet.getByLabel("Last known location", { exact: true });
+    await expect(field).not.toHaveValue("");
+    await field.fill("Train to Berlin");
+    await expect(sheet.getByText(/saved position was removed/)).toBeVisible();
+    await sheet.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("Saved")).toBeVisible();
+    const saved = (await owner.item(item.id)).item;
+    expect(saved.lastKnownLocation).toBe("Train to Berlin");
+    expect(saved.lastKnownLat).toBeNull();
+    expect(saved.lastKnownLng).toBeNull();
+  });
+
   test("Set location on an item stores the position with the text", async ({ page, context, owner }) => {
     await context.grantPermissions(["geolocation"]);
     await context.setGeolocation(FIX);

@@ -282,6 +282,33 @@ describe("item last known position", () => {
     expect((await api("PATCH", `/items/${item.id}`, { lastKnownLng: 10 })).status).toBe(422);
   });
 
+  it("requires both coordinates whenever a PATCH touches the position, so a row is never half-cleared", async () => {
+    const item = await newItem({
+      lastKnownLocation: "Hotel",
+      lastKnownLat: 1.5,
+      lastKnownLng: 2.5,
+      lastKnownAccuracyM: 10,
+    });
+    for (const body of [
+      { lastKnownLat: null },
+      { lastKnownLng: null },
+      { lastKnownLat: 3 },
+      { lastKnownLat: null, lastKnownLng: 2 },
+      { lastKnownLat: 3, lastKnownLng: null },
+      { lastKnownAccuracyM: 5 },
+    ]) {
+      expect((await api("PATCH", `/items/${item.id}`, body)).status).toBe(422);
+    }
+    const intact = await apiJson<ItemDetail>("GET", `/items/${item.id}`);
+    expect(intact.item).toMatchObject({ lastKnownLat: 1.5, lastKnownLng: 2.5, lastKnownAccuracyM: 10 });
+
+    const cleared = await apiJson<Item>("PATCH", `/items/${item.id}`, {
+      lastKnownLat: null,
+      lastKnownLng: null,
+    });
+    expect(cleared).toMatchObject({ lastKnownLat: null, lastKnownLng: null, lastKnownAccuracyM: null });
+  });
+
   it("never exposes the position on the finder page", async () => {
     const seeded = await seedTag();
     await apiJson("PATCH", `/items/${seeded.itemId}`, {

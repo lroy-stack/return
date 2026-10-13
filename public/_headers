@@ -17,5 +17,6 @@
 /icons/*
   Cache-Control: public, max-age=86400
 
+# Revalidated (ETag): the file is not versioned in its URL, so a new sprite must reach finders at once.
 /p/icons.svg
-  Cache-Control: public, max-age=86400
+  Cache-Control: no-cache

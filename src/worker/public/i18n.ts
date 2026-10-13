@@ -65,6 +65,8 @@ export const en = {
     locationRemove: "Remove",
     locationUpdate: "Update",
     locationRemoved: "Position removed",
+    locationSkip: "Send without location",
+    locationSkipped: "Your position was not found in time. Sent without it.",
     locationWaiting: "Waiting for your position. Your message is sent as soon as it is found.",
     locationDenied: "Location access is turned off for this page.",
     locationGuideIos:
@@ -286,6 +288,8 @@ const de: Dict = {
     locationRemove: "Entfernen",
     locationUpdate: "Aktualisieren",
     locationRemoved: "Standort entfernt",
+    locationSkip: "Ohne Standort senden",
+    locationSkipped: "Ihr Standort wurde nicht rechtzeitig gefunden. Ohne ihn gesendet.",
     locationWaiting:
       "Ihr Standort wird noch ermittelt. Ihre Nachricht wird gesendet, sobald er gefunden ist.",
     locationDenied: "Der Standortzugriff ist für diese Seite blockiert.",
@@ -507,6 +511,8 @@ const es: Dict = {
     locationRemove: "Quitar",
     locationUpdate: "Actualizar",
     locationRemoved: "Posición quitada",
+    locationSkip: "Enviar sin ubicación",
+    locationSkipped: "No se encontró tu posición a tiempo. Enviado sin ella.",
     locationWaiting: "Aún se está buscando tu posición. Tu mensaje se enviará en cuanto se encuentre.",
     locationDenied: "La ubicación está bloqueada para esta página.",
     locationGuideIos:

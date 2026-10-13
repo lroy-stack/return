@@ -881,6 +881,8 @@ export const en = {
   "itemTags.addTitle": "Add another tag?",
   "itemTags.addBody":
     "This creates a new tag for this item. It has {n} active now. Print the new card to use it.",
+  "item.positionDropped":
+    "You changed the text, so the saved position was removed. Use my location again to attach one.",
   "tag.downloadQrPng": "Download PNG",
   "tag.shareQr": "Share",
   "tag.shareFallback": "Sharing is not available here, so the PNG was downloaded.",
@@ -1760,6 +1762,8 @@ export const es: Record<MessageKey, string> = {
   "itemTags.addTitle": "¿Añadir otra etiqueta?",
   "itemTags.addBody":
     "Se crea una etiqueta nueva para este objeto. Ahora tiene {n} activas. Imprime la tarjeta nueva para usarla.",
+  "item.positionDropped":
+    "Has cambiado el texto, así que se quitó la posición guardada. Usa mi ubicación otra vez para añadir una.",
   "tag.downloadQrPng": "Descargar PNG",
   "tag.shareQr": "Compartir",
   "tag.shareFallback": "Aquí no se puede compartir, así que se descargó el PNG.",

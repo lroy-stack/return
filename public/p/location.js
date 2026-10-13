@@ -39,6 +39,9 @@
     let locating = false;
     let current = null;
     let waitingSubmit = null;
+    let waitTimer = 0;
+    const skip = root.querySelector("[data-gps-skip]");
+    const MAX_WAIT_MS = 20000;
 
     ui.hidden = false;
     if (inApp && webview) {
@@ -84,10 +87,26 @@
       start.disabled = false;
     }
 
+    function stopWaiting() {
+      waitingSubmit = null;
+      window.clearTimeout(waitTimer);
+      skip.hidden = true;
+    }
+
+    /* The finder gave up waiting (or we did): drop the position and send what they wrote. */
+    function sendWithout() {
+      const submitter = waitingSubmit;
+      if (!submitter) return;
+      clear();
+      status.textContent = text.skipped || "";
+      if (form.requestSubmit) form.requestSubmit(submitter === true ? undefined : submitter);
+      else form.submit();
+    }
+
     function flush() {
       const submitter = waitingSubmit;
       if (!submitter) return;
-      waitingSubmit = null;
+      stopWaiting();
       status.textContent = "";
       if (form.requestSubmit) form.requestSubmit(submitter === true ? undefined : submitter);
       else form.submit();
@@ -95,7 +114,7 @@
 
     function fail(error) {
       finish();
-      waitingSubmit = null;
+      stopWaiting();
       status.textContent = "";
       const code = error?.code;
       errorText.textContent = code === 1 ? text.denied : code === 3 ? text.timeout : text.unavailable;
@@ -159,7 +178,7 @@
       seq += 1;
       finish();
       current = null;
-      waitingSubmit = null;
+      stopWaiting();
       field("location_source").value = "manual";
       field("location_lat").value = "";
       field("location_lng").value = "";
@@ -175,6 +194,7 @@
       clear();
       status.textContent = "";
     });
+    skip.addEventListener("click", sendWithout);
     start.addEventListener("click", () => locate(false));
     root.querySelector("[data-gps-retry]").addEventListener("click", () => locate(true));
     root.querySelector("[data-gps-update]").addEventListener("click", () => locate(true));
@@ -196,6 +216,10 @@
         event.stopImmediatePropagation();
         waitingSubmit = event.submitter || true;
         status.textContent = text.waiting || "";
+        // A permission prompt can stay unanswered for ever: the finder always has a way out.
+        skip.hidden = false;
+        window.clearTimeout(waitTimer);
+        waitTimer = window.setTimeout(sendWithout, MAX_WAIT_MS);
       },
       true,
     );

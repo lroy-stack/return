@@ -234,10 +234,24 @@ async function assertValidParent(db: D1Database, ownerId: string, itemId: string
   }
 }
 
-/** lat and lng go together; a position needs a description to be shown next to it. */
-function assertPositionPair(lat: number | null | undefined, lng: number | null | undefined): void {
-  if ((lat == null) !== (lng == null)) {
-    throw new AppError(422, "validation_failed", "lastKnownLat and lastKnownLng go together", [
+/**
+ * The stored position is all-or-nothing: lat and lng are both numbers or both null, accuracy needs a
+ * position. A PATCH that mentions any of the three must send lat and lng together (`{ lat: null, lng: null }`
+ * clears the position and its accuracy), otherwise 422, so a row can never be left half-cleared.
+ */
+function assertPositionPair(fields: {
+  lastKnownLat?: number | null;
+  lastKnownLng?: number | null;
+  lastKnownAccuracyM?: number | null;
+}): void {
+  const hasLat = "lastKnownLat" in fields;
+  const hasLng = "lastKnownLng" in fields;
+  const lat = fields.lastKnownLat ?? null;
+  const lng = fields.lastKnownLng ?? null;
+  const touchesAccuracy = "lastKnownAccuracyM" in fields && fields.lastKnownAccuracyM != null;
+  const complete = hasLat === hasLng && (lat === null) === (lng === null) && (hasLat || !touchesAccuracy);
+  if (!complete) {
+    throw new AppError(422, "validation_failed", "lastKnownLat and lastKnownLng must be sent together", [
       { code: "custom", path: ["lastKnownLat"], message: "lat and lng go together" },
     ]);
   }
@@ -246,7 +260,7 @@ function assertPositionPair(lat: number | null | undefined, lng: number | null |
 export async function createItem(db: D1Database, ownerId: string, raw: ItemInput): Promise<Item> {
   const input = itemInputSchema.parse(raw);
   assertAcquiredOnNotFuture(input.acquiredOn);
-  assertPositionPair(input.lastKnownLat, input.lastKnownLng);
+  assertPositionPair(input);
   if (input.parentId) await assertValidParent(db, ownerId, null, input.parentId);
   const id = newId();
   const now = nowIso();
@@ -323,7 +337,7 @@ export async function updateItem(db: D1Database, ownerId: string, id: string, ra
   const current = await getOwnedItemRow(db, ownerId, id);
   const patch = itemPatchSchema.parse(raw);
   assertAcquiredOnNotFuture(patch.acquiredOn);
-  assertPositionPair(patch.lastKnownLat, patch.lastKnownLng);
+  assertPositionPair(patch);
   // Coordinates belong to the text they were set with: changing the text alone drops them.
   if (
     "lastKnownLocation" in patch &&

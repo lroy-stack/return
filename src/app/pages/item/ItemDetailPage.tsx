@@ -420,6 +420,8 @@ function LocationForm({ item, onClose, onSaved }: { item: Item; onClose: () => v
       ? { lat: item.lastKnownLat, lng: item.lastKnownLng, accuracyM: item.lastKnownAccuracyM }
       : null,
   );
+  // The text was edited by hand, so the position that went with it was dropped (they must not disagree).
+  const [dropped, setDropped] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const cancel = useSheetGuard(useDirty({ value, fix }));
@@ -428,6 +430,7 @@ function LocationForm({ item, onClose, onSaved }: { item: Item; onClose: () => v
   const useFix = (found: Fix) => {
     const run = ++lookup.current;
     setFix(found);
+    setDropped(false);
     const fallback = coordsText(found);
     setValue((v) => {
       if (v && v !== autoName.current) return v;
@@ -471,11 +474,22 @@ function LocationForm({ item, onClose, onSaved }: { item: Item; onClose: () => v
         <TextInput
           label={t("item.lastKnown")}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            if (fix) {
+              setFix(null);
+              setDropped(true);
+            }
+          }}
           maxLength={300}
           autoFocus
           hint={t("item.locationHint")}
         />
+        {dropped ? (
+          <p role="status" className="text-subhead text-muted">
+            {t("item.positionDropped")}
+          </p>
+        ) : null}
         <UseMyLocation onFix={useFix} />
         {fix ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-control bg-primary-tint/60 px-3 py-2">

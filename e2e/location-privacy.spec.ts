@@ -249,6 +249,55 @@ test.describe("coarse first, then refine", () => {
   });
 });
 
+test.describe("a position that never arrives", () => {
+  const NEVER = 1_000_000;
+
+  test("3p. a held submit can be sent without the position, which is dropped", async ({
+    page,
+    context,
+    owner,
+    tagged,
+  }) => {
+    await requireTurnstileNetwork();
+    const message = unique("Gave up waiting");
+    await scriptGeolocation(context, [{ after: NEVER, ok: { accuracy: 40 } }]);
+    await openTagPage(page, tagged.tag.url);
+    await page.getByLabel("Your message").fill(message);
+    await waitForTurnstile(page);
+    await page.getByRole("button", { name: "Use my current position" }).click();
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.locator("[data-gps-status]")).toContainText("Waiting for your position");
+
+    await page.getByRole("button", { name: "Send without location" }).click();
+
+    await expect(page).toHaveURL(/\/c\/[A-Za-z0-9_-]{43}/, { timeout: 15_000 });
+    const summary = (await owner.listConversations()).find((c) => c.lastMessagePreview === message);
+    expect((await owner.conversation(summary?.id ?? "")).locations).toEqual([]);
+  });
+
+  test("3q. after about 20 seconds the held submit is released without a position and says so", async ({
+    page,
+    context,
+    owner,
+    tagged,
+  }) => {
+    test.setTimeout(75_000);
+    await requireTurnstileNetwork();
+    const message = unique("Timed out waiting");
+    await scriptGeolocation(context, [{ after: NEVER, ok: { accuracy: 40 } }]);
+    await openTagPage(page, tagged.tag.url);
+    await page.getByLabel("Your message").fill(message);
+    await waitForTurnstile(page);
+    await page.getByRole("button", { name: "Use my current position" }).click();
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.locator("[data-gps-status]")).toContainText("Waiting for your position");
+
+    await expect(page).toHaveURL(/\/c\/[A-Za-z0-9_-]{43}/, { timeout: 30_000 });
+    const summary = (await owner.listConversations()).find((c) => c.lastMessagePreview === message);
+    expect((await owner.conversation(summary?.id ?? "")).locations).toEqual([]);
+  });
+});
+
 test.describe("when it fails", () => {
   test("3i. a refused permission says so as an error, explains how to re-enable it and offers a way out", async ({
     page,

@@ -77,7 +77,8 @@ const itemFields = z.object({
   acquiredOn: isoDate.nullable().optional(),
   privateNotes: nullableStr(5000),
   lastKnownLocation: nullableStr(300),
-  // Position behind the text above ("Use my location"); owner-only. lat and lng go together.
+  // Position behind the text above ("Use my location"); owner-only. Send lat and lng together: both numbers, or both null to clear
+  // the position (and its accuracy); anything else is a 422.
   lastKnownLat: latitude.nullable().optional(),
   lastKnownLng: longitude.nullable().optional(),
   lastKnownAccuracyM: accuracyMeters,
