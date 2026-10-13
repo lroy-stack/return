@@ -1,9 +1,10 @@
 import { type ChangeEvent, useState } from "react";
 import type { SystemStatus } from "../../../shared/schemas";
+import { shellString } from "../../components/shell-strings";
 import { api } from "../../lib/api";
 import type { MessageKey } from "../../lib/dict";
 import { useResource } from "../../lib/hooks";
-import { useT } from "../../lib/i18n";
+import { useI18n } from "../../lib/i18n";
 import { useFormat } from "../../lib/settings-context";
 import { Badge } from "../../ui/Badge";
 import { Button, ButtonLink } from "../../ui/Button";
@@ -23,7 +24,7 @@ const CHECKS = [
 ] as const;
 
 export function SystemSection() {
-  const t = useT();
+  const { lang, t } = useI18n();
   const format = useFormat();
   const toast = useToast();
   const res = useResource<SystemStatus>("system", (signal) => api.get<SystemStatus>("/system", signal));
@@ -79,6 +80,11 @@ export function SystemSection() {
             warn={s.recentNotificationFailures > 0}
           />
         </dl>
+        <div>
+          <ButtonLink to="/gallery" icon="eye" size="sm">
+            {shellString(lang, "gallery")}
+          </ButtonLink>
+        </div>
       </SectionCard>
 
       <SectionCard title={t("system.checks")}>

@@ -5,7 +5,10 @@ import { Button } from "./Button";
 import { FormError, TextInput } from "./Field";
 import { Sheet, SheetBody, SheetFooter } from "./Sheet";
 
-/** Confirmation dialog. With `typed`, the user must type that exact text before confirming. */
+/**
+ * Confirmation as a centred alert. With `typed`, the user must type that exact text before confirming
+ * (irreversible deletions, restore). Errors from `onConfirm` stay in the dialog with a retry.
+ */
 export function ConfirmDialog({
   open,
   title,
@@ -28,7 +31,7 @@ export function ConfirmDialog({
   onClose: () => void;
 }) {
   return (
-    <Sheet open={open} onClose={onClose} title={title}>
+    <Sheet open={open} onClose={onClose} title={title} placement="center">
       <ConfirmBody
         message={message}
         confirmLabel={confirmLabel}
@@ -83,7 +86,7 @@ function ConfirmBody({
   return (
     <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
       <SheetBody>
-        <p>{message}</p>
+        <p className="text-body">{message}</p>
         {typed !== undefined ? (
           <TextInput
             label={typedLabel ?? t("confirm.typeToConfirm", { text: typed })}

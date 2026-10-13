@@ -1,99 +1,341 @@
 @import "tailwindcss";
 
-/* Dark mode is driven by [data-theme="dark"] (manual) or the OS preference when no manual choice exists. */
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/*
+ * RETURN design system v2 — tokens. Documentation: docs/design/system.md.
+ * Layers: primitives (raw palette, mirrors src/shared/brand.ts) → semantic (meaning; light/dark swap these)
+ * → Tailwind theme (utilities such as bg-raised, text-muted, rounded-card). Components use semantic tokens only.
+ * The same semantic names are mirrored in public/p/public.css for the finder pages.
+ */
 
-/* Semantic tokens. Light is the default; dark overrides below. Palette mirrors src/shared/brand.ts. */
-:root {
-  color-scheme: light;
-  --surface: #faf7f2;
-  --raised: #fffdf9;
-  --sunken: #f1ece3;
-  --fg: #1b2326;
-  --muted: #55656a;
-  --line: #e3ded5;
-  --line-strong: #7a8588;
-  --primary: #0e4a55;
-  --primary-hover: #0a363e;
-  --primary-fg: #ffffff;
-  --primary-text: #0e4a55;
-  --primary-tint: #dcebec;
-  --accent: #8fae96;
-  --accent-text: #3f5e4a;
-  --accent-tint: #e4ece5;
-  --lost: #a84a27;
-  --lost-tint: #f6e6de;
-  --danger: #a12d2d;
-  --danger-fg: #ffffff;
-  --danger-tint: #f7e3e3;
-  --ring: #0e4a55;
-  --scrim: rgb(15 23 25 / 0.5);
-  --shadow-1: 0 1px 2px rgb(27 35 38 / 0.06), 0 1px 3px rgb(27 35 38 / 0.04);
-  --shadow-2: 0 8px 24px rgb(27 35 38 / 0.12);
+/* `dark:` follows the explicit choice ([data-theme]) and the OS preference when no explicit light choice exists. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *):not(
+        :where([data-theme="light"], [data-theme="light"] *)
+      ) {
+      @slot;
+    }
+  }
 }
 
-:root[data-theme="dark"] {
+/* ------------------------------------------------------------------ 1. Primitives (never used directly) ---- */
+:root {
+  --petrol-50: #eef5f6;
+  --petrol-100: #dcebec;
+  --petrol-200: #a9dae1;
+  --petrol-300: #8ccbd5;
+  --petrol-400: #5aa7b5;
+  --petrol-500: #1f6b78;
+  --petrol-600: #0e4a55; /* brand */
+  --petrol-700: #1a3a41;
+  --petrol-800: #0a363e;
+  --petrol-900: #08242a;
+
+  --sage-50: #f1f5f2;
+  --sage-100: #e4ece5;
+  --sage-300: #a8c7af;
+  --sage-400: #8fae96; /* brand */
+  --sage-600: #4a6b55;
+  --sage-700: #3f5e4a;
+  --sage-900: #1e2e25;
+
+  --terracotta-100: #f6e6de;
+  --terracotta-300: #f4b597;
+  --terracotta-400: #f0a27f;
+  --terracotta-600: #a84a27; /* brand "lost" */
+  --terracotta-700: #93401f;
+  --terracotta-900: #3a211a;
+  --terracotta-950: #2a1209;
+
+  --red-100: #f7e3e3;
+  --red-400: #ee8a86;
+  --red-700: #a12d2d;
+  --red-900: #3a1d1d;
+  --red-950: #1c0a0a;
+
+  --amber-100: #f6ebd5;
+  --amber-300: #e8c47a;
+  --amber-700: #7a5100;
+  --amber-900: #33280f;
+
+  /* Warm neutrals: "sand" (light side) and "ink" (dark side). */
+  --sand-0: #ffffff;
+  --sand-25: #fffdf9; /* paper */
+  --sand-50: #faf7f2; /* warm white */
+  --sand-75: #fcfbf8; /* glass base */
+  --sand-100: #f1ece3;
+  --sand-150: #edebe6;
+  --sand-200: #e3ded5;
+  --ink-300: #c3cdd0;
+  --ink-350: #a3b1b5;
+  --ink-450: #7f9096;
+  --ink-500: #7a8588;
+  --ink-600: #55656a;
+  --ink-650: #3e4d52;
+  --ink-750: #2a373b;
+  --ink-800: #1a2629; /* dark glass base */
+  --ink-850: #172225;
+  --ink-875: #1b2326; /* ink */
+  --ink-900: #0f1719;
+  --ink-950: #0b1214;
+}
+
+/* ------------------------------------------------------------------ 2. Semantic tokens: light ------------- */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  /* Surfaces */
+  --surface: var(--sand-50); /* app canvas */
+  --raised: var(--sand-25); /* cards, lists, fields */
+  --sunken: var(--sand-100); /* wells, skeletons, inset groups */
+  --fill: rgb(27 35 38 / 0.06); /* neutral control fill (secondary buttons, segmented track) */
+  --fill-hover: rgb(27 35 38 / 0.1);
+  --fill-pressed: rgb(27 35 38 / 0.14);
+  /* Text */
+  --fg: var(--ink-875);
+  --muted: var(--ink-600);
+  /* Lines */
+  --line: var(--sand-200); /* decorative dividers */
+  --line-strong: var(--ink-500); /* control boundaries, >= 3:1 */
+  /* Brand + status */
+  --primary: var(--petrol-600);
+  --primary-hover: var(--petrol-800);
+  --primary-fg: var(--sand-0);
+  --primary-text: var(--petrol-600);
+  --primary-tint: var(--petrol-100);
+  --accent: var(--sage-400);
+  --accent-text: var(--sage-700);
+  --accent-tint: var(--sage-100);
+  --success: var(--sage-700);
+  --success-tint: var(--sage-100);
+  --lost: var(--terracotta-600);
+  --lost-fg: var(--sand-0);
+  --lost-tint: var(--terracotta-100);
+  --warning: var(--amber-700);
+  --warning-tint: var(--amber-100);
+  --danger: var(--red-700);
+  --danger-fg: var(--sand-0);
+  --danger-tint: var(--red-100);
+  --ring: var(--petrol-600);
+  --scrim: rgb(15 23 25 / 0.42);
+  /* Canvas ambience (very low alpha; text contrast verified with it) */
+  --glow-1: rgb(14 74 85 / 0.08);
+  --glow-2: rgb(143 174 150 / 0.16);
+  /* Glass (chrome layer only). Alphas chosen so text keeps >= 4.5:1 over black/white/brand backdrops. */
+  --glass: rgb(252 251 248 / 0.84);
+  --glass-strong: rgb(252 251 248 / 0.92);
+  --glass-solid: var(--sand-75);
+  --glass-edge: rgb(255 255 255 / 0.7);
+  --glass-hairline: rgb(27 35 38 / 0.1);
+  --glass-specular: inset 0 1px 0 0 rgb(255 255 255 / 0.85), inset 0 0 0 1px rgb(255 255 255 / 0.35);
+  --on-glass-muted: var(--ink-650);
+  --on-glass-primary: var(--petrol-600);
+  --on-glass-lost: var(--terracotta-700);
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgb(27 35 38 / 0.05), 0 1px 3px rgb(27 35 38 / 0.04);
+  --shadow-2: 0 2px 6px rgb(27 35 38 / 0.06), 0 10px 28px rgb(27 35 38 / 0.1);
+  --shadow-3: 0 4px 12px rgb(27 35 38 / 0.08), 0 24px 56px rgb(27 35 38 / 0.18);
+  --shadow-glass:
+    0 1px 1px rgb(27 35 38 / 0.04), 0 8px 24px rgb(14 74 85 / 0.12), 0 20px 48px rgb(27 35 38 / 0.08);
+}
+
+/* ------------------------------------------------------------------ 2b. Semantic tokens: dark -------------- */
+/* Keep these two dark blocks identical (explicit choice + OS preference). */
+[data-theme="dark"] {
   color-scheme: dark;
-  --surface: #0f1719;
-  --raised: #172225;
-  --sunken: #0b1214;
-  --fg: #edebe6;
-  --muted: #a3b1b5;
-  --line: #2a373b;
-  --line-strong: #7f9096;
-  --primary: #8ccbd5;
-  --primary-hover: #a9dae1;
-  --primary-fg: #08242a;
-  --primary-text: #8ccbd5;
-  --primary-tint: #1a3a41;
-  --accent: #8fae96;
-  --accent-text: #a8c7af;
-  --accent-tint: #1e2e25;
-  --lost: #f0a27f;
-  --lost-tint: #3a211a;
-  --danger: #ee8a86;
-  --danger-fg: #1c0a0a;
-  --danger-tint: #3a1d1d;
-  --ring: #8ccbd5;
-  --scrim: rgb(0 0 0 / 0.65);
+  --surface: var(--ink-900);
+  --raised: var(--ink-850);
+  --sunken: var(--ink-950);
+  --fill: rgb(237 235 230 / 0.08);
+  --fill-hover: rgb(237 235 230 / 0.12);
+  --fill-pressed: rgb(237 235 230 / 0.17);
+  --fg: var(--sand-150);
+  --muted: var(--ink-350);
+  --line: var(--ink-750);
+  --line-strong: var(--ink-450);
+  --primary: var(--petrol-300);
+  --primary-hover: var(--petrol-200);
+  --primary-fg: var(--petrol-900);
+  --primary-text: var(--petrol-300);
+  --primary-tint: var(--petrol-700);
+  --accent: var(--sage-400);
+  --accent-text: var(--sage-300);
+  --accent-tint: var(--sage-900);
+  --success: var(--sage-300);
+  --success-tint: var(--sage-900);
+  --lost: var(--terracotta-400);
+  --lost-fg: var(--terracotta-950);
+  --lost-tint: var(--terracotta-900);
+  --warning: var(--amber-300);
+  --warning-tint: var(--amber-900);
+  --danger: var(--red-400);
+  --danger-fg: var(--red-950);
+  --danger-tint: var(--red-900);
+  --ring: var(--petrol-300);
+  --scrim: rgb(0 0 0 / 0.6);
+  --glow-1: rgb(140 203 213 / 0.07);
+  --glow-2: rgb(143 174 150 / 0.06);
+  --glass: rgb(26 38 41 / 0.84);
+  --glass-strong: rgb(26 38 41 / 0.92);
+  --glass-solid: var(--ink-800);
+  --glass-edge: rgb(255 255 255 / 0.1);
+  --glass-hairline: rgb(0 0 0 / 0.5);
+  --glass-specular: inset 0 1px 0 0 rgb(255 255 255 / 0.12), inset 0 0 0 1px rgb(255 255 255 / 0.05);
+  --on-glass-muted: var(--ink-300);
+  --on-glass-primary: var(--petrol-200);
+  --on-glass-lost: var(--terracotta-300);
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-2: 0 8px 24px rgb(0 0 0 / 0.5);
+  --shadow-2: 0 2px 6px rgb(0 0 0 / 0.35), 0 10px 28px rgb(0 0 0 / 0.4);
+  --shadow-3: 0 4px 12px rgb(0 0 0 / 0.4), 0 24px 56px rgb(0 0 0 / 0.55);
+  --shadow-glass: 0 1px 1px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35), 0 20px 48px rgb(0 0 0 / 0.3);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --surface: #0f1719;
-    --raised: #172225;
-    --sunken: #0b1214;
-    --fg: #edebe6;
-    --muted: #a3b1b5;
-    --line: #2a373b;
-    --line-strong: #7f9096;
-    --primary: #8ccbd5;
-    --primary-hover: #a9dae1;
-    --primary-fg: #08242a;
-    --primary-text: #8ccbd5;
-    --primary-tint: #1a3a41;
-    --accent: #8fae96;
-    --accent-text: #a8c7af;
-    --accent-tint: #1e2e25;
-    --lost: #f0a27f;
-    --lost-tint: #3a211a;
-    --danger: #ee8a86;
-    --danger-fg: #1c0a0a;
-    --danger-tint: #3a1d1d;
-    --ring: #8ccbd5;
-    --scrim: rgb(0 0 0 / 0.65);
+    --surface: var(--ink-900);
+    --raised: var(--ink-850);
+    --sunken: var(--ink-950);
+    --fill: rgb(237 235 230 / 0.08);
+    --fill-hover: rgb(237 235 230 / 0.12);
+    --fill-pressed: rgb(237 235 230 / 0.17);
+    --fg: var(--sand-150);
+    --muted: var(--ink-350);
+    --line: var(--ink-750);
+    --line-strong: var(--ink-450);
+    --primary: var(--petrol-300);
+    --primary-hover: var(--petrol-200);
+    --primary-fg: var(--petrol-900);
+    --primary-text: var(--petrol-300);
+    --primary-tint: var(--petrol-700);
+    --accent: var(--sage-400);
+    --accent-text: var(--sage-300);
+    --accent-tint: var(--sage-900);
+    --success: var(--sage-300);
+    --success-tint: var(--sage-900);
+    --lost: var(--terracotta-400);
+    --lost-fg: var(--terracotta-950);
+    --lost-tint: var(--terracotta-900);
+    --warning: var(--amber-300);
+    --warning-tint: var(--amber-900);
+    --danger: var(--red-400);
+    --danger-fg: var(--red-950);
+    --danger-tint: var(--red-900);
+    --ring: var(--petrol-300);
+    --scrim: rgb(0 0 0 / 0.6);
+    --glow-1: rgb(140 203 213 / 0.07);
+    --glow-2: rgb(143 174 150 / 0.06);
+    --glass: rgb(26 38 41 / 0.84);
+    --glass-strong: rgb(26 38 41 / 0.92);
+    --glass-solid: var(--ink-800);
+    --glass-edge: rgb(255 255 255 / 0.1);
+    --glass-hairline: rgb(0 0 0 / 0.5);
+    --glass-specular: inset 0 1px 0 0 rgb(255 255 255 / 0.12), inset 0 0 0 1px rgb(255 255 255 / 0.05);
+    --on-glass-muted: var(--ink-300);
+    --on-glass-primary: var(--petrol-200);
+    --on-glass-lost: var(--terracotta-300);
     --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-2: 0 8px 24px rgb(0 0 0 / 0.5);
+    --shadow-2: 0 2px 6px rgb(0 0 0 / 0.35), 0 10px 28px rgb(0 0 0 / 0.4);
+    --shadow-3: 0 4px 12px rgb(0 0 0 / 0.4), 0 24px 56px rgb(0 0 0 / 0.55);
+    --shadow-glass: 0 1px 1px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35), 0 20px 48px rgb(0 0 0 / 0.3);
   }
 }
 
+/* ------------------------------------------------------------------ 2c. Non-colour semantic tokens ------- */
+:root {
+  --glass-filter: blur(22px) saturate(180%);
+  /* Layout */
+  --page-x: 1rem;
+  --rail-w: 5.25rem;
+  --sidebar-w: 16rem;
+  --chrome-inset: 0.75rem;
+  --tabbar-h: 3.75rem;
+  /* Space reserved under page content for floating bottom chrome (tab bar on phones). */
+  --shell-bottom: calc(
+    var(--tabbar-h) +
+    var(--chrome-inset) +
+    max(var(--chrome-inset), env(safe-area-inset-bottom))
+  );
+  /* Motion */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --dur-sheet: 420ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  /* Gentle spring (about 4% overshoot), close to SwiftUI's default .smooth/.snappy feel. */
+  --ease-spring: linear(
+    0,
+    0.06 4%,
+    0.23 10%,
+    0.5 18%,
+    0.76 27%,
+    0.93 36%,
+    1.02 46%,
+    1.04 54%,
+    1.03 63%,
+    1.01 75%,
+    1
+  );
+}
+@media (min-width: 40rem) {
+  :root {
+    --page-x: 1.5rem;
+    --shell-bottom: 0px;
+  }
+}
+@media (min-width: 64rem) {
+  :root {
+    --page-x: 2.5rem;
+  }
+}
+
+/* Accessibility preferences: solid chrome, stronger lines and text. */
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  [data-theme] {
+    --glass: var(--glass-solid);
+    --glass-strong: var(--glass-solid);
+    --glass-filter: none;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root,
+  [data-theme] {
+    --glass: var(--glass-solid);
+    --glass-strong: var(--glass-solid);
+  }
+}
+/* Gallery / QA switch to preview the reduced-transparency fallback. */
+[data-transparency="reduce"],
+[data-transparency="reduce"] * {
+  --glass: var(--glass-solid);
+  --glass-strong: var(--glass-solid);
+  --glass-filter: none;
+}
+@media (prefers-contrast: more) {
+  :root,
+  [data-theme] {
+    --muted: var(--on-glass-muted);
+    --line: var(--line-strong);
+    --glass: var(--glass-solid);
+    --glass-strong: var(--glass-solid);
+    --glass-filter: none;
+    --glass-edge: var(--line-strong);
+  }
+}
+
+/* ------------------------------------------------------------------ 3. Tailwind theme -------------------- */
 @theme inline {
   --color-surface: var(--surface);
   --color-raised: var(--raised);
   --color-sunken: var(--sunken);
+  --color-fill: var(--fill);
+  --color-fill-hover: var(--fill-hover);
+  --color-fill-pressed: var(--fill-pressed);
   --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-line: var(--line);
@@ -106,20 +348,71 @@
   --color-accent: var(--accent);
   --color-accent-text: var(--accent-text);
   --color-accent-tint: var(--accent-tint);
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
   --color-lost: var(--lost);
+  --color-lost-fg: var(--lost-fg);
   --color-lost-tint: var(--lost-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
   --color-danger: var(--danger);
   --color-danger-fg: var(--danger-fg);
   --color-danger-tint: var(--danger-tint);
   --color-ring: var(--ring);
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-on-glass-muted: var(--on-glass-muted);
+  --color-on-glass-primary: var(--on-glass-primary);
+  --color-on-glass-lost: var(--on-glass-lost);
+
   --shadow-card: var(--shadow-1);
   --shadow-float: var(--shadow-2);
-  --radius-card: 1rem;
+  --shadow-overlay: var(--shadow-3);
+  --shadow-glass: var(--shadow-glass);
+
+  /* Radii: continuous, large. Controls 14, cards 20, sheets/chrome 28, pills full. */
+  --radius-control: 0.875rem;
+  --radius-card: 1.25rem;
+  --radius-sheet: 1.75rem;
+
+  /* Type: system stack (SF Pro on Apple platforms). Scale follows iOS text styles, 16 px body on the web. */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", system-ui, "Segoe UI Variable Text",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro", system-ui, "Segoe UI Variable Display",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-footnote: 0.8125rem;
+  --text-footnote--line-height: 1.125rem;
+  --text-subhead: 0.9375rem;
+  --text-subhead--line-height: 1.375rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-headline: 1.0625rem;
+  --text-headline--line-height: 1.5rem;
+  --text-title3: 1.25rem;
+  --text-title3--line-height: 1.625rem;
+  --text-title2: 1.375rem;
+  --text-title2--line-height: 1.75rem;
+  --text-title1: 1.75rem;
+  --text-title1--line-height: 2.125rem;
+  --text-large-title: clamp(1.875rem, 1.6rem + 1.1vw, 2.125rem);
+  --text-large-title--line-height: 1.15;
+
+  --spacing-page-x: var(--page-x);
+  --spacing-shell-bottom: var(--shell-bottom);
   --container-page: 72rem;
+  --container-prose: 40rem;
+
+  --ease-standard: var(--ease-standard);
+  --ease-spring: var(--ease-spring);
+  --ease-exit: var(--ease-exit);
 }
 
+/* ------------------------------------------------------------------ 4. Base ------------------------------ */
 @layer base {
   html {
     background: var(--surface);
@@ -127,12 +420,28 @@
     font-family: var(--font-sans);
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    /* Scroll offset so sticky/floating chrome never hides the focused element (WCAG 2.4.11). */
+    scroll-padding-block: 5rem calc(var(--shell-bottom) + 2rem);
   }
   body {
     min-height: 100dvh;
     line-height: 1.5;
     font-size: 1rem;
     overflow-wrap: anywhere;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Ambient canvas: two soft brand glows behind everything, so the glass chrome has colour to pick up. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(60rem 36rem at 100% -8%, var(--glow-1), transparent 65%),
+      radial-gradient(48rem 36rem at -12% 108%, var(--glow-2), transparent 65%);
   }
   h1,
   h2,
@@ -140,13 +449,17 @@
     text-wrap: balance;
     line-height: 1.2;
   }
+  h1,
+  h2 {
+    font-family: var(--font-display);
+  }
   p {
     text-wrap: pretty;
   }
+  /* Ring only: never change the control's shape or size when it gains focus. */
   :focus-visible {
     outline: 3px solid var(--ring);
     outline-offset: 2px;
-    border-radius: 0.375rem;
   }
   button,
   [role="button"],
@@ -157,60 +470,158 @@
   button:disabled {
     cursor: not-allowed;
   }
-  /* Scroll offset so sticky bars never hide the focused element (WCAG 2.4.11). */
-  html {
-    scroll-padding-block: 5rem 7rem;
-  }
   body:has(dialog[open]) {
     overflow: hidden;
   }
+  @media (forced-colors: active) {
+    :focus-visible {
+      outline-color: Highlight;
+    }
+  }
 }
 
+/* ------------------------------------------------------------------ 5. Material utilities ---------------- */
+/* Liquid Glass, regular variant: chrome that floats over content (tab bar, rail, header, toasts, toolbars).
+   Never use on content (cards, lists, text bodies). Fallbacks: no backdrop-filter / reduced transparency /
+   increased contrast → solid surface (tokens above). */
+@utility glass {
+  background-color: var(--glass);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-specular), var(--shadow-glass);
+  background-clip: padding-box;
+}
+/* Larger glass surfaces (sidebar, sheets): more opaque, as the HIG prescribes for big elements. */
+@utility glass-strong {
+  background-color: var(--glass-strong);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-specular), var(--shadow-glass);
+  background-clip: padding-box;
+}
+/* Edge-to-edge bar (compact header): glass without the floating shadow, hairline below. */
+@utility glass-bar {
+  background-color: var(--glass);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: 0 1px 0 0 var(--glass-hairline);
+}
+/* Specular edge for solid tinted controls (primary FAB, prominent buttons): "stained glass". */
+@utility specular {
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.28),
+    inset 0 -1px 0 0 rgb(0 0 0 / 0.12),
+    var(--shadow-2);
+}
+/* Press feedback: a small spring scale, motion-safe only. */
+@utility pressable {
+  transition:
+    transform var(--dur-base) var(--ease-spring),
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+  &:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: scale(0.97);
+  }
+}
+@utility pb-safe {
+  padding-bottom: max(var(--chrome-inset), env(safe-area-inset-bottom));
+}
+
+/* ------------------------------------------------------------------ 6. Components (CSS-level) ------------ */
 @layer components {
-  /* Native <dialog>: bottom sheet on small screens, centred modal from md. */
+  /* Native <dialog>. Phone: bottom sheet with grabber. Tablet/desktop: floating side panel.
+     data-placement="center": compact alert (confirmations) on every size. */
   dialog.sheet {
     margin: auto auto 0;
     width: 100%;
     max-width: 100%;
-    max-height: 92dvh;
+    max-height: calc(100dvh - max(2.5rem, env(safe-area-inset-top) + 1rem));
     padding: 0;
-    border: 0;
-    border-radius: 1.25rem 1.25rem 0 0;
-    background: var(--raised);
+    border: 1px solid var(--glass-edge);
+    border-bottom: 0;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    background-color: var(--glass-strong);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
     color: var(--fg);
-    box-shadow: var(--shadow-2);
+    box-shadow: var(--glass-specular), var(--shadow-3);
     overflow: hidden;
+    overscroll-behavior: contain;
   }
   dialog.sheet[open] {
     display: flex;
     flex-direction: column;
-    animation: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation: sheet-up var(--dur-sheet) var(--ease-spring);
   }
   dialog.sheet::backdrop {
     background: var(--scrim);
+    animation: fade var(--dur-base) var(--ease-standard);
   }
-  @media (min-width: 48rem) {
+  @media (min-width: 40rem) {
     dialog.sheet {
-      margin: auto;
-      max-width: 36rem;
-      border-radius: 1.25rem;
+      margin: var(--chrome-inset) var(--chrome-inset) var(--chrome-inset) auto;
+      width: min(28rem, calc(100% - 2 * var(--chrome-inset)));
+      height: calc(100dvh - 2 * var(--chrome-inset));
+      max-height: calc(100dvh - 2 * var(--chrome-inset));
+      border-bottom: 1px solid var(--glass-edge);
+      border-radius: var(--radius-sheet);
     }
     dialog.sheet[data-size="lg"] {
-      max-width: 48rem;
+      width: min(40rem, calc(100% - 2 * var(--chrome-inset)));
     }
     dialog.sheet[open] {
-      animation: sheet-in 180ms ease-out;
+      animation: sheet-side var(--dur-slow) var(--ease-spring);
     }
+  }
+  @media (min-width: 40rem) {
+    dialog.sheet[data-placement="compact"] {
+      margin: auto;
+      width: min(26rem, calc(100% - 2rem));
+      height: fit-content;
+      max-height: calc(100dvh - 2rem);
+    }
+    dialog.sheet[data-placement="compact"][open] {
+      animation: sheet-pop var(--dur-slow) var(--ease-spring);
+    }
+  }
+  dialog.sheet[data-placement="center"] {
+    margin: auto;
+    width: min(26rem, calc(100% - 2rem));
+    height: fit-content;
+    max-height: calc(100dvh - 2rem);
+    border-bottom: 1px solid var(--glass-edge);
+    border-radius: var(--radius-sheet);
+  }
+  dialog.sheet[data-placement="center"][open] {
+    animation: sheet-pop var(--dur-slow) var(--ease-spring);
+  }
+  dialog.sheet[data-dragging] {
+    animation: none;
+    transition: none;
   }
   @keyframes sheet-up {
     from {
-      transform: translateY(2rem);
+      transform: translateY(40%);
       opacity: 0;
     }
   }
-  @keyframes sheet-in {
+  @keyframes sheet-side {
     from {
-      transform: scale(0.97);
+      transform: translateX(1.5rem);
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-pop {
+    from {
+      transform: scale(0.94);
+      opacity: 0;
+    }
+  }
+  @keyframes fade {
+    from {
       opacity: 0;
     }
   }
@@ -221,17 +632,27 @@
     }
   }
   .animate-in {
-    animation: fade-in 200ms ease-out;
+    animation: fade-in var(--dur-base) var(--ease-standard);
   }
   @keyframes shimmer {
     50% {
-      opacity: 0.5;
+      opacity: 0.55;
     }
   }
   .skeleton {
     background: var(--sunken);
-    border-radius: 0.75rem;
+    border-radius: var(--radius-control);
     animation: shimmer 1.4s ease-in-out infinite;
+  }
+  /* Compact title in the glass header: hidden until the page's large title scrolls away. */
+  .chrome-header .chrome-title {
+    transition:
+      opacity var(--dur-base) var(--ease-standard),
+      transform var(--dur-base) var(--ease-standard);
+  }
+  .chrome-header[data-collapsed="false"] .chrome-title {
+    opacity: 0;
+    transform: translateY(0.25rem);
   }
 }
 
@@ -249,6 +670,9 @@
 
 @media print {
   .no-print {
+    display: none !important;
+  }
+  body::before {
     display: none !important;
   }
 }

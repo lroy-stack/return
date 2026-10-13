@@ -75,6 +75,11 @@ export function InventoryPage() {
   useEffect(() => {
     setStatus(urlStatus);
   }, [urlStatus]);
+  // The Shell's Create sheet links here with ?new=item.
+  const wantsNew = search.get("new") === "item";
+  useEffect(() => {
+    if (wantsNew) setCreating(true);
+  }, [wantsNew]);
   const [category, setCategory] = useState<ItemCategory | "">("");
   const [archived, setArchived] = useState(false);
   const dq = useDebounced(q.trim(), 250);
@@ -142,7 +147,7 @@ export function InventoryPage() {
               label={t("itemForm.category")}
               value={category}
               onChange={(e) => setCategory(e.target.value as ItemCategory | "")}
-              className="[&>label]:sr-only"
+              labelHidden
             >
               <option value="">{t("inventory.allCategories")}</option>
               {ITEM_CATEGORIES.map((c) => (
@@ -195,18 +200,14 @@ export function InventoryPage() {
         </ul>
       )}
 
-      <button
-        type="button"
-        onClick={() => setCreating(true)}
-        aria-label={t("inventory.addItem")}
-        className="no-print fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 inline-flex size-14 items-center justify-center rounded-full bg-primary text-primary-fg shadow-float hover:bg-primary-hover lg:hidden"
-      >
-        <Icon name="plus" className="size-6" />
-      </button>
-
       <ItemFormSheet
         open={creating}
-        onClose={() => setCreating(false)}
+        onClose={() => {
+          setCreating(false);
+          // Drop ?new=item only if we are still on it (onSaved may already have moved to the new item).
+          if (window.location.pathname === "/" && window.location.search.includes("new=item"))
+            navigate("/", { replace: true });
+        }}
         onSaved={(item) => {
           overview.reload(true);
           navigate(`/items/${item.id}`);

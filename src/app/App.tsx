@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode, Suspense } from "react";
+import { Component, type ErrorInfo, lazy, type ReactNode, Suspense } from "react";
 import { Shell } from "./components/Shell";
 import { useT } from "./lib/i18n";
 import { OverviewProvider } from "./lib/overview-context";
@@ -15,6 +15,11 @@ import { Button } from "./ui/Button";
 import { LoadingBlock } from "./ui/States";
 import { ToastProvider } from "./ui/Toast";
 
+/** Component gallery: a design/QA tool, loaded on demand so it never weighs on the panel bundle. */
+const GalleryPage = lazy(() =>
+  import("./pages/gallery/GalleryPage").then((m) => ({ default: m.GalleryPage })),
+);
+
 function Routes() {
   const { pathname } = useLocation();
   if (pathname === "/") return <InventoryPage />;
@@ -26,6 +31,7 @@ function Routes() {
   if (pathname === "/tags") return <TagsPage />;
   if (pathname === "/tags/print") return <PrintRoute />;
   if (pathname === "/settings") return <SettingsPage />;
+  if (pathname === "/gallery") return <GalleryPage />;
   const section = matchPath("/settings/:section", pathname);
   if (section) return <SettingsPage section={section.section} />;
   return <NotFoundPage />;

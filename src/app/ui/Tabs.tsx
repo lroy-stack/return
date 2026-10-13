@@ -1,22 +1,30 @@
 import { type KeyboardEvent, type ReactNode, useId, useRef } from "react";
+import { cx } from "./cx";
 
 export interface TabDef<K extends string> {
   key: K;
   label: string;
+  /** Optional count shown after the label (e.g. unread). */
+  count?: number;
 }
 
-/** Accessible tabs (WAI-ARIA tabs pattern, automatic activation, arrow keys). */
+/**
+ * Accessible tabs (WAI-ARIA tabs pattern, automatic activation, arrow keys, Home/End). Use to switch between
+ * views of the same object. `variant="pill"` is the iOS-style capsule bar; `underline` suits dense desktop panels.
+ */
 export function Tabs<K extends string>({
   tabs,
   value,
   onChange,
   label,
+  variant = "pill",
   children,
 }: {
   tabs: ReadonlyArray<TabDef<K>>;
   value: K;
   onChange: (key: K) => void;
   label: string;
+  variant?: "pill" | "underline";
   children: ReactNode;
 }) {
   const base = useId();
@@ -43,7 +51,10 @@ export function Tabs<K extends string>({
         role="tablist"
         aria-label={label}
         onKeyDown={onKeyDown}
-        className="flex gap-1 border-b border-line"
+        className={cx(
+          "flex max-w-full overflow-x-auto",
+          variant === "pill" ? "w-fit gap-0.5 rounded-full bg-fill p-0.5" : "gap-1 border-b border-line",
+        )}
       >
         {tabs.map((tab) => {
           const selected = tab.key === value;
@@ -60,11 +71,25 @@ export function Tabs<K extends string>({
               aria-controls={`${base}-panel`}
               tabIndex={selected ? 0 : -1}
               onClick={() => onChange(tab.key)}
-              className={`-mb-px min-h-11 border-b-2 px-4 text-[0.95rem] font-medium ${
-                selected ? "border-primary text-primary-text" : "border-transparent text-muted hover:text-fg"
-              }`}
+              className={cx(
+                "inline-flex shrink-0 items-center gap-1.5 font-semibold whitespace-nowrap transition-colors duration-150",
+                variant === "pill"
+                  ? cx(
+                      "min-h-10 rounded-full px-4 text-subhead pointer-coarse:min-h-11",
+                      selected ? "bg-raised text-fg shadow-card" : "text-muted hover:text-fg",
+                    )
+                  : cx(
+                      "-mb-px min-h-11 border-b-2 px-4 text-subhead",
+                      selected
+                        ? "border-primary text-primary-text"
+                        : "border-transparent text-muted hover:text-fg",
+                    ),
+              )}
             >
               {tab.label}
+              {tab.count ? (
+                <span className="rounded-full bg-fill px-1.5 text-caption tabular-nums">{tab.count}</span>
+              ) : null}
             </button>
           );
         })}
@@ -76,7 +101,7 @@ export function Tabs<K extends string>({
   );
 }
 
-/** Filter chip (toggle button). */
+/** Filter chip (toggle button with aria-pressed). Use in a wrapping row for filters that combine. */
 export function Chip({
   pressed,
   onClick,
@@ -91,11 +116,10 @@ export function Chip({
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
-      className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors ${
-        pressed
-          ? "border-primary bg-primary-tint text-primary-text"
-          : "border-line-strong bg-raised text-fg hover:bg-sunken"
-      }`}
+      className={cx(
+        "pressable inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 text-subhead font-semibold pointer-coarse:min-h-11",
+        pressed ? "bg-primary text-primary-fg" : "bg-fill text-fg hover:bg-fill-hover",
+      )}
     >
       {children}
     </button>
