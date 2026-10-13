@@ -71,6 +71,8 @@ async function backup(env: Env, ownerId: string, now: Date): Promise<void> {
   if (stale.length > 0) await env.FILES.delete(stale);
 }
 
+const GEOCODE_CACHE_RETENTION_DAYS = 90;
+
 export async function runMaintenance(env: Env, now: Date): Promise<void> {
   let owners: string[] = [];
   await step("list_owners", null, async () => {
@@ -81,4 +83,10 @@ export async function runMaintenance(env: Env, now: Date): Promise<void> {
     await step("retention", ownerId, () => applyRetention(env, ownerId, now));
     await step("backup", ownerId, () => backup(env, ownerId, now));
   }
+  // The geocoder cache holds rounded coordinates that finders shared; keep it no longer than 90 days.
+  await step("geocode_cache", null, async () => {
+    await env.DB.prepare("DELETE FROM geocode_cache WHERE created_at < ?")
+      .bind(new Date(now.getTime() - GEOCODE_CACHE_RETENTION_DAYS * 86_400_000).toISOString())
+      .run();
+  });
 }

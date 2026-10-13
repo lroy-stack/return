@@ -55,3 +55,15 @@ Researched 2026-10-13. ✅ = verified in official docs that day; ⚠️ = not ve
   (tested in workerd) but is only loaded by the browser via dynamic import.
 - **Restore:** import validates every row and reference against the document and the current owner (review finding);
   file bytes are not part of the JSON export (R2 backup is separate, see operations).
+- **Place names (2026-10-13):** shared coordinates (finder or owner location, proposal with lat/lng) get a readable
+  name from OpenStreetMap Nominatim, resolved *after* the row is stored (`waitUntil`, migration 0002 `place_*`
+  columns), so a slow or failing geocoder never delays or loses a share; unresolved rows keep showing coordinates.
+  Language is the owner's `panelLanguage` + `en`. Policy compliance: real `RETURN/0.2` User-Agent; >= 1 s between
+  outbound calls per isolate; only end-user-triggered calls (a share, or the owner's explicit search button, never cron,
+  batch or autocomplete); results cached in D1 (`geocode_cache`, coordinates rounded to 5 decimals, entries pruned after
+  90 days) and an identical point or query is not requested twice; "© OpenStreetMap contributors" is shown wherever a
+  resolved name appears. Only the coordinates are sent, never the message or the finder's IP (privacy notice EN/DE/ES
+  says so). Owner search `GET /api/geocode/search` is limited to 30 per hour (counter row in `geocode_cache`). Fallback if
+  Nominatim is down or the policy becomes a problem: coordinates and map links, which already work without it; swapping
+  the provider is confined to `services/geocode.ts`. Backups (`db/export.ts`) do not carry place names; they are derived
+  data and a restore leaves them unresolved.

@@ -1,5 +1,11 @@
-import { type ConversationDetail, PROPOSAL_KINDS, type Proposal } from "../../shared/schemas";
+import {
+  type ConversationDetail,
+  PROPOSAL_KINDS,
+  type Proposal,
+  type ResolvedPlace,
+} from "../../shared/schemas";
 import type { Language } from "../../shared/settings";
+import { OSM_ATTRIBUTION } from "../services/geocode";
 import { EMPTY_FORM, Field, FormErrorSummary, type FormState, LocationFields } from "./components";
 import { formatCoordinate, formatInstant, formatWallClock } from "./format";
 import { dict, fmt, proposalKindName, proposalStatusName } from "./i18n";
@@ -16,6 +22,54 @@ export interface ConversationViewProps {
   /** Which form the submitted state belongs to. */
   active?: FormName;
   form?: FormState;
+}
+
+const OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright";
+
+/** Resolved place name with its context line and the attribution the OSM licence requires. */
+function ResolvedPlaceInfo({ place }: { place: ResolvedPlace }) {
+  return (
+    <>
+      <p>
+        <strong>{place.name}</strong>
+      </p>
+      {place.detail ? <p class="muted">{place.detail}</p> : null}
+    </>
+  );
+}
+
+function OsmAttribution() {
+  return (
+    <p class="muted">
+      <small>
+        <a href={OSM_COPYRIGHT} rel="noreferrer noopener" target="_blank">
+          {OSM_ATTRIBUTION}
+        </a>
+      </small>
+    </p>
+  );
+}
+
+function Coordinates({
+  lang,
+  lat,
+  lng,
+  accuracyM,
+}: {
+  lang: Language;
+  lat: number;
+  lng: number;
+  accuracyM: number | null;
+}) {
+  const t = dict(lang);
+  return (
+    <p class="muted">
+      <small>
+        {formatCoordinate(lat)}, {formatCoordinate(lng)}
+        {accuracyM != null ? ` (${fmt(t.conv.approx, { n: Math.round(accuracyM) })})` : ""}
+      </small>
+    </p>
+  );
 }
 
 function MapLinks({ lang, links }: { lang: Language; links: { google: string; apple: string } }) {
@@ -57,6 +111,12 @@ function ProposalCard({
       </p>
       <p class="muted">{byFinder ? t.conv.proposedByYou : t.conv.proposedByOwner}</p>
       <p>{proposal.place}</p>
+      {proposal.resolvedPlace ? (
+        <>
+          <ResolvedPlaceInfo place={proposal.resolvedPlace} />
+          <OsmAttribution />
+        </>
+      ) : null}
       {proposal.meetAt ? (
         <p>
           <strong>{t.conv.when}:</strong> {formatWallClock(proposal.meetAt, lang)}
@@ -155,12 +215,20 @@ export function ConversationPage({
                 <li key={l.id} class="card">
                   <p class="muted">{l.sharedBy === "finder" ? t.conv.sharedByYou : t.conv.sharedByOwner}</p>
                   {l.label ? <p>{l.label}</p> : null}
+                  {l.place ? <ResolvedPlaceInfo place={l.place} /> : null}
                   {l.lat != null && l.lng != null ? (
-                    <p>
-                      {formatCoordinate(l.lat)}, {formatCoordinate(l.lng)}
-                      {l.accuracyM != null ? ` (${fmt(t.conv.approx, { n: Math.round(l.accuracyM) })})` : ""}
-                    </p>
+                    l.place ? (
+                      <Coordinates lang={lang} lat={l.lat} lng={l.lng} accuracyM={l.accuracyM} />
+                    ) : (
+                      <p>
+                        {formatCoordinate(l.lat)}, {formatCoordinate(l.lng)}
+                        {l.accuracyM != null
+                          ? ` (${fmt(t.conv.approx, { n: Math.round(l.accuracyM) })})`
+                          : ""}
+                      </p>
+                    )
                   ) : null}
+                  {l.place ? <OsmAttribution /> : null}
                   <time datetime={l.createdAt} data-local-time>
                     {formatInstant(l.createdAt, lang)}
                   </time>

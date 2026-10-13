@@ -150,7 +150,7 @@ export interface NewConversation {
 export async function createConversation(
   db: D1Database,
   input: NewConversation,
-): Promise<{ id: string; token: string }> {
+): Promise<{ id: string; token: string; locationId: string | null }> {
   const token = newSecretToken();
   const tokenHash = await sha256Hex(token);
   const id = newId();
@@ -209,7 +209,12 @@ export async function createConversation(
       )
       .bind(newId(), id, input.message, now),
   ];
-  if (input.location) statements.push(locationInsert(db, id, "finder", input.location, now, false).statement);
+  let locationId: string | null = null;
+  if (input.location) {
+    const inserted = locationInsert(db, id, "finder", input.location, now, false);
+    locationId = inserted.id;
+    statements.push(inserted.statement);
+  }
   statements.push(
     activityStatement(db, {
       ownerId: input.ownerId,
@@ -238,7 +243,7 @@ export async function createConversation(
     await db.prepare("DELETE FROM conversations WHERE id = ?").bind(id).run();
     throw err;
   }
-  return { id, token };
+  return { id, token, locationId };
 }
 
 export async function addMessage(
@@ -293,6 +298,9 @@ export async function shareLocation(
     lat: loc.lat ?? null,
     lng: loc.lng ?? null,
     accuracy_m: loc.accuracyM ?? null,
+    place_name: null,
+    place_detail: null,
+    place_address: null,
     created_at: now,
   });
 }
@@ -313,6 +321,9 @@ export async function createProposal(
     place: input.place,
     lat: input.lat ?? null,
     lng: input.lng ?? null,
+    place_name: null,
+    place_detail: null,
+    place_address: null,
     meet_at: input.meetAt ?? null,
     instructions: input.instructions || null,
     status: "proposed",

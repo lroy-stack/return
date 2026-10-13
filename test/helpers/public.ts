@@ -16,6 +16,18 @@ export const turnstile = {
   calls: [] as { body: string }[],
 };
 
+const NOMINATIM_ORIGIN = "https://nominatim.openstreetmap.org/";
+
+/**
+ * Controls and records the stubbed Nominatim API (the network is never used). By default it is
+ * unavailable (503), so tests that do not care about place names see an unresolved location.
+ */
+export const nominatim = {
+  respond: (_url: URL): Response | Promise<Response> => new Response("unavailable", { status: 503 }),
+  calls: [] as { url: URL; headers: Headers }[],
+};
+const nominatimDefault = nominatim.respond;
+
 const tracked: { mockRestore(): void }[] = [];
 
 /** Registers a spy for `restoreTrackedSpies`. vi.restoreAllMocks would also undo the Access fetch stub. */
@@ -29,6 +41,8 @@ export function resetPublicStubs(): void {
   turnstile.success = true;
   turnstile.unreachable = false;
   turnstile.hostname = "return.test";
+  nominatim.respond = nominatimDefault;
+  nominatim.calls.length = 0;
 }
 
 const fetchMock = vi.mocked(globalThis.fetch);
@@ -40,6 +54,11 @@ fetchMock.mockImplementation(async (input, init) => {
     turnstile.calls.push({ body: String(init?.body ?? "") });
     if (turnstile.unreachable) throw new Error("network down");
     return Response.json({ success: turnstile.success, hostname: turnstile.hostname });
+  }
+  if (url.startsWith(NOMINATIM_ORIGIN)) {
+    const parsed = new URL(url);
+    nominatim.calls.push({ url: parsed, headers: new Headers(init?.headers) });
+    return nominatim.respond(parsed);
   }
   return (previousFetch ?? realFetch)(input, init);
 });

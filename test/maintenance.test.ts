@@ -162,4 +162,18 @@ describe("maintenance", () => {
     expect(await listBackups(id)).toContain(`backups/${id}/${dayAfter.toISOString().slice(0, 10)}.json`);
     expect(await listBackups("broken")).toEqual([]);
   });
+
+  it("prunes geocoder cache entries older than 90 days (they hold rounded finder coordinates)", async () => {
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO geocode_cache (key, payload, created_at) VALUES ('rev:old', '{}', ?)").bind(
+        ago(91),
+      ),
+      env.DB.prepare("INSERT INTO geocode_cache (key, payload, created_at) VALUES ('rev:new', '{}', ?)").bind(
+        ago(5),
+      ),
+    ]);
+    await runMaintenance(env, new Date());
+    expect(await count("SELECT COUNT(*) AS n FROM geocode_cache WHERE key = 'rev:old'")).toBe(0);
+    expect(await count("SELECT COUNT(*) AS n FROM geocode_cache WHERE key = 'rev:new'")).toBe(1);
+  });
 });

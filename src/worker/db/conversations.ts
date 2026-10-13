@@ -8,6 +8,7 @@ import type {
   Proposal,
   ProposalKind,
   ProposalStatus,
+  ResolvedPlace,
   SharedLocation,
 } from "../../shared/schemas";
 import { notFound } from "../lib/http";
@@ -137,6 +138,9 @@ interface LocationRow {
   lat: number | null;
   lng: number | null;
   accuracy_m: number | null;
+  place_name: string | null;
+  place_detail: string | null;
+  place_address: string | null;
   created_at: string;
 }
 
@@ -148,6 +152,9 @@ export interface ProposalRow {
   place: string;
   lat: number | null;
   lng: number | null;
+  place_name: string | null;
+  place_detail: string | null;
+  place_address: string | null;
   meet_at: string | null;
   instructions: string | null;
   status: string;
@@ -159,6 +166,16 @@ export function toMessage(r: MessageRow): Message {
   return { id: r.id, sender: r.sender as Message["sender"], body: r.body, createdAt: r.created_at };
 }
 
+/** The resolved place columns of a row, or null while unresolved. */
+function toResolvedPlace(r: {
+  place_name: string | null;
+  place_detail: string | null;
+  place_address: string | null;
+}): ResolvedPlace | null {
+  if (!r.place_name) return null;
+  return { name: r.place_name, detail: r.place_detail, address: r.place_address ?? r.place_name };
+}
+
 export function toSharedLocation(r: LocationRow): SharedLocation {
   return {
     id: r.id,
@@ -168,6 +185,7 @@ export function toSharedLocation(r: LocationRow): SharedLocation {
     lat: r.lat,
     lng: r.lng,
     accuracyM: r.accuracy_m,
+    place: toResolvedPlace(r),
     createdAt: r.created_at,
     maps: mapLinks({ lat: r.lat, lng: r.lng, label: r.label }),
   };
@@ -181,6 +199,7 @@ export function toProposal(r: ProposalRow): Proposal {
     place: r.place,
     lat: r.lat,
     lng: r.lng,
+    resolvedPlace: toResolvedPlace(r),
     meetAt: r.meet_at,
     instructions: r.instructions,
     status: r.status as ProposalStatus,

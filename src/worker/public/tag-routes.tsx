@@ -11,6 +11,7 @@ import { hmacHex, isWellFormedSecretToken, normalizeTagToken, sha256Hex } from "
 import { allowPublicWrite, clientKey, rawClientIp } from "../lib/ratelimit";
 import { nowIso } from "../lib/time";
 import { publicOrigin } from "../lib/urls";
+import { resolveAndStorePlace } from "../services/geocode";
 import { notifyFinder, notifyOwner } from "../services/notify";
 import { verifyTurnstile } from "../services/turnstile";
 import type { FormState } from "./components";
@@ -244,7 +245,7 @@ tagRoutes.post("/:token/contact", async (c) => {
     return rerender({ values, errors: { form: t.errors.verification } }, 403);
   }
 
-  let created: { id: string; token: string };
+  let created: { id: string; token: string; locationId: string | null };
   try {
     const key = clientKey(c.env, c.req.raw);
     const ipHmac = key ? await hmacHex(c.env.IP_HMAC_SECRET, key) : null;
@@ -268,7 +269,18 @@ tagRoutes.post("/:token/contact", async (c) => {
   }
 
   const { id, token: finderToken } = created;
-  const { email } = parsed.data;
+  const { email, location } = parsed.data;
+  if (created.locationId && location) {
+    defer(
+      c,
+      resolveAndStorePlace(
+        c.env,
+        tag.ownerId,
+        { table: "shared_locations", id: created.locationId },
+        location,
+      ),
+    );
+  }
   defer(
     c,
     (async () => {

@@ -271,6 +271,8 @@ export interface SharedLocation {
   lat: number | null;
   lng: number | null;
   accuracyM: number | null;
+  /** Readable place resolved from the coordinates (OpenStreetMap); null if unresolved. */
+  place: ResolvedPlace | null;
   createdAt: string;
   /** Links to the shared point only; never include an origin. */
   maps: MapLinks | null;
@@ -295,6 +297,8 @@ export interface Proposal {
   place: string;
   lat: number | null;
   lng: number | null;
+  /** Readable place for the coordinates, when they were given and could be resolved. */
+  resolvedPlace: ResolvedPlace | null;
   meetAt: string | null;
   instructions: string | null;
   status: ProposalStatus;
@@ -307,6 +311,26 @@ export interface MapLinks {
   google: string;
   apple: string;
 }
+
+/**
+ * A place name resolved from coordinates (reverse geocoding) or found by search (forward geocoding).
+ * Data © OpenStreetMap contributors (ODbL) — attribution must be shown wherever it is displayed.
+ */
+export interface ResolvedPlace {
+  /** Short, human name: "Estación de Atocha" or "Calle de Alcalá 12". */
+  name: string;
+  /** Context line: neighbourhood, city, country. */
+  detail: string | null;
+  /** Full address as returned by the geocoder. */
+  address: string;
+}
+
+export interface GeocodeResult extends ResolvedPlace {
+  lat: number;
+  lng: number;
+}
+
+export const geocodeSearchQuerySchema = z.object({ q: str(200).min(3) });
 
 export interface ConversationDetail {
   conversation: ConversationSummary & {

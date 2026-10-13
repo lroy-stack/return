@@ -16,6 +16,7 @@ import type { AppEnv } from "../env";
 import { AppError, capabilityHeaders } from "../lib/http";
 import { isWellFormedSecretToken, sha256Hex } from "../lib/ids";
 import { allowPublicWrite } from "../lib/ratelimit";
+import { resolveAndStorePlace } from "../services/geocode";
 import { notifyOwner, type OwnerEvent } from "../services/notify";
 import type { FormState } from "./components";
 import { ConversationPage, type FormName } from "./conversation-view";
@@ -149,6 +150,15 @@ conversationRoutes.post("/:token/location", async (c) => {
   const data = parsed.data;
   return withCap(c, loaded, "location", values, async () => {
     const location = await shareLocation(c.env.DB, loaded.conv, "finder", data);
+    defer(
+      c,
+      resolveAndStorePlace(
+        c.env,
+        loaded.conv.owner_id,
+        { table: "shared_locations", id: location.id },
+        location,
+      ),
+    );
     tellOwner(c, loaded.conv, "location_shared", location.label ?? "");
     return done(c, loaded.token);
   });
@@ -162,6 +172,10 @@ conversationRoutes.post("/:token/proposals", async (c) => {
   const data = parsed.data;
   return withCap(c, loaded, "proposal", values, async () => {
     const proposal = await createProposal(c.env.DB, loaded.conv, "finder", data);
+    defer(
+      c,
+      resolveAndStorePlace(c.env, loaded.conv.owner_id, { table: "proposals", id: proposal.id }, proposal),
+    );
     tellOwner(c, loaded.conv, "proposal", proposal.place);
     return done(c, loaded.token);
   });

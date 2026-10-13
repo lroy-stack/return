@@ -156,7 +156,7 @@ export const en = {
     seen: "The owner of the item. If the owner has named trusted contacts, they may be told that someone made contact (never your message text). Nobody else, and it is not used for advertising or analytics.",
     processorsTitle: "Service providers",
     processors:
-      "Cloudflare processes data on our behalf: it hosts this service, runs the Turnstile bot check (which sees your IP address) and delivers e-mail.",
+      "Cloudflare processes data on our behalf: it hosts this service, runs the Turnstile bot check (which sees your IP address) and delivers e-mail. When you share a position, its coordinates (and nothing else) are sent to OpenStreetMap's geocoding service (Nominatim, OpenStreetMap Foundation) to show a place name. Place names © OpenStreetMap contributors.",
     retentionTitle: "How long",
     retention:
       "Closed conversations are deleted after the period the owner has set (90 days by default). The owner can delete a conversation at any time.",
@@ -359,7 +359,7 @@ const de: Dict = {
     seen: "Der Eigentümer des Gegenstands. Hat der Eigentümer Vertrauenspersonen benannt, erfahren diese möglicherweise, dass jemand Kontakt aufgenommen hat (nie den Text Ihrer Nachricht). Niemand sonst, und es wird nicht für Werbung oder Analyse verwendet.",
     processorsTitle: "Dienstleister",
     processors:
-      "Cloudflare verarbeitet Daten in unserem Auftrag: Es hostet diesen Dienst, betreibt die Turnstile-Bot-Prüfung (die Ihre IP-Adresse sieht) und versendet E-Mails.",
+      "Cloudflare verarbeitet Daten in unserem Auftrag: Es hostet diesen Dienst, betreibt die Turnstile-Bot-Prüfung (die Ihre IP-Adresse sieht) und versendet E-Mails. Wenn Sie einen Standort teilen, werden dessen Koordinaten (und sonst nichts) an den Geocoding-Dienst von OpenStreetMap (Nominatim, OpenStreetMap Foundation) gesendet, um einen Ortsnamen anzuzeigen. Ortsnamen © OpenStreetMap contributors.",
     retentionTitle: "Wie lange",
     retention:
       "Beendete Gespräche werden nach der vom Eigentümer eingestellten Frist gelöscht (standardmäßig 90 Tage). Der Eigentümer kann ein Gespräch jederzeit löschen.",
@@ -554,7 +554,7 @@ const es: Dict = {
     seen: "El propietario del objeto. Si el propietario ha designado personas de confianza, puede que se les avise de que alguien ha contactado (nunca el texto de tu mensaje). Nadie más, y no se usa para publicidad ni analítica.",
     processorsTitle: "Proveedores de servicios",
     processors:
-      "Cloudflare trata datos por encargo nuestro: aloja este servicio, ejecuta la comprobación antirrobots Turnstile (que ve tu dirección IP) y entrega el correo electrónico.",
+      "Cloudflare trata datos por encargo nuestro: aloja este servicio, ejecuta la comprobación antirrobots Turnstile (que ve tu dirección IP) y entrega el correo electrónico. Cuando compartes una posición, sus coordenadas (y nada más) se envían al servicio de geocodificación de OpenStreetMap (Nominatim, OpenStreetMap Foundation) para mostrar el nombre del lugar. Nombres de lugares © OpenStreetMap contributors.",
     retentionTitle: "Cuánto tiempo",
     retention:
       "Las conversaciones cerradas se borran tras el plazo que haya fijado el propietario (90 días por defecto). El propietario puede borrar una conversación en cualquier momento.",

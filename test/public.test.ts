@@ -48,6 +48,15 @@ describe("static finder routes", () => {
     expect(emergency).toContain("backup@example.test");
   });
 
+  it.each(["en", "de", "es"])(
+    "discloses the OpenStreetMap geocoding in the %s privacy notice",
+    async (lang) => {
+      const html = await (await finderGet(`/privacy?lang=${lang}`)).text();
+      expect(html).toContain("OpenStreetMap");
+      expect(html).toContain("Nominatim");
+    },
+  );
+
   it("serves the emergency page without touching the database", async () => {
     trackSpy(vi.spyOn(env.DB, "prepare")).mockImplementation(() => {
       throw new Error("D1 is down");

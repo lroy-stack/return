@@ -26,6 +26,7 @@ import {
 } from "../domain/conversations";
 import type { AppContext, AppEnv } from "../env";
 import { parseJson, parseWith } from "../lib/http";
+import { resolveAndStorePlace } from "../services/geocode";
 import { notifyFinder } from "../services/notify";
 
 export const conversationsApi = new Hono<AppEnv>();
@@ -82,6 +83,9 @@ conversationsApi.post("/:id/proposals", async (c) => {
   const conv = await loadRow(c);
   const input = await parseJson(c, proposalInputSchema);
   const proposal = await createProposal(c.env.DB, conv, "owner", input);
+  c.executionCtx.waitUntil(
+    resolveAndStorePlace(c.env, conv.owner_id, { table: "proposals", id: proposal.id }, proposal),
+  );
   tellFinder(c, conv);
   return c.json(proposal, 201);
 });
