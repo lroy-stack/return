@@ -20,3 +20,16 @@ GitHub repo · **O3** confirm domain auto-renew + enable DNSSEC (DS at Hostinger
 | 3.13 | Final re-audit (ui-qa + functional smoke) → deploy (migrations guarded) → verify live | ui-qa, lead | — | report + curl/live checks | S |
 
 Phases 4–10: see docs/architecture/next-phases.md (spikes S1–S5 first; ADRs 0002–0005 must be accepted before code).
+
+## Phases 4–5 — Owner PWA and owner push (started 2026-10-13)
+Context change: the account is on **Workers Paid** since 2026-10-13 (for Email Sending), so spike S3 (push CPU on
+Free) is moot, and finder emails (`notifications.notifyFinders`) are now technically available. Migration numbering
+continues at `0005` (ADR 0003's `0003_push` sketch is renamed `0005_push`).
+
+| # | Task | Owner agent | Files/areas | Verify | Size |
+|---|---|---|---|---|---|
+| 4.1 | Owner PWA: manifest (`crossorigin="use-credentials"`, icons from the brand mark), `/sw.js` emitted by a small Vite plugin with a pure, unit-tested routing function (`/api/*`, `/cdn-cgi/*`, non-GET → network only), offline shell + offline state, "Update ready" toast keyed on a build id, kill-switch SW documented | frontend-engineer | src/app/**, vite plugin, public/ | vitest routing table; Playwright: no `/api/` in Cache Storage, update toast; Chromium installable | M |
+| 4.2 | Push server: VAPID keys (script, `VAPID_PUBLIC_KEY` var + `VAPID_PRIVATE_KEY` secret), `services/push/webpush.ts` (RFC 8291 aes128gcm + RFC 8292 VAPID on WebCrypto), migration `0005_push`, owner subscription API, content-free payload schema, send on owner events next to email (secondary, never throws), 404/410 deletes the subscription, endpoint host allowlist, test push | implementer | src/worker/**, src/shared/schemas.ts, migrations/0005_push.sql, scripts/ | vitest: RFC 8291 example vectors, payload snapshot without message text, 410 cleanup, allowlist | M |
+| 4.3 | Push client: SW `push`/`notificationclick`, Settings › Notifications "on this device" subscribe/unsubscribe, device list, "show item name" (off) | frontend-engineer | src/app/** | Playwright with a fake push service; manual on devices | S |
+| 4.4 | S1 on a real iPhone (owner): install, Access login persists after relaunch next day; Access session duration 30 days | owner + lead | Access app config | recorded outcome in ADR 0002 | S |
+| 4.5 | Review (code-reviewer, crypto reviewed twice), docs (operations: VAPID rotation, SW kill switch; security; privacy), deploy, device test 5/5 within 10 s | lead | docs/** | live checks | S |
