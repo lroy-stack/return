@@ -80,7 +80,8 @@ docs/specs/004-mobile-ux, docs/architecture/next-phases.md, ADRs 0002–0006, co
 - ☐ Decide: per-item colour field (migration) so illustrations match the real item.
 
 ### J3 · Proof photos and sharing with the finder (▶ ADR 0006 being written)
-- ▶ ADR 0006: guided proof-photo set (owner wants ≥ 4), when it is enforced, what must never appear in them.
+- ✓ ADR 0006 accepted with the owner's decisions (guided, never blocking; label photo in person only; 24 h / 7 d).
+- ☐ Implement ADR 0006 (≈ 3–4 days, 7 tasks; first a short spike: watermark rendering speed/legibility on iPhone).
 - ☐ Owner-controlled, revocable, time-limited sharing of selected photos into one conversation, served only through
   the finder's capability (no standalone URLs), watermark, view log, auto-revoke on close/block; later sealed end to
   end (ADR 0004). Owner decisions listed in the ADR.
