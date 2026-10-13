@@ -17,6 +17,7 @@ export function ConfirmDialog({
   tone = "danger",
   typed,
   typedLabel,
+  confirmDisabled,
   onConfirm,
   onClose,
 }: {
@@ -27,6 +28,8 @@ export function ConfirmDialog({
   tone?: "danger" | "primary";
   typed?: string;
   typedLabel?: string;
+  /** Keep the confirm button off while something it depends on is still loading. */
+  confirmDisabled?: boolean;
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -38,6 +41,7 @@ export function ConfirmDialog({
         tone={tone}
         typed={typed}
         typedLabel={typedLabel}
+        confirmDisabled={confirmDisabled}
         onConfirm={onConfirm}
         onClose={onClose}
       />
@@ -51,6 +55,7 @@ function ConfirmBody({
   tone,
   typed,
   typedLabel,
+  confirmDisabled,
   onConfirm,
   onClose,
 }: {
@@ -59,6 +64,7 @@ function ConfirmBody({
   tone: "danger" | "primary";
   typed?: string;
   typedLabel?: string;
+  confirmDisabled?: boolean;
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -101,7 +107,7 @@ function ConfirmBody({
       </SheetBody>
       <SheetFooter>
         <Button onClick={onClose}>{t("common.cancel")}</Button>
-        <Button type="submit" variant={tone} loading={pending} disabled={!ready}>
+        <Button type="submit" variant={tone} loading={pending} disabled={!ready || confirmDisabled}>
           {confirmLabel}
         </Button>
       </SheetFooter>

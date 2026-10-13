@@ -22,7 +22,7 @@ interface SheetGuard {
   requestClose: () => void;
 }
 const NO_GUARD: SheetGuard = { setDirty: () => {}, requestClose: () => {} };
-const SheetGuardContext = createContext<SheetGuard>(NO_GUARD);
+const SheetGuardContext = createContext<SheetGuard | null>(null);
 
 /**
  * Forms inside a Sheet call this with "has unsaved edits". While true, Escape, the scrim, the close button and a
@@ -30,7 +30,10 @@ const SheetGuardContext = createContext<SheetGuard>(NO_GUARD);
  * through the parent's own `onClose`, which never asks.
  */
 export function useSheetGuard(dirty: boolean): () => void {
-  const guard = useContext(SheetGuardContext);
+  const provided = useContext(SheetGuardContext);
+  // A form used outside a Sheet would have a Cancel button that does nothing: fail loudly while developing.
+  if (!provided && import.meta.env.DEV) throw new Error("useSheetGuard must be used inside a <Sheet>");
+  const guard = provided ?? NO_GUARD;
   useEffect(() => {
     guard.setDirty(dirty);
     return () => guard.setDirty(false);

@@ -2,7 +2,8 @@
  * Phase 3 panel flows: blocks with a duration, the blocked list, retiring a tag, thank & close after a recovery,
  * the unsaved-changes guard and inventory filters in the URL.
  */
-import { chooseOption, expect, requireTurnstileNetwork, test, unique } from "./fixtures";
+import type { Page } from "@playwright/test";
+import { chooseOption, expect, type OwnerApi, requireTurnstileNetwork, test, unique } from "./fixtures";
 
 test("blocking a finder sends a duration, lists it in Settings and unblocking clears it", async ({
   page,
@@ -39,11 +40,8 @@ test("revoking a tag warns that the card stops working and counts open conversat
   await requireTurnstileNetwork();
   await startConversation(tagged);
   await page.goto("/tags");
-  await page
-    .getByRole("button", { name: new RegExp(tagged.tag.label) })
-    .first()
-    .click();
-  const sheet = page.getByRole("dialog", { name: new RegExp(tagged.tag.label) });
+  await page.getByRole("button", { name: new RegExp(`^${tagged.tag.label} `) }).click();
+  const sheet = page.getByRole("dialog", { name: `Tag ${tagged.tag.label}` });
   await sheet.getByRole("button", { name: "Revoke" }).click();
   const confirm = page.getByRole("dialog", { name: "Revoke this tag?" });
   await expect(confirm).toContainText("printed card or NFC chip stops working");
@@ -136,4 +134,90 @@ test("a failed owner email shows a persistent banner and the test email reports 
   await page.getByRole("button", { name: "Send test email" }).click();
   await expect(page.getByText("Cloudflare's sending limit was reached. Try again later.")).toBeVisible();
   await expect(page.getByRole("region", { name: "Alerts" })).toBeVisible();
+});
+
+async function openDirtyEditSheet(page: Page, owner: OwnerApi) {
+  const item = await owner.createItem({ name: unique("Guard keys") });
+  await page.goto(`/items/${item.id}`);
+  await page.getByRole("button", { name: "Item actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^Edit item/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
+  await sheet.getByLabel(/^Name\b/).fill("Changed");
+  return sheet;
+}
+
+test("Escape asks before discarding, and Escape inside the question only dismisses the question", async ({
+  page,
+  owner,
+}) => {
+  const sheet = await openDirtyEditSheet(page, owner);
+  const ask = page.getByRole("dialog", { name: "Discard your changes?" });
+  await page.keyboard.press("Escape");
+  await expect(ask).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(ask).toBeHidden();
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByLabel(/^Name\b/)).toHaveValue("Changed");
+});
+
+test("a click on the scrim asks before discarding", async ({ page, owner }) => {
+  const sheet = await openDirtyEditSheet(page, owner);
+  const ask = page.getByRole("dialog", { name: "Discard your changes?" });
+  await page.mouse.click(2, 2);
+  await expect(ask).toBeVisible();
+  await ask.getByRole("button", { name: "Keep editing" }).click();
+  await expect(sheet.getByLabel(/^Name\b/)).toHaveValue("Changed");
+});
+
+test("a recovery moves on with a note and its notes can be edited in place", async ({ page, owner }) => {
+  const item = await owner.createItem({ name: unique("Recovery flow") });
+  await owner.markLost(item.id);
+  await page.goto(`/items/${item.id}`);
+
+  // Status change: only the new note is sent; it lands in the history.
+  await page.getByRole("button", { name: "Update recovery" }).click();
+  const sheet = page.getByRole("dialog", { name: "Update recovery" });
+  await chooseOption(sheet, "Status", "Found");
+  await sheet.getByLabel("Note for this change").fill("Found at the desk");
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+  const history = page.getByRole("list", { name: "History" });
+  await expect(history).toContainText("Found at the desk");
+  const events = (await owner.item(item.id)).recoveryEvents;
+  expect(events.map((e) => [e.status, e.note])).toEqual([
+    ["lost", null],
+    ["found", "Found at the desk"],
+  ]);
+
+  // No status change: the notes are replaced and the card shows the current text.
+  await page.getByRole("button", { name: "Update recovery" }).click();
+  await sheet.getByLabel("Notes", { exact: true }).fill("Courier collects on Friday");
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByText("Current notes")).toBeVisible();
+  await expect(page.getByText("Courier collects on Friday")).toBeVisible();
+});
+
+test("amounts with three decimals are refused instead of guessed", async ({ page, owner }) => {
+  const item = await owner.createItem({ name: unique("Money") });
+  await page.goto(`/items/${item.id}`);
+  await page.getByRole("button", { name: "Item actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^Edit item/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Edit item" });
+  await sheet.getByText("Private details").click();
+  await sheet.getByLabel("Estimated value").fill("12.345");
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toContainText("at most two decimals");
+  await sheet.getByLabel("Estimated value").fill("1,234.50");
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+  expect((await owner.item(item.id)).item.estimatedValueCents).toBe(123450);
+});
+
+test("the search box follows the URL when the Inventory tab clears the query", async ({ page }) => {
+  await page.goto("/?q=abc");
+  const box = page.getByRole("searchbox");
+  await expect(box).toHaveValue("abc");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Inventory" }).click();
+  await expect(box).toHaveValue("");
 });

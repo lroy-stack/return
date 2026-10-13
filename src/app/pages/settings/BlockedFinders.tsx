@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { BlockEntry } from "../../../shared/schemas";
 import { api } from "../../lib/api";
+import { notifyDataChanged } from "../../lib/data-events";
 import { useResource } from "../../lib/hooks";
 import { useT } from "../../lib/i18n";
 import { Link } from "../../lib/router";
@@ -27,6 +28,7 @@ export function BlockedFinders() {
     try {
       await api.delete(`/blocks/${block.id}`);
       toast(t("blocks.lifted"));
+      notifyDataChanged();
       res.reload(true);
     } catch (e) {
       toast(errorMessage(e, t), "error");

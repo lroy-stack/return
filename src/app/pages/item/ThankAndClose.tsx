@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ConversationSummary } from "../../../shared/schemas";
 import { api } from "../../lib/api";
+import { notifyDataChanged } from "../../lib/data-events";
 import { useT } from "../../lib/i18n";
 import { Link } from "../../lib/router";
 import { Button } from "../../ui/Button";
@@ -20,7 +21,8 @@ export function ThankAndClose({
 }: {
   conversations: ConversationSummary[];
   onClose: () => void;
-  onClosed: () => void;
+  /** Ids that really closed, so the parent can drop them from the list. */
+  onClosed: (closedIds: string[]) => void;
 }) {
   const t = useT();
   return (
@@ -43,7 +45,7 @@ function ThanksBody({
 }: {
   conversations: ConversationSummary[];
   onClose: () => void;
-  onClosed: () => void;
+  onClosed: (closedIds: string[]) => void;
 }) {
   const t = useT();
   const toast = useToast();
@@ -58,13 +60,15 @@ function ThanksBody({
       conversations.map((c) => api.post(`/conversations/${c.id}/close`)),
     );
     const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    const closedIds = conversations.filter((_, i) => results[i]?.status === "fulfilled").map((c) => c.id);
     setPending(false);
-    onClosed();
+    notifyDataChanged();
+    onClosed(closedIds);
     if (failed) {
       setError(errorMessage(failed.reason, t));
       return;
     }
-    toast(t("thanks.closed", { n: conversations.length }));
+    toast(t("thanks.closed", { n: closedIds.length }));
     onClose();
   };
 

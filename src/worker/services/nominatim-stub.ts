@@ -2,9 +2,13 @@
  * Offline stand-in for Nominatim, used only when ENVIRONMENT=development and NOMINATIM_STUB=1 (E2E and
  * local work without network). It answers in-process: nothing is exposed over HTTP and nothing leaves
  * the machine. Answers are deterministic and echo the request so tests can tell them apart.
+ * Like the real service, a reverse lookup in open ocean (here: the South Atlantic box below) has no result.
  */
+
+const isOpenSouthAtlantic = (lat: number, lon: number) => lat < -10 && lat > -60 && lon < -10 && lon > -40;
 export function stubNominatim(path: string, params: Record<string, string>): unknown {
   if (path === "/reverse") {
+    if (isOpenSouthAtlantic(Number(params.lat), Number(params.lon))) return { error: "Unable to geocode" };
     return {
       name: "Stub Place",
       display_name: `Stub Place, Stub Street, Stubville, Stubland (${params.lat}, ${params.lon})`,

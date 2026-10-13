@@ -535,10 +535,6 @@ export interface SystemStatus {
   };
   maintenance: { lastRunAt: string | null; lastBackupAt: string | null };
   counts: { items: number; tags: number; openConversations: number };
-  /** Same value as `maintenance.lastBackupAt` (kept until the panel reads the new field). */
-  lastBackupAt: string | null;
-  /** Same value as `email.recentFailures` (kept until the panel reads the new field). */
-  recentNotificationFailures: number;
 }
 
 /** Response of `POST /settings/test-email`. `code` is "sent" on success. */

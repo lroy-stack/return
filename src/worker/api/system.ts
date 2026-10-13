@@ -79,7 +79,5 @@ systemApi.get("/", async (c) => {
       tags: counts?.tags ?? 0,
       openConversations: counts?.open_conversations ?? 0,
     },
-    lastBackupAt: counts?.last_backup ?? null,
-    recentNotificationFailures: counts?.failures ?? 0,
   });
 });

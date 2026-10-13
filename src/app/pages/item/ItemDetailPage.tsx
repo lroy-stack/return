@@ -352,7 +352,11 @@ function ItemView({ detail, onChanged }: { detail: ItemDetail; onChanged: () => 
       <PublicPageSheet open={dialog === "public"} item={item} onClose={close} onSaved={onChanged} />
       <LocationSheet open={dialog === "location"} item={item} onClose={close} onSaved={onChanged} />
       <RecoverySheet recovery={recovery} onClose={() => setRecovery(null)} onDone={afterRecovered} />
-      <ThankAndClose conversations={thanks} onClose={() => setThanks([])} onClosed={onChanged} />
+      <ThankAndClose
+        conversations={thanks}
+        onClose={() => setThanks([])}
+        onClosed={(ids) => setThanks((list) => list.filter((c) => !ids.includes(c.id)))}
+      />
       <ConfirmDialog
         open={dialog === "archive"}
         title={t("item.archiveTitle")}
@@ -519,8 +523,6 @@ function RecoveriesTimeline({
           const done = r.status === "recovered" || r.status === "closed";
           // Newest first, like every timeline in the panel (the API returns oldest first).
           const history = events.filter((e) => e.recoveryId === r.id).reverse();
-          // Recoveries older than the history log only have their notes field.
-          const legacyNotes = history.every((e) => !e.note) ? r.notes : null;
           return (
             <Card key={r.id} padding="sm" className="flex flex-col gap-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -562,10 +564,13 @@ function RecoveriesTimeline({
                     }) satisfies TimelineEntry,
                 )}
               />
-              {legacyNotes ? (
-                <p className="text-subhead whitespace-pre-wrap text-muted" dir="auto">
-                  {legacyNotes}
-                </p>
+              {r.notes ? (
+                <div className="rounded-control bg-sunken px-3 py-2">
+                  <p className="text-footnote font-semibold text-muted">{t("recovery.currentNotes")}</p>
+                  <p className="text-subhead whitespace-pre-wrap" dir="auto">
+                    {r.notes}
+                  </p>
+                </div>
               ) : null}
             </Card>
           );

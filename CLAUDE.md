@@ -51,6 +51,9 @@ Node 24 via fnm, pnpm. Versions pinned in `package.json`; decisions in `docs/dec
   works on loopback hosts. Copy `.dev.vars.example`.
 - Asset responses have immutable headers: copy them (`new Response(res.body, res)`) before adding headers.
 - Public pages use a strict CSP (`style-src 'self'`): no inline `style=` attributes or inline scripts there.
+- E2E runs on a fresh local database in `.wrangler/e2e` (wiped each run via `LOCAL_STATE_DIR`, read by
+  `vite.config.ts`); `pnpm dev` keeps using `.wrangler/state`. The Nominatim stub has no reverse result in the
+  open South Atlantic, mirroring the real service.
 - Tests use the `worker` export from `test/helpers/auth.ts` (the generated `Exports` type lacks `default`).
 
 ## Definition of Done

@@ -3,6 +3,7 @@
  * Each owner and each step is isolated: one failure is logged and the rest still runs.
  */
 import { activityStatement } from "../db/activity";
+import { expireBlocksStatements } from "../db/blocks";
 import { buildExport } from "../db/export";
 import { getSettings } from "../db/settings";
 import { daysAgoIso } from "../lib/time";
@@ -47,9 +48,7 @@ async function applyRetention(env: Env, ownerId: string, now: Date): Promise<voi
       ownerId,
       daysAgoIso(NOTIFICATION_RETENTION_DAYS, nowMs),
     ),
-    env.DB.prepare(
-      "DELETE FROM blocks WHERE owner_id = ? AND expires_at IS NOT NULL AND expires_at < ?",
-    ).bind(ownerId, now.toISOString()),
+    ...expireBlocksStatements(db, ownerId, now.toISOString()),
   ]);
 }
 

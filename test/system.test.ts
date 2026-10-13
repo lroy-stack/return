@@ -35,8 +35,6 @@ describe("system status", () => {
       environment: "test",
       publicOrigin: "https://return.test",
       appOrigin: "https://app.return.test",
-      lastBackupAt: "2026-04-01T03:17:00.000Z",
-      recentNotificationFailures: 1,
     });
     expect(status.checks).toMatchObject({
       database: true,
@@ -100,7 +98,6 @@ describe("owner email reliability", () => {
       error: expect.stringContaining("domain config"),
     });
     expect(status.email.recentFailures).toBe(1);
-    expect(status.recentNotificationFailures).toBe(1);
     const { alerts } = await apiJson<{ alerts: OwnerAlert[] }>("GET", "/alerts");
     expect(alerts).toEqual([
       expect.objectContaining({

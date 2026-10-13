@@ -69,7 +69,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
   const [verification, setVerification] = useState<TagVerification | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [confirm, setConfirm] = useState<"revoke" | "replace" | null>(null);
-  const [openConvs, setOpenConvs] = useState(0);
+  const [openConvs, setOpenConvs] = useState<number | "loading" | "failed">("loading");
   const [note, setNote] = useState(tag.note ?? "");
   const revoked = tag.status === "revoked";
   const items = useResource<ItemSummary[]>(
@@ -103,14 +103,20 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
   // Both actions retire the printed card: ask how many conversations started from it are still open.
   const askToRetire = (action: "revoke" | "replace") => {
     setConfirm(action);
-    setOpenConvs(0);
+    setOpenConvs("loading");
     api
       .get<TagVerification>(`/tags/${tag.id}/verify`)
       .then((v) => setOpenConvs(v.openConversations))
-      .catch(() => setOpenConvs(0));
+      .catch(() => setOpenConvs("failed"));
   };
   const retireMessage = (base: string) =>
-    openConvs > 0 ? `${base} ${t("tag.openConvs", { n: openConvs })}` : base;
+    openConvs === "loading"
+      ? `${base} ${t("tag.checkingConvs")}`
+      : openConvs === "failed"
+        ? `${base} ${t("tag.checkFailed")}`
+        : openConvs > 0
+          ? `${base} ${t("tag.openConvs", { n: openConvs })}`
+          : base;
 
   const copy = async () => {
     const ok = await copyText(tag.url);
@@ -276,6 +282,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
         title={t("tag.revokeTitle")}
         message={retireMessage(t("tag.revokeBody"))}
         confirmLabel={t("tag.revoke")}
+        confirmDisabled={openConvs === "loading"}
         onClose={() => setConfirm(null)}
         onConfirm={async () => {
           await api.post(`/tags/${tag.id}/revoke`);
@@ -288,6 +295,7 @@ function TagDetails({ tag, onClose, onChanged }: { tag: Tag; onClose: () => void
         title={t("tag.replaceTitle")}
         message={retireMessage(t("tag.replaceBody"))}
         confirmLabel={t("tag.replace")}
+        confirmDisabled={openConvs === "loading"}
         tone="primary"
         onClose={() => setConfirm(null)}
         onConfirm={async () => {

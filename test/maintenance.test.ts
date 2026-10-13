@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SystemStatus } from "../src/shared/schemas";
 import { exportDocumentSchema } from "../src/worker/db/export";
 import { runMaintenance } from "../src/worker/services/maintenance";
 import { apiJson } from "./helpers/api";
@@ -89,6 +90,47 @@ describe("maintenance", () => {
     expect(await ids("blocks")).toEqual(["b-active", "b-forever"]);
   });
 
+  it("closes conversations blocked through an address whose block has expired", async () => {
+    const id = await ownerId();
+    const hash = (c: string) => c.repeat(64);
+    const conv = (cid: string, ip: string | null) =>
+      env.DB.prepare(
+        `INSERT INTO conversations (id, owner_id, finder_token_hash, finder_ip_hmac, subject, status, closed_at, last_message_at, created_at)
+         VALUES (?1, ?2, ?3, ?4, 's', 'blocked', ?5, ?5, ?5)`,
+      ).bind(cid, id, hash(cid.slice(-1)), ip, ago(8));
+    const block = (bid: string, ip: string, expires: string | null) =>
+      env.DB.prepare(
+        "INSERT INTO blocks (id, owner_id, ip_hmac, expires_at, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+      ).bind(bid, id, ip, expires, ago(8));
+    await env.DB.batch([
+      conv("c-expired-1", "ip-expired"),
+      block("b-expired-1", "ip-expired", ago(1)),
+      conv("c-shared-2", "ip-shared"),
+      block("b-shared-old", "ip-shared", ago(1)),
+      block("b-shared-live", "ip-shared", new Date(Date.now() + DAY).toISOString()),
+      conv("c-forever-3", "ip-forever"),
+      block("b-forever-3", "ip-forever", null),
+      conv("c-noip-4", null),
+    ]);
+
+    await runMaintenance(env, new Date());
+    await runMaintenance(env, new Date());
+
+    const status = async (cid: string) =>
+      (
+        await env.DB.prepare("SELECT status FROM conversations WHERE id = ?")
+          .bind(cid)
+          .first<{ status: string }>()
+      )?.status;
+    expect(await status("c-expired-1")).toBe("closed");
+    expect(await status("c-shared-2")).toBe("blocked");
+    expect(await status("c-forever-3")).toBe("blocked");
+    expect(await status("c-noip-4")).toBe("blocked");
+    expect(await count("SELECT COUNT(*) AS n FROM blocks WHERE id IN ('b-expired-1', 'b-shared-old')")).toBe(
+      0,
+    );
+  });
+
   it("writes one valid backup per day and records it", async () => {
     const id = await ownerId();
     const now = new Date();
@@ -105,8 +147,8 @@ describe("maintenance", () => {
         id,
       ),
     ).toBe(1);
-    const { lastBackupAt } = await apiJson<{ lastBackupAt: string | null }>("GET", "/system");
-    expect(lastBackupAt).not.toBeNull();
+    const { maintenance } = await apiJson<SystemStatus>("GET", "/system");
+    expect(maintenance.lastBackupAt).not.toBeNull();
   });
 
   it("keeps only the 30 newest backups of each owner", async () => {

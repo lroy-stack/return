@@ -99,7 +99,6 @@ export const en = {
   "item.locationHint": "For example: Hotel Aurora, room 214, Lisbon",
   "item.conversations": "Conversations",
   "item.noConversations": "No conversations for this item.",
-  "item.manage": "Manage",
   "item.archive": "Archive",
   "item.archiveHint":
     "Archived items are hidden from the inventory and their tags stop working for finders until restored.",
@@ -128,7 +127,7 @@ export const en = {
   "itemForm.privateDetails": "Private details",
   "itemForm.serial": "Serial number",
   "itemForm.value": "Estimated value",
-  "itemForm.valueInvalid": "Enter an amount such as 1200, 89.90 or 1,234.50",
+  "itemForm.valueInvalid": "Enter an amount with at most two decimals, such as 1200, 89.90 or 1,234.50",
   "itemForm.currency": "Currency",
   "itemForm.currencyInvalid": "3 letters, e.g. EUR",
   "itemForm.acquiredOn": "Acquired on",
@@ -167,12 +166,10 @@ export const en = {
   "private.removeBody": "The document is deleted permanently.",
   // tags on item
   "itemTags.title": "Tags",
-  "itemTags.desc": "QR/NFC tags that lead finders to this item's page.",
   "itemTags.add": "Add tag",
   "itemTags.added": "Tag created",
   "itemTags.empty": "No tag yet. Add one, print it and attach it to the item.",
   "itemTags.print": "Print cards",
-  "itemTags.manage": "Manage tag {label}",
   // trackers
   "trackers.title": "Trackers",
   "trackers.help":
@@ -237,7 +234,6 @@ export const en = {
   "recovery.empty": "No loss recorded for this item.",
   "recovery.update": "Update recovery",
   "recovery.status": "Status",
-  "recovery.recoveredOn": "Recovered {when}",
   "recovery.s.lost": "Lost",
   "recovery.s.found": "Found",
   "recovery.s.returning": "Returning",
@@ -763,6 +759,11 @@ export const en = {
   "system.filesOk": "Restored. All {n} files are present.",
   "contents.remove": "Take {name} out of this container",
   "contents.removed": "{name} taken out",
+  "recovery.currentNotes": "Current notes",
+  "recovery.notesHint":
+    "Saving replaces all current notes, including the dated entries added with status changes. The history above is not affected.",
+  "tag.checkingConvs": "Checking open conversations…",
+  "tag.checkFailed": "Could not check for open conversations. The tag will still be retired.",
 } as const satisfies Record<string, string>;
 
 export type MessageKey = keyof typeof en;
@@ -861,7 +862,6 @@ export const es: Record<MessageKey, string> = {
   "item.locationHint": "Por ejemplo: Hotel Aurora, habitación 214, Lisboa",
   "item.conversations": "Conversaciones",
   "item.noConversations": "Sin conversaciones para este objeto.",
-  "item.manage": "Gestionar",
   "item.archive": "Archivar",
   "item.archiveHint":
     "Los objetos archivados se ocultan del inventario y sus etiquetas dejan de funcionar para quien las escanee hasta que lo restaures.",
@@ -889,7 +889,7 @@ export const es: Record<MessageKey, string> = {
   "itemForm.privateDetails": "Datos privados",
   "itemForm.serial": "Número de serie",
   "itemForm.value": "Valor estimado",
-  "itemForm.valueInvalid": "Escribe un importe como 1200, 89,90 o 1.234,50",
+  "itemForm.valueInvalid": "Escribe un importe con dos decimales como máximo, p. ej. 1200, 89,90 o 1.234,50",
   "itemForm.currency": "Moneda",
   "itemForm.currencyInvalid": "3 letras, p. ej. EUR",
   "itemForm.acquiredOn": "Fecha de compra",
@@ -925,12 +925,10 @@ export const es: Record<MessageKey, string> = {
   "private.removeTitle": "¿Quitar el documento?",
   "private.removeBody": "El documento se borra definitivamente.",
   "itemTags.title": "Etiquetas",
-  "itemTags.desc": "Etiquetas QR/NFC que llevan a la página de este objeto.",
   "itemTags.add": "Añadir etiqueta",
   "itemTags.added": "Etiqueta creada",
   "itemTags.empty": "Aún sin etiqueta. Añade una, imprímela y pégala al objeto.",
   "itemTags.print": "Imprimir tarjetas",
-  "itemTags.manage": "Gestionar etiqueta {label}",
   "trackers.title": "Rastreadores",
   "trackers.help":
     "RETURN no puede leer Buscar (Find My) ni ninguna red de rastreadores. Anota aquí el rastreador y escribe tú la última ubicación conocida. Ayuda de Apple:",
@@ -992,7 +990,6 @@ export const es: Record<MessageKey, string> = {
   "recovery.empty": "No hay pérdidas registradas para este objeto.",
   "recovery.update": "Actualizar recuperación",
   "recovery.status": "Estado",
-  "recovery.recoveredOn": "Recuperado {when}",
   "recovery.s.lost": "Perdido",
   "recovery.s.found": "Encontrado",
   "recovery.s.returning": "En devolución",
@@ -1515,4 +1512,10 @@ export const es: Record<MessageKey, string> = {
   "system.filesOk": "Restaurado. Los {n} archivos están presentes.",
   "contents.remove": "Sacar {name} de este contenedor",
   "contents.removed": "{name} sacado",
+  "recovery.currentNotes": "Notas actuales",
+  "recovery.notesHint":
+    "Al guardar se reemplazan todas las notas actuales, incluidas las entradas con fecha añadidas en cambios de estado. El historial de arriba no cambia.",
+  "tag.checkingConvs": "Comprobando conversaciones abiertas…",
+  "tag.checkFailed":
+    "No se pudo comprobar si hay conversaciones abiertas. La etiqueta se retirará igualmente.",
 };

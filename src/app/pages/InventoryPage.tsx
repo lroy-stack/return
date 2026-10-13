@@ -97,6 +97,12 @@ export function InventoryPage() {
   }, [wantsNew]);
   const dq = useDebounced(q.trim(), 250);
   const urlQ = search.get("q") ?? "";
+  // Back/forward or the Inventory tab changed ?q from outside: the box follows. Our own writes carry `dq`, so a
+  // later keystroke is never overwritten.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: react to the URL only
+  useEffect(() => {
+    if (urlQ.trim() !== dq) setQ(urlQ);
+  }, [urlQ]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: write the debounced text to the URL only when it changes
   useEffect(() => {
     if (dq !== urlQ.trim()) setFilters({ q: dq });

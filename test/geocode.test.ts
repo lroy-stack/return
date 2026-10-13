@@ -442,5 +442,11 @@ describe("picked places, cache retention and budgets", () => {
         name: "Stub Place",
       });
     });
+
+    it("stub reverse has no result in open ocean, like Nominatim", () => {
+      expect(stubNominatim("/reverse", { lat: "-30.12345", lon: "-30.54321" })).toEqual({
+        error: "Unable to geocode",
+      });
+    });
   });
 });

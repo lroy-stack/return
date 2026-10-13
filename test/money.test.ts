@@ -13,8 +13,6 @@ describe("parseMoneyToCents", () => {
     ["12.5", "en", 1250],
     ["1.234", "es", 123400],
     ["1,234", "en", 123400],
-    ["1,234", "es", 123],
-    ["1.234", "en", 123],
     ["1.234.567", "es", 123456700],
     ["1,234,567.89", "en", 123456789],
     ["1 234,50", "es", 123450],
@@ -28,8 +26,19 @@ describe("parseMoneyToCents", () => {
     expect(parseMoneyToCents("  ", "en")).toBeUndefined();
   });
 
-  it.each(["abc", "-5", "1.23.4567", "1,2,3.5", "12€", "1.234,5.6", ","])("rejects %s", (text) => {
-    expect(parseMoneyToCents(text, "en")).toBeNull();
+  it.each([
+    ["1,234", "es"],
+    ["1.234", "en"],
+    ["12.345", "en"],
+    ["1.23.4567", "en"],
+    ["1,2,3.5", "en"],
+    ["1.234,5.6", "en"],
+    ["abc", "en"],
+    ["-5", "en"],
+    ["12€", "en"],
+    [",", "en"],
+  ])("refuses %s in %s (not an amount, or ambiguous)", (text, locale) => {
+    expect(parseMoneyToCents(text, locale)).toBeNull();
   });
 });
 
@@ -41,7 +50,7 @@ describe("centsToInput", () => {
   });
 
   it("round-trips through the parser", () => {
-    for (const locale of ["en", "es", "de"]) {
+    for (const locale of ["en", "es", "de", "ar-EG", "fa"]) {
       expect(parseMoneyToCents(centsToInput(98765, locale), locale)).toBe(98765);
     }
   });

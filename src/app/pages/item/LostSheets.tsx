@@ -253,7 +253,12 @@ function RecoveryForm({
           label={t("recovery.status")}
           options={options}
           value={status}
-          onChange={setStatus}
+          onChange={(next) => {
+            setStatus(next);
+            // Edits already typed in the notes are not lost: they become the note of the change.
+            if (next !== recovery.status && notes !== (recovery.notes ?? "") && !changeNote)
+              setChangeNote(notes);
+          }}
           hint={changed ? undefined : t("recovery.statusHint")}
         />
         {changed ? (
@@ -261,6 +266,7 @@ function RecoveryForm({
             key="change"
             label={t("recovery.changeNote")}
             hint={t("recovery.changeNoteHint")}
+            dir="auto"
             value={changeNote}
             onChange={(e) => setChangeNote(e.target.value)}
             error={form.errors.notes}
@@ -270,10 +276,12 @@ function RecoveryForm({
           <TextArea
             key="notes"
             label={t("lost.notes")}
+            hint={t("recovery.notesHint")}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             error={form.errors.notes}
             maxLength={2000}
+            dir="auto"
           />
         )}
         <FormError message={form.formError} />

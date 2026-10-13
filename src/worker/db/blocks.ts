@@ -68,3 +68,28 @@ export async function removeBlock(db: D1Database, ownerId: string, id: string): 
     db.prepare("DELETE FROM blocks WHERE id = ? AND owner_id = ?").bind(id, ownerId),
   ]);
 }
+
+/**
+ * Statements that end the blocks whose time is up: the expired rows go away and conversations
+ * blocked through an address that no longer has an active block become "closed" — the same
+ * state `removeBlock` leaves. Safe to repeat.
+ */
+export function expireBlocksStatements(
+  db: D1Database,
+  ownerId: string,
+  nowIso: string,
+): D1PreparedStatement[] {
+  return [
+    db
+      .prepare("DELETE FROM blocks WHERE owner_id = ? AND expires_at IS NOT NULL AND expires_at < ?")
+      .bind(ownerId, nowIso),
+    db
+      .prepare(
+        `UPDATE conversations SET status = 'closed'
+          WHERE owner_id = ?1 AND status = 'blocked' AND finder_ip_hmac IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.owner_id = ?1 AND b.ip_hmac = conversations.finder_ip_hmac
+                              AND (b.expires_at IS NULL OR b.expires_at >= ?2))`,
+      )
+      .bind(ownerId, nowIso),
+  ];
+}

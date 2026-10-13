@@ -78,7 +78,7 @@ test("4a. the finder proposes a meeting point, the owner accepts it in the inbox
   const suggestion = finder.getByRole("listitem").filter({ hasText: place });
   await expect(suggestion).toContainText("Waiting for an answer");
   await expect(suggestion).toContainText("Proposed by you");
-  await expect(suggestion).toContainText(/18:30/);
+  await expect(suggestion).toContainText(/18:30 \([^)]+\)/);
   await expect(suggestion).toContainText(instructions);
   // Directions only appear once both sides agreed; the finder cannot accept their own plan.
   await expect(suggestion.getByRole("link", { name: /Maps/ })).toHaveCount(0);

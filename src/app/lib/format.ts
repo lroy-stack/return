@@ -98,9 +98,9 @@ export function nowLocalInput(): string {
 function separators(locale: string): { group: string; decimal: string } {
   const parts = (() => {
     try {
-      return new Intl.NumberFormat(locale).formatToParts(1234567.8);
+      return new Intl.NumberFormat(locale, { numberingSystem: "latn" }).formatToParts(1234567.8);
     } catch {
-      return new Intl.NumberFormat(undefined).formatToParts(1234567.8);
+      return new Intl.NumberFormat(undefined, { numberingSystem: "latn" }).formatToParts(1234567.8);
     }
   })();
   return {
@@ -114,7 +114,8 @@ const count = (text: string, char: string) => text.split(char).length - 1;
 /**
  * "1.234,50", "1,234.50", "12,50", "12.5" -> cents; undefined when empty, null when it is not an amount.
  * With both separators the last one is the decimal point. A lone separator is the decimal point when it is the
- * locale's, or when it is not followed by exactly three digits ("12.500" in en is 12.5; "1.234" in es is 1234).
+ * locale's, or when it is not followed by exactly three digits ("1.234" in es is 1234). More than two decimals
+ * ("12.345", "1.234" in en) is ambiguous and returns null.
  */
 export function parseMoneyToCents(value: string, locale = "en"): number | null | undefined {
   const text = value.replace(/[\s'\u2019\u00a0\u202f]/g, "");
@@ -136,8 +137,11 @@ export function parseMoneyToCents(value: string, locale = "en"): number | null |
   if (fraction.includes(group)) return null;
   // Grouped digits must be well formed: 1.234.567, not 1.23.4567.
   if (whole.includes(group) && !new RegExp(`^\\d{1,3}(\\${group}\\d{3})+$`).test(whole)) return null;
-  const n = Number(`${whole.split(group).join("")}.${fraction || "0"}`);
-  return Number.isFinite(n) ? Math.round(n * 100) : null;
+  // Money has two decimals: a third digit is either a typo or a grouping mark in the wrong place, so refuse it
+  // instead of guessing ("12.345"). Cents are computed with integers, never through a float.
+  if (fraction.length > 2) return null;
+  const cents = Number(whole.split(group).join("")) * 100 + Number(fraction.padEnd(2, "0"));
+  return Number.isSafeInteger(cents) ? cents : null;
 }
 
 /** 123456 -> "1234.56" for an English panel, "1234,56" for Spanish: what the money field shows when editing. */
@@ -149,6 +153,7 @@ export function centsToInput(cents: number | null | undefined, locale = "en"): s
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
         useGrouping: false,
+        numberingSystem: "latn",
       }).format(cents / 100),
     () => (cents / 100).toFixed(2),
   );
