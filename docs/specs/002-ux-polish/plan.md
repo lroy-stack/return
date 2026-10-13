@@ -9,3 +9,8 @@
 | 5 | Apply library + audit fixes across panel pages; place names + place search in panel | frontend-engineer | `src/app/pages/**`, `src/app/lib/**` | build + e2e |
 | 6 | Browser QA at 4 widths, axe, E2E update | ui-qa / test-engineer | `e2e/**` | `pnpm test:e2e` |
 | 7 | Deploy + verify production | lead | — | curl + panel check |
+
+## Status (2026-10-13)
+- [x] 1–5 implemented and committed; lint · typecheck · 348 vitest green; 112 + 40 browser captures (375–1440, light/dark) without overflow or axe serious/critical issues
+- [x] Production: migration 0002 applied (pre-migration point in time 2026-10-13T16:38Z for Time Travel), version f085e30f deployed and verified (finder page hero/action bar, headers, Access redirect, no /api on public host, new columns present)
+- [ ] 6 E2E suite update (in progress)
