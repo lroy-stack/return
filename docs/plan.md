@@ -53,30 +53,31 @@ Sources: docs/audit/mobile-audit.md (M-xx), docs/audit/final-audit.md (F-xx, L-x
 docs/specs/004-mobile-ux, docs/architecture/next-phases.md, ADRs 0002–0006, code reviews. Status: ▶ in progress ·
 ☐ to do · ? verify whether already done. Production today = commit 152aa11 (PWA + owner push, migrations 0001–0005).
 
-### J1 · Mobile UX — spec 004 (▶ agents running)
-- ▶ 4M.1 Finder location: apply on first tap (no silent drop, M-01), single consent, two-stage geolocation, iOS/Android
+### J1 · Mobile UX — spec 004 (✓ delivered in 1c9c549 + bbb0f11, open items listed)
+- ✓ 4M.1 Finder location: apply on first tap (no silent drop, M-01), single consent, two-stage geolocation, iOS/Android
   re-enable guidance, retry, webview hint, error styling (M-07).
-- ▶ 4M.2 Finder conversation as a chat: one timeline, anchored composer with safe areas, autogrow, send without jump,
-  live refresh in place, smart scroll, aria-live; remove floating bar on /t (M-08); 320 px Turnstile overflow (M-09);
-  native share of the private link; footer tap targets (M-06).
-- ▶ 4M.3 Owner chat: full-height layout, compact autogrow composer, no gap above the tab bar, hide tab bar while typing,
-  "New messages" pill, finder name as title, read receipts (M-05).
-- ▶ 4M.4 Owner location (owner decision: build it all): server API + accuracy rules ▶; panel "Use my location" in
-  return plans and item location, "Share my location" in the thread ☐ (after the API contract) (M-02).
-- ▶ 4M.5 Install: Android install button, iOS Add-to-Home-Screen guide, one-time hint (M-03); theme-color follows the
-  choice, no flash on load, theme controls in sync (M-12); landscape shell (M-10).
-- ▶ 4M.6 No focus zoom (fields ≥ 16 px on touch, M-04) + regression test; settings apply instantly / save bar never
-  covers navigation (M-11).
-- ▶ 4M.7 P2: place search "unavailable"; tag QR as PNG + share; share keeps user activation; offline keeps language;
-  formatted note timestamps; confirm "Add tag"; 404 for unknown slugs; duplicate requests; Trackers link relabel.
-- ☐ Panel P2s not yet assigned: NFC is text only (Web NFC on Android — decide); finder webview hint is in 4M.1.
+- ✓ 4M.2 Finder conversation as a chat: one timeline, anchored composer with safe areas, autogrow, send without jump,
+  live refresh in place, smart scroll, aria-live; floating bar removed on /t (M-08); 320 px Turnstile (M-09); native
+  share of the private link; footer tap targets (M-06).
+- ✓ 4M.3 Owner chat: full-height layout, compact autogrow composer, no gap above the tab bar, "New messages" pill,
+  finder name as title. ☐ Read receipts (M-05): `finder_read_at` is stored, but ConversationDetail lacks
+  `finderReadAt`, so the panel cannot show it yet.
+- ✓ 4M.4 Owner location: API with accuracy rules; "Use my location" in return plans and item location; "Share my
+  location" in the thread, hourly cap per conversation (M-02).
+- ✓ 4M.5 Install: Android install button, iOS Add-to-Home-Screen guide, one-time hint (M-03); theme-color follows the
+  choice, no flash on load (M-12); landscape shell (M-10).
+- ✓ 4M.6 No focus zoom: fields ≥ 16 px on touch (M-04) with regression test; settings apply instantly (M-11).
+- ✓ 4M.7 P2: place search "unavailable"; tag QR as PNG + share; share keeps user activation; offline keeps language;
+  formatted note timestamps; confirm "Add tag"; 404 for unknown settings slugs; duplicate requests; Trackers link relabel.
+- ☐ Web NFC decision: NFC is still text only (Web NFC is Chrome/Android only; Safari cannot write).
 - ☐ 4M.9 Verification: real iOS Safari in the Simulator (runtime download failed on a network timeout — retry),
   ui-qa re-audit at 320/375/393/landscape, code review, deploy.
 
-### J2 · Visual identity (▶)
-- ▶ Custom icon set (grammar, outline + filled tab icons, categories, states) as a shared sprite.
-- ▶ Dimensional luggage illustrations per category as no-photo placeholders, tintable.
-- ☐ Adopt the sprite on finder pages (follow-up from the design agent).
+### J2 · Visual identity (✓ delivered in 1c9c549)
+- ✓ Custom icon set (grammar, outline + filled tab icons, categories, states) as one shared sprite, compiled by
+  `pnpm icons:build`; drift and missing-name checks in `test/icons.test.ts`.
+- ✓ Dimensional luggage illustrations per category as no-photo placeholders, tintable (`src/assets/item-art`).
+- ✓ Sprite adopted on finder pages (`public/p/icons.svg`, served `no-cache`).
 - ☐ Decide: per-item colour field (migration) so illustrations match the real item.
 
 ### J3 · Proof photos and sharing with the finder (▶ ADR 0006 being written)

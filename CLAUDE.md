@@ -22,6 +22,8 @@ Node 24 via fnm, pnpm. Versions pinned in `package.json`; decisions in `docs/dec
 | E2E | `pnpm test:e2e` |
 | Build / deploy | `pnpm build` / `pnpm run release` (needs approval; `pnpm deploy` is a different pnpm built-in) |
 | Regenerate binding types | `pnpm cf-typegen` after editing `wrangler.example.jsonc` (the template) |
+| Compile icons and illustrations | `pnpm icons:build` after editing `src/assets/**` |
+| Regenerate PWA PNG icons | `pnpm icons:pwa` (needs Playwright's Chromium) |
 
 ## Architecture
 - `src/worker/index.ts` — host routing: `PUBLIC_HOST` serves finder pages (`/t/:token`, `/c/:token`),
@@ -34,6 +36,15 @@ Node 24 via fnm, pnpm. Versions pinned in `package.json`; decisions in `docs/dec
 - `src/shared/*` — zod contracts (`schemas.ts`, `settings.ts`), QR, maps links, card layouts. Used by worker and SPA.
 - `src/sw/*` + `vite/sw-plugin.ts` — owner-panel service worker, emitted as `/sw.js` at build (`SW_KILL=1` emits the
   kill switch). Routing rules are the pure `src/shared/sw-routing.ts`. `src/app/*` — owner panel SPA. `public/p/*` — static assets for finder pages (skip the Worker).
+- `public/p/chat.js` + `public/p/location.js` — finder chat and GPS button. Progressive enhancement: forms work without
+  JS. A failed POST may be replayed as a native submit only when the response carries `X-Form-State: 1` (the page
+  re-renders the typed text); any other error stays inline, so a message is never duplicated.
+- `src/app/lib/geolocation.ts` — owner geolocation (two-stage: coarse, then precise). Called only from a tap.
+- Icons: sources in `src/assets/{icons,empty,item-art}`; `pnpm icons:build` writes `src/app/ui/*.generated.ts` and
+  `public/p/icons.svg`. Generated files are never hand-edited. `test/icons.test.ts` fails on drift and on any used
+  icon name that does not exist.
+- Lint config is `biome.jsonc`. The SVG `<title>` rule is off only for icon sources and the generated sprite (the
+  accessible name lives where the icon is used).
 - `migrations/` — D1 migrations. Never edit an applied migration; add `NNNN_*.sql`.
 
 ## Conventions
@@ -66,6 +77,7 @@ Node 24 via fnm, pnpm. Versions pinned in `package.json`; decisions in `docs/dec
 - Anything a service worker may store must pass `isStorable()` in `src/shared/sw-routing.ts`; never add `/api/` or
   `/cdn-cgi/` paths there. Any change to the panel changes `sw.js` (build id), which is how updates roll out.
 - Regenerate PWA icons with `pnpm icons:pwa` (needs Playwright's Chromium); the manifest is `public/manifest.webmanifest`.
+- `public/p/icons.svg` is served `no-cache` (revalidated), not immutable: it is not versioned in its URL.
 
 ## Definition of Done
 - Acceptance criteria met and demonstrated (test, screenshot or command output).

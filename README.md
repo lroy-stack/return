@@ -12,17 +12,24 @@ no shared instance for other people to sign up to.
 
 ## Features
 
-- **Finder pages** (`/t/<token>`) in English, German and Spanish. A finder can see the public card, start a
-  conversation, and share a location after an explicit tap. First contact is protected by Cloudflare Turnstile
-  and per-IP, per-tag and per-conversation rate limits.
+- **Finder pages** (`/t/<token>`) in English, German and Spanish. A finder can see the public card and start a
+  conversation. The conversation is one chat timeline with live refresh: Enter sends, and the finder can share
+  their location in one tap (two-stage geolocation, coarse then precise). First contact is protected by Cloudflare
+  Turnstile and per-IP, per-tag and per-conversation rate limits.
 - **Owner panel** at a separate host, behind Cloudflare Access. Manage items, tags, conversations, return plans
-  and recoveries, and settings.
+  and recoveries, and settings. The conversation view is a chat too. The owner can pick their own location for a
+  return plan or an item, or share it in a conversation, after an explicit tap.
+- **Icons and illustrations**: one custom icon set shared by the panel and the finder pages, and a dimensional
+  illustration per luggage category as the placeholder when there is no photo.
 - **Printable cards**: a card layout (CR80 size, with bleed and trim marks), plus a quick paper card as PNG or PDF.
   Printing notes are in `docs/printing.md`.
 - **Place names** for shared coordinates via OpenStreetMap Nominatim. Coordinates are shown when no name resolves.
 - **Email alerts** to the owner through Cloudflare Email Service (`send_email` binding).
-- **Installable owner PWA** (service worker never caches private data).
-- **Web Push** for the owner: in progress.
+- **Installable owner PWA**: Android install button, iOS Add to Home Screen guide, offline shell, update toast.
+  The service worker never caches private data.
+- **Web Push** to the owner's devices. Payloads carry no message content and are encrypted for each device (RFC 8291).
+- **Planned**: proof photos for items, shared with one finder only through revocable, time-limited grants
+  (ADR 0006).
 
 ## Screenshots
 
@@ -79,10 +86,13 @@ Versions are pinned in `package.json`. Decisions are in `docs/decisions.md`.
 | `src/app/` | Owner panel SPA (React) |
 | `src/shared/` | zod schemas, QR, map links, card layouts; shared by Worker and SPA |
 | `src/sw/` | Owner PWA service worker |
-| `public/p/` | Static files for finder pages (served without the Worker) |
+| `src/assets/` | Icon (`icons/`), empty-state (`empty/`) and luggage illustration (`item-art/`) sources; `pnpm icons:build` compiles them into `src/app/ui/*.generated.ts` and the sprite `public/p/icons.svg` (generated, do not edit) |
+| `public/p/` | Static files for finder pages (served without the Worker): progressive-enhancement scripts, the icon sprite |
+| `vite/` | Vite plugins: service worker build (`sw-plugin.ts`) and icon compilation (`icons.ts`) |
+| `wrangler.example.jsonc` | Committed Wrangler template; the real `wrangler.jsonc` is git-ignored |
 | `migrations/` | D1 SQL migrations; applied migrations are never edited |
 | `test/`, `e2e/` | Unit and integration tests (in workerd), Playwright end-to-end tests |
-| `scripts/` | Release guard, VAPID key generation, icon generation, backup and restore helpers |
+| `scripts/` | Release guard, VAPID key generation, icon build and PWA icon generation, backup and restore helpers |
 | `docs/` | Decisions, security, operations, printing, design system, ADRs, specs, architecture |
 
 ## Run locally
@@ -95,6 +105,14 @@ pnpm install
 cp .dev.vars.example .dev.vars   # local secrets; git-ignored, never commit it
 pnpm db:migrate:local
 pnpm dev                    # panel at http://localhost:5173, tag pages at /t/<token>
+```
+
+Assets (run after changing anything in `src/assets/`, or the PWA icons):
+
+```bash
+pnpm icons:build            # compile src/assets into the generated TypeScript modules and public/p/icons.svg
+pnpm icons:pwa              # regenerate the PWA PNG icons (needs Playwright's Chromium)
+pnpm screenshots            # regenerate the README screenshots with fictional data
 ```
 
 Locally the panel is reachable without Access through a loopback-only development bypass. The dev bypass only
@@ -144,15 +162,16 @@ uses your `wrangler.jsonc` when it exists and the template otherwise.
 
 ## Status and roadmap
 
-Current: finder pages, owner panel, items, tags, conversations, return plans, recoveries, printable cards, place
-names, email alerts and the installable owner PWA.
+Done: finder pages and chat, owner panel, items, tags, conversations, return plans, recoveries, printable cards,
+place names, email alerts, the installable owner PWA, owner Web Push, owner location sharing, and the icon and
+illustration set.
 
 Next, in order (see `docs/architecture/next-phases.md`):
 
-1. Owner Web Push (in progress; ADR 0003)
+1. Proof photos with owner-controlled sharing to one finder (ADR 0006)
 2. Finder PWA and finder push
 3. Sealed end-to-end encrypted conversations (ADR 0004)
-4. Optional native app with Expo (ADR 0005)
+4. Native gate, then optional native app with Expo (ADR 0005)
 
 ## License
 

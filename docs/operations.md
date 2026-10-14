@@ -255,3 +255,12 @@ Every attempt is a `notifications` row (`channel = 'push'`, `recipient` = subscr
 **Debugging.** Logs are structured (`msg: "push delivery"`, subscription id, status, error code such as `http_413` or
 `timeout`; never the endpoint or payload). Non-transient failures are logged at `error` level because they mean a bug in
 our request or a key mismatch.
+
+## 11. Migration 0006 and static assets (mobile UX release)
+- `migrations/0006_owner_locations.sql` is additive: three nullable `REAL` columns on `items` (`last_known_lat`,
+  `last_known_lng`, `last_known_accuracy_m`). Old rows read NULL. The previous Worker keeps working against the
+  migrated schema, so the usual order holds: migrate, then deploy. Record the D1 Time Travel bookmark first.
+- `/p/icons.svg` (the shared icon sprite for finder pages) is served `Cache-Control: no-cache` (`public/_headers`):
+  it is revalidated, not immutable, because its URL is not versioned. Finders pick up a new sprite on the next load.
+- `/theme-init.js` (the blocking script that applies the theme before first paint) is in the owner PWA precache list
+  (`vite/sw-plugin.ts`), so the offline shell applies the same theme as the online one.
