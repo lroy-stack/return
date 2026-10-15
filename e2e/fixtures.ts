@@ -322,15 +322,44 @@ export function geolocationCalls(page: Page): Promise<number> {
 /**
  * Horizontal overflow of the current page. Mobile browsers widen `window.innerWidth` to fit overflowing
  * content, so the configured viewport width is the reliable reference; `innerWidth` is returned as well.
+ * `offenders` names the innermost elements and the frames that end past it, so a failure says what sticks out.
+ * Frames are found through Playwright: a widget's iframe may sit in a closed shadow root page scripts cannot see.
  */
 export async function horizontalOverflow(
   page: Page,
-): Promise<{ scrollWidth: number; innerWidth: number; viewportWidth: number }> {
-  const metrics = await page.evaluate(() => ({
-    scrollWidth: document.scrollingElement?.scrollWidth ?? 0,
-    innerWidth: window.innerWidth,
-  }));
-  return { ...metrics, viewportWidth: page.viewportSize()?.width ?? metrics.innerWidth };
+): Promise<{ scrollWidth: number; innerWidth: number; viewportWidth: number; offenders: string }> {
+  const limit = page.viewportSize()?.width;
+  const metrics = await page.evaluate((limit) => {
+    const edge = (limit ?? window.innerWidth) + 0.5;
+    const name = (el: Element) =>
+      el.tagName.toLowerCase() + (el.id ? `#${el.id}` : "") + [...el.classList].map((c) => `.${c}`).join("");
+    const wide = [...document.body.querySelectorAll("*")].filter(
+      (el) => el.getBoundingClientRect().right > edge,
+    );
+    const innermost = wide.filter((el) => !wide.some((other) => other !== el && el.contains(other)));
+    return {
+      scrollWidth: document.scrollingElement?.scrollWidth ?? 0,
+      innerWidth: window.innerWidth,
+      offenders: innermost.slice(0, 5).map((el) => {
+        const r = el.getBoundingClientRect();
+        return `${name(el)} ${r.left.toFixed(1)}..${r.right.toFixed(1)}`;
+      }),
+    };
+  }, limit);
+  const viewportWidth = limit ?? metrics.innerWidth;
+  for (const frame of page.frames().filter((f) => f !== page.mainFrame())) {
+    const element = await frame.frameElement().catch(() => null);
+    const box = await element?.boundingBox();
+    if (!element || !box || box.x + box.width <= viewportWidth + 0.5) continue;
+    const css = await element.evaluate((el: Element) => {
+      const s = getComputedStyle(el);
+      return `width ${s.width}, min-width ${s.minWidth}, zoom ${s.zoom}, style="${el.getAttribute("style") ?? ""}"`;
+    });
+    metrics.offenders.push(
+      `iframe ${frame.url().slice(0, 60)} ${box.x.toFixed(1)}..${(box.x + box.width).toFixed(1)} (${css})`,
+    );
+  }
+  return { ...metrics, viewportWidth, offenders: metrics.offenders.join("; ") || "none found" };
 }
 
 /**
@@ -375,7 +404,10 @@ export async function decodeQr(page: Page, src: string, size?: number): Promise<
           jsQR: (d: Uint8ClampedArray, w: number, h: number, o: object) => { data: string } | null;
         }
       ).jsQR;
-      return jsQR(pixels.data, width, height, { inversionAttempts: "dontInvert" })?.data ?? null;
+      // An empty payload is a misread, not a read: with a finder pattern hidden (the proof watermark), jsQR can
+      // pair the two left with a false one elsewhere on the sheet and decode a phantom version-1 symbol to "".
+      // Every QR this app prints carries a URL.
+      return jsQR(pixels.data, width, height, { inversionAttempts: "dontInvert" })?.data || null;
     },
     { src, size },
   );
