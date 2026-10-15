@@ -19,8 +19,10 @@ test("14. the tags page filters by status and offers selection on active tags on
     hasText: tagged.secrets.name,
   });
   const select = (label: string) => page.getByRole("checkbox", { name: `Select ${label}` });
-  const activeRow = rows.filter({ hasText: tagged.tag.label });
-  const revokedRow = rows.filter({ hasText: revoked.label });
+  // Match the row title exactly: a label like "170" is also a substring of item names such as "T-a041700b".
+  const rowLabelled = (label: string) => rows.filter({ has: page.getByText(label, { exact: true }) });
+  const activeRow = rowLabelled(tagged.tag.label);
+  const revokedRow = rowLabelled(revoked.label);
 
   // Active is the default: the active tag is listed and selectable, the revoked one is not listed.
   await expect(page.getByRole("radio", { name: "Active" })).toBeChecked();
