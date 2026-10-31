@@ -350,14 +350,14 @@ test.describe("chat on small and short screens", () => {
     await openTagPage(page, tagged.tag.url);
     await waitForTurnstile(page);
     for (const label of ["tag page"]) {
-      const { scrollWidth, viewportWidth } = await horizontalOverflow(page);
-      expect(scrollWidth, label).toBeLessThanOrEqual(viewportWidth);
+      const { scrollWidth, viewportWidth, offenders } = await horizontalOverflow(page);
+      expect(scrollWidth, `${label}, sticking out: ${offenders}`).toBeLessThanOrEqual(viewportWidth);
     }
     const conversation = await startConversation(tagged);
     await page.goto(conversation.path);
     await page.getByLabel("Share a place or propose a return plan").click();
-    const { scrollWidth, viewportWidth } = await horizontalOverflow(page);
-    expect(scrollWidth, "conversation page").toBeLessThanOrEqual(viewportWidth);
+    const { scrollWidth, viewportWidth, offenders } = await horizontalOverflow(page);
+    expect(scrollWidth, `conversation page, sticking out: ${offenders}`).toBeLessThanOrEqual(viewportWidth);
     const row = await page.locator(".composer").boundingBox();
     expect(row?.x ?? 0).toBeGreaterThanOrEqual(0);
     expect((row?.x ?? 0) + (row?.width ?? 0)).toBeLessThanOrEqual(320);
